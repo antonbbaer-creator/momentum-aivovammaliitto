@@ -1,0 +1,16 @@
+# Backup files
+*.backup.html
+
+# macOS
+.DS_Store
+._*
+
+# Large original photos (use thumbs instead)
+media/valokuvat/
+
+# IDE
+.vscode/
+.idea/
+
+# Claude
+.claude/
