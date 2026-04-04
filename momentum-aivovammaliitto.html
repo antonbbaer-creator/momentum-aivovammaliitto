@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Momentum — Aivovammaliitto</title>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <title>Hetki — Aivovammaliitto</title>
+  <link rel="icon" type="image/png" href="media/brand/hetki-logo-black.png">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -12,14 +13,15 @@
   <script src="media/manifest.js"></script>
   <style>
     :root {
-      --pri:#1a8fc4;--pri-l:#3aabde;--pri-d:#0d6e99;
-      --bg:#06080c;--card:#0c0f15;--card2:#111520;--elev:#161b27;--border:#1e2433;--border-l:#2a3144;
+      --pri:#0776ab;--pri-l:#1a9dd4;--pri-d:#055a82;
+      --bg:#0a0c10;--card:#10131a;--card2:#161a24;--elev:#1a1f2c;--border:#222838;--border-l:#2e3648;
       --t1:#f0f2f5;--t2:#8b95a8;--t3:#505a6e;
-      --green:#2dd4a0;--yellow:#f5c542;--red:#ef6b6b;--purple:#9b7cf6;--purple-l:#b49bfa;--pink:#e879a8;--orange:#f09a52;--cyan:#4ad8d8;
+      --green:#1f6766;--green-l:#2a8a89;--yellow:#e2ab2a;--red:#ef6b6b;--purple:#9b7cf6;--purple-l:#b49bfa;--pink:#e7698e;--orange:#f09a52;--cyan:#2a8a89;
       --r:10px;--rl:14px;--rxl:18px;
-      --glass:rgba(12,15,21,.7);--glass-border:rgba(255,255,255,.06);
+      --glass:rgba(10,12,16,.75);--glass-border:rgba(255,255,255,.06);
       --shadow:0 4px 24px rgba(0,0,0,.3);
-      --font:'Plus Jakarta Sans',system-ui,sans-serif;
+      --font:'DM Sans',system-ui,sans-serif;
+      --hetki-blue:#0776ab;--hetki-green:#1f6766;--hetki-pink:#e7698e;--hetki-yellow:#e2ab2a;--hetki-black:#3b3a35;
     }
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.5;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
@@ -53,22 +55,23 @@
     /* ─── BUTTONS ─── */
     .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.65rem 1.25rem;border-radius:var(--r);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s;border:none;font-family:var(--font);letter-spacing:-.01em}
     .btn:disabled{opacity:.35;cursor:not-allowed}
-    .btn-primary{background:linear-gradient(135deg,var(--pri),var(--pri-l));color:#fff;box-shadow:0 2px 12px rgba(26,143,196,.25)}
-    .btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 20px rgba(26,143,196,.35)}
+    .btn-primary{background:linear-gradient(135deg,var(--pri),var(--pri-l));color:#fff;box-shadow:0 2px 12px rgba(7,118,171,.25)}
+    .btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 20px rgba(7,118,171,.35)}
     .btn-secondary{background:var(--elev);color:var(--t1);border:1px solid var(--border)}
     .btn-secondary:hover:not(:disabled){border-color:var(--pri);background:rgba(26,143,196,.05)}
     .btn-ghost{background:transparent;color:var(--t2);padding:.4rem .6rem;font-weight:500}
     .btn-ghost:hover{color:var(--t1)}
     .btn-lg{padding:.875rem 2rem;font-size:.95rem;border-radius:var(--rl)}
     .btn-sm{padding:.4rem .8rem;font-size:.78rem}
-    .btn-hetki{background:linear-gradient(135deg,var(--pri-d),var(--pri),var(--pri-l));background-size:200% 200%;animation:gradientShift 3s ease infinite;color:#fff;font-weight:700;box-shadow:0 2px 16px rgba(26,143,196,.3)}
-    .btn-hetki:hover{transform:translateY(-1px);box-shadow:0 4px 24px rgba(26,143,196,.4)}
+    .btn-hetki{background:linear-gradient(135deg,var(--pri-d),var(--pri),var(--hetki-green));background-size:200% 200%;animation:gradientShift 3s ease infinite;color:#fff;font-weight:700;box-shadow:0 2px 16px rgba(7,118,171,.3)}
+    .btn-hetki:hover{transform:translateY(-1px);box-shadow:0 4px 24px rgba(7,118,171,.4)}
 
     /* ─── ONBOARDING ─── */
     .onb{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;background:radial-gradient(ellipse at 50% 0%,rgba(26,143,196,.08) 0%,transparent 60%)}
     .onb-wrap{width:100%;max-width:640px;animation:scaleIn .5s ease}
     .onb-logo{text-align:center;margin-bottom:2.5rem}
-    .onb-logo h1{font-size:2.8rem;font-weight:800;letter-spacing:-.04em;background:linear-gradient(135deg,var(--pri-l),var(--purple-l));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .onb-logo h1{font-size:2.8rem;font-weight:800;letter-spacing:-.04em;color:var(--t1)}
+    .onb-logo img{height:48px;width:auto;margin-bottom:.5rem}
     .onb-logo p{color:var(--t2);font-size:.9rem;margin-top:.3rem;font-weight:500}
     .onb-card{background:var(--card);border:1px solid var(--glass-border);border-radius:var(--rxl);overflow:hidden;backdrop-filter:blur(20px);box-shadow:var(--shadow)}
     .onb-head{padding:1.75rem 2rem;border-bottom:1px solid var(--border)}
@@ -108,7 +111,7 @@
     .ai-bub{display:flex;gap:.6rem;animation:fadeUp .3s ease}
     .ai-bub.user{flex-direction:row-reverse}
     .ai-av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:800;flex-shrink:0}
-    .ai-bub.assistant .ai-av{background:linear-gradient(135deg,var(--pri),var(--purple));color:#fff}
+    .ai-bub.assistant .ai-av{background:linear-gradient(135deg,var(--pri),var(--hetki-green));color:#fff}
     .ai-bub.user .ai-av{background:var(--elev);color:var(--t2)}
     .ai-bub-c{padding:.8rem 1rem;border-radius:var(--rl);max-width:85%;font-size:.85rem;line-height:1.65}
     .ai-bub.assistant .ai-bub-c{background:var(--elev);border:1px solid var(--border)}
@@ -125,7 +128,8 @@
     .app{display:flex;min-height:100vh}
     .side{width:264px;background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;height:100vh;z-index:50}
     .side-hd{padding:1.5rem 1.5rem 1.25rem;border-bottom:1px solid var(--border)}
-    .logo-text{font-weight:800;font-size:1.15rem;letter-spacing:-.03em;background:linear-gradient(135deg,var(--pri-l),var(--purple-l));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .logo-text{font-weight:800;font-size:1.15rem;letter-spacing:-.03em;color:var(--t1);display:flex;align-items:center;gap:.6rem}
+    .logo-text img{height:22px;width:auto}
     .ws-box{margin:.875rem 1.25rem;padding:.8rem 1rem;background:var(--elev);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;transition:all .2s}
     .ws-box:hover{border-color:var(--pri)}
     .ws-name{font-weight:700;font-size:.82rem;letter-spacing:-.01em}
@@ -134,15 +138,15 @@
     .nav-i{display:flex;align-items:center;padding:.7rem 1.5rem;color:var(--t2);cursor:pointer;font-size:.87rem;position:relative;transition:all .15s;gap:.65rem;font-weight:500}
     .nav-i:hover{background:rgba(255,255,255,.02);color:var(--t1)}
     .nav-i.act{color:var(--pri-l);background:linear-gradient(90deg,rgba(26,143,196,.08),transparent)}
-    .nav-i.act::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:3px;background:linear-gradient(180deg,var(--pri),var(--purple));border-radius:0 3px 3px 0}
+    .nav-i.act::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:3px;background:linear-gradient(180deg,var(--pri),var(--hetki-green));border-radius:0 3px 3px 0}
     .nav-ic{width:20px;text-align:center;font-size:.85rem;opacity:.5}
     .nav-i.act .nav-ic{opacity:1}
     .badge{margin-left:auto;font-size:.6rem;padding:.2rem .55rem;border-radius:9999px;font-weight:700}
-    .badge-ai{background:linear-gradient(135deg,var(--pri),var(--purple));color:#fff}
+    .badge-ai{background:linear-gradient(135deg,var(--pri),var(--hetki-green));color:#fff}
     .badge-n{background:rgba(45,212,160,.12);color:var(--green);border:1px solid rgba(45,212,160,.2)}
     .badge-c{background:var(--elev);color:var(--t3);border:1px solid var(--border)}
     .side-ft{padding:1rem 1.25rem;border-top:1px solid var(--border);display:flex;align-items:center;gap:.75rem}
-    .ava{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--pri),var(--purple));display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#fff}
+    .ava{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--pri),var(--hetki-green));display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#fff}
 
     .main{flex:1;margin-left:264px;display:flex;flex-direction:column}
     .topbar{background:rgba(12,15,21,.85);backdrop-filter:blur(16px);padding:1rem 2rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10}
@@ -158,7 +162,7 @@
     .stat:nth-child(1)::after{background:linear-gradient(90deg,var(--pri),var(--pri-l))}.stat:nth-child(1){animation-delay:0s}
     .stat:nth-child(2)::after{background:linear-gradient(90deg,var(--green),var(--cyan))}.stat:nth-child(2){animation-delay:.05s}
     .stat:nth-child(3)::after{background:linear-gradient(90deg,var(--yellow),var(--orange))}.stat:nth-child(3){animation-delay:.1s}
-    .stat:nth-child(4)::after{background:linear-gradient(90deg,var(--purple),var(--pink))}.stat:nth-child(4){animation-delay:.15s}
+    .stat:nth-child(4)::after{background:linear-gradient(90deg,var(--hetki-pink),var(--hetki-yellow))}.stat:nth-child(4){animation-delay:.15s}
     .stat-num{font-size:2.2rem;font-weight:800;letter-spacing:-.03em}
     .stat-lbl{font-size:.72rem;color:var(--t2);font-weight:500;margin-top:.1rem}
     .dash{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.25rem}
@@ -171,10 +175,10 @@
 
     /* AI Recommend card */
     .ai-rec{background:linear-gradient(135deg,rgba(26,143,196,.08),rgba(155,124,246,.06));border:1px solid rgba(26,143,196,.15);border-radius:var(--rxl);padding:1.5rem;margin-bottom:1.75rem;display:flex;gap:1.25rem;align-items:flex-start;animation:fadeUp .5s ease .1s backwards}
-    .ai-rec-av{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--pri),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;color:#fff;flex-shrink:0;animation:glow 2s ease infinite}
+    .ai-rec-av{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--pri),var(--hetki-green));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;color:#fff;flex-shrink:0;animation:glow 2s ease infinite}
     .ai-rec-body{flex:1}
     .ai-rec-body h3{font-size:.95rem;font-weight:700;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem}
-    .ai-rec-body h3 .ai-badge{font-size:.55rem;padding:.2rem .5rem;border-radius:9999px;background:linear-gradient(135deg,var(--pri),var(--purple));color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+    .ai-rec-body h3 .ai-badge{font-size:.55rem;padding:.2rem .5rem;border-radius:9999px;background:linear-gradient(135deg,var(--pri),var(--hetki-green));color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
     .ai-rec-body p{font-size:.85rem;color:var(--t2);line-height:1.6}
     .ai-rec-actions{display:flex;gap:.5rem;margin-top:.75rem}
 
@@ -233,7 +237,7 @@
     .proposal h5{font-size:.85rem;font-weight:700;margin-bottom:.35rem;color:var(--pri-l);display:flex;justify-content:space-between;letter-spacing:-.01em}
     .proposal>p{font-size:.85rem;color:var(--t2);margin:0;font-weight:500}
     .res-tag{display:inline-flex;align-items:center;gap:.25rem;font-size:.65rem;padding:.2rem .5rem;border-radius:5px;margin-top:.5rem;margin-right:.3rem;font-weight:600}
-    .strat-tag{display:inline-flex;align-items:center;gap:.25rem;font-size:.65rem;padding:.2rem .55rem;border-radius:9999px;background:rgba(155,124,246,.12);color:var(--purple-l);font-weight:600;border:1px solid rgba(155,124,246,.15)}
+    .strat-tag{display:inline-flex;align-items:center;gap:.25rem;font-size:.65rem;padding:.2rem .55rem;border-radius:9999px;background:rgba(7,118,171,.12);color:var(--pri-l);font-weight:600;border:1px solid rgba(7,118,171,.15)}
     .alloc{margin:1.25rem 0}
     .alloc-lbl{font-size:.72rem;color:var(--t3);margin-bottom:.35rem;display:flex;justify-content:space-between;font-weight:600}
     .alloc-track{height:6px;background:var(--bg);border-radius:3px;overflow:hidden;display:flex}
@@ -271,7 +275,7 @@
     .cal-d:hover{background:var(--card2)}
     .cal-d.oth{opacity:.25}
     .cal-d.tod{background:rgba(26,143,196,.04)}
-    .cal-d.tod::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--pri),var(--purple))}
+    .cal-d.tod::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--pri),var(--hetki-green))}
     .cal-dn{font-size:.72rem;font-weight:600;margin-bottom:.3rem}
     .cal-ev{font-size:.57rem;padding:.15rem .3rem;border-radius:3px;margin-bottom:.15rem;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;transition:opacity .15s}
     .cal-ev:hover{opacity:.75}
@@ -292,7 +296,7 @@
 
     /* ─── STRATEGY ─── */
     .strat-lay{display:grid;grid-template-columns:1fr 360px;gap:2rem}
-    .strat-hero{background:linear-gradient(135deg,var(--pri-d),var(--pri),var(--purple));background-size:200% 200%;animation:gradientShift 6s ease infinite;border-radius:var(--rxl);padding:2.5rem;position:relative;overflow:hidden}
+    .strat-hero{background:linear-gradient(135deg,var(--pri-d),var(--pri),var(--hetki-green));background-size:200% 200%;animation:gradientShift 6s ease infinite;border-radius:var(--rxl);padding:2.5rem;position:relative;overflow:hidden}
     .strat-hero::before{content:'';position:absolute;top:-50%;right:-15%;width:350px;height:350px;background:radial-gradient(circle,rgba(255,255,255,.06) 0%,transparent 70%)}
     .strat-hero .ob{display:inline-flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.12);padding:.4rem .95rem;border-radius:9999px;font-size:.72rem;margin-bottom:1.1rem;font-weight:600;backdrop-filter:blur(4px)}
     .strat-hero h2{font-size:1.8rem;font-weight:800;letter-spacing:-.03em;margin-bottom:.3rem;position:relative}
@@ -312,7 +316,7 @@
     .brand-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem}
     .brand{background:var(--elev);border-radius:var(--r);padding:1.15rem;text-align:center;border:1px solid transparent;transition:all .2s}
     .brand:hover{border-color:var(--pri)}
-    .brand .bic{width:40px;height:40px;background:linear-gradient(135deg,var(--pri),var(--purple));border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto .75rem;font-weight:800;font-size:.8rem;color:#fff}
+    .brand .bic{width:40px;height:40px;background:linear-gradient(135deg,var(--pri),var(--hetki-green));border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto .75rem;font-weight:800;font-size:.8rem;color:#fff}
     .brand h4{font-size:.82rem;font-weight:700;margin-bottom:.25rem}
     .brand p{font-size:.7rem;color:var(--t2);font-weight:500}
     .tone-list{display:flex;flex-wrap:wrap;gap:.4rem}
@@ -328,7 +332,7 @@
     .ai-chat-in-area{padding:.75rem;border-top:1px solid var(--border);display:flex;gap:.5rem}
     .chat-in{flex:1;background:var(--elev);border:1px solid var(--border);border-radius:var(--r);padding:.6rem .875rem;font-size:.8rem;color:var(--t1);font-family:var(--font)}
     .chat-in:focus{outline:none;border-color:var(--pri)}
-    .chat-send{background:linear-gradient(135deg,var(--pri),var(--purple));border:none;border-radius:var(--r);width:36px;height:36px;cursor:pointer;color:#fff;font-weight:800;font-size:.9rem;transition:all .2s}
+    .chat-send{background:linear-gradient(135deg,var(--pri),var(--hetki-green));border:none;border-radius:var(--r);width:36px;height:36px;cursor:pointer;color:#fff;font-weight:800;font-size:.9rem;transition:all .2s}
     .chat-send:disabled{opacity:.3}
     .chat-send:hover:not(:disabled){transform:scale(1.05)}
 
@@ -858,7 +862,7 @@ const TR={
     login:'Kirjaudu',create:'Luo',edit:'Muokkaa',close:'Sulje',send:'Lähetä',back:'Takaisin',
     confirm:'Vahvista',yes:'Kyllä',no:'Ei',select:'Valitse',selected:'Valittu',update:'Päivitä',
     // Onboarding
-    obWelcome:'Viestinnän strateginen työkalu',obLogin:'Kirjaudu sisaan',obStart:'Aloita käyttämään Momentumia',
+    obWelcome:'Viestinnän strateginen työkalu',obLogin:'Kirjaudu sisaan',obStart:'Aloita käyttämään Hetkiä',
     obEmail:'Sähköposti',obPassword:'Salasana',obGoogle:'Jatka Google-tililla',obOr:'tai',
     obOrgTitle:'Organisaation tiedot',obOrgSub:'Perustiedot ohjaavat AI:n ehdotuksia',
     obOrgName:'Organisaation nimi',obOrgNamePh:'esim. Helsingin kulttuuriyhdistys',
@@ -870,9 +874,9 @@ const TR={
     obUpload:'Lataa PDF',obUploadSub:'Strategiadokumentti tai viestintäsuunnitelma',
     obFreeTextPh:'Kerro organisaatiosi viestintästrategiasta vapaasti...',
     obTip:'AI jäsentää tekstistäsi tavoitteet, kohderyhmät, arvot ja sävyt automaattisesti. Voit tarkentaa myöhemmin.',
-    obAITitle:'Momentum AI analysoi',obAISub:'Varmistaa että ymmärtää organisaatiosi',
-    obCorrect:'Kyllä, oikein!',obRefine:'Haluan tarkentaa myöhemmin',obDone:'Aloitetaan',obGoMomentum:'Siirry Momentumiin',
-    obGreat:'Loistavaa! Voit aina tarkentaa näitä Strategia-sivulta.\n\nTervetuloa Momentumiin!',
+    obAITitle:'Hetki AI analysoi',obAISub:'Varmistaa että ymmärtää organisaatiosi',
+    obCorrect:'Kyllä, oikein!',obRefine:'Haluan tarkentaa myöhemmin',obDone:'Aloitetaan',obGoHetki:'Siirry Hetkiin',
+    obGreat:'Loistavaa! Voit aina tarkentaa näitä Strategia-sivulta.\n\nTervetuloa Hetkiin!',
     // Strategy
     goals:'Tavoitteet',brandValues:'Brändiarvot',audiences:'Kohderyhmät',tones:'Viestinnän sävyt',
     channels:'Viestintäkanavat',addGoal:'Lisää tavoite',editGoal:'Muokkaa tavoitetta',
@@ -929,7 +933,7 @@ const TR={
     // General
     freePlan:'Free Plan',admin:'Admin',user:'Käyttäjä',organization:'Organisaatio',added:'Lisätty!',updated:'Päivitetty!',
     // Home
-    welcomeTo:'Tervetuloa Momentumiin',welcomeDesc:'Momentum on älykäs viestinnän suunnittelukumppani. Syötä strategiasi \u2014 AI auttaa suunnittelemaan ja toteuttamaan viestintää.',
+    welcomeTo:'Tervetuloa Hetkiin',welcomeDesc:'Hetki on älykäs viestinnän suunnittelukumppani. Syötä strategiasi \u2014 AI auttaa suunnittelemaan ja toteuttamaan viestintää.',
     home:'Etusivu',getStarted:'Aloita tasta',
     step1Title:'Syota strategia',step1Desc:'Lataa viestintästrategia tai täytä tavoitteet, kohderyhmät ja arvot.',
     step2Title:'Luo projekti',step2Desc:'Kuvaile tarpeesi ja AI ehdottaa toteutuksen strategiasi pohjalta.',
@@ -959,7 +963,7 @@ const TR={
     add:'Add',save:'Save',cancel:'Cancel',delete:'Delete',skip:'Skip',next:'Continue',
     login:'Log in',create:'Create',edit:'Edit',close:'Close',send:'Send',back:'Back',
     confirm:'Confirm',yes:'Yes',no:'No',select:'Select',selected:'Selected',update:'Update',
-    obWelcome:'Strategic communication tool',obLogin:'Log in',obStart:'Start using Momentum',
+    obWelcome:'Strategic communication tool',obLogin:'Log in',obStart:'Start using Hetki',
     obEmail:'Email',obPassword:'Password',obGoogle:'Continue with Google',obOr:'or',
     obOrgTitle:'Organization details',obOrgSub:'Basic details guide AI suggestions',
     obOrgName:'Organization name',obOrgNamePh:'e.g. Helsinki Cultural Association',
@@ -971,9 +975,9 @@ const TR={
     obUpload:'Upload PDF',obUploadSub:'Strategy document or communication plan',
     obFreeTextPh:'Describe your organization\'s communication strategy freely...',
     obTip:'AI will structure goals, audiences, values and tones from your text automatically. You can refine later.',
-    obAITitle:'Momentum AI analyzing',obAISub:'Making sure it understands your organization',
-    obCorrect:'Yes, correct!',obRefine:'I\'ll refine later',obDone:'Let\'s go',obGoMomentum:'Go to Momentum',
-    obGreat:'Excellent! You can always refine these from the Strategy page.\n\nWelcome to Momentum!',
+    obAITitle:'Hetki AI analyzing',obAISub:'Making sure it understands your organization',
+    obCorrect:'Yes, correct!',obRefine:'I\'ll refine later',obDone:'Let\'s go',obGoHetki:'Go to Hetki',
+    obGreat:'Excellent! You can always refine these from the Strategy page.\n\nWelcome to Hetki!',
     goals:'Goals',brandValues:'Brand values',audiences:'Audiences',tones:'Communication tones',
     channels:'Communication channels',addGoal:'Add goal',editGoal:'Edit goal',
     addAudience:'Add audience',editAudience:'Edit audience',addValue:'Add brand value',editValue:'Edit brand value',
@@ -1021,7 +1025,7 @@ const TR={
     waitingQuote:'Awaiting quote',processing:'Processing',noOrders:'No orders',
     createAndQuote:'Create project and request quote',fromHetki:'Ordered from Hetki',
     freePlan:'Free Plan',admin:'Admin',user:'User',organization:'Organization',added:'Added!',updated:'Updated!',
-    welcomeTo:'Welcome to Momentum',welcomeDesc:'Momentum is your smart communication planning partner. Enter your strategy \u2014 AI helps you plan and execute communications.',
+    welcomeTo:'Welcome to Hetki',welcomeDesc:'Hetki is your smart communication planning partner. Enter your strategy \u2014 AI helps you plan and execute communications.',
     home:'Home',getStarted:'Get started',
     step1Title:'Enter strategy',step1Desc:'Upload your communication strategy or fill in goals, audiences and values.',
     step2Title:'Create a project',step2Desc:'Describe your need and AI suggests execution based on your strategy.',
@@ -1262,11 +1266,11 @@ function Onboarding({onDone,toast,setOrg,t}){
   };
 
   const clickOpt=async o=>{setMsgs(p=>[...p,{r:'user',c:o}]);setTyping(true);await wait(1000);setTyping(false);
-    if(!done){setMsgs(p=>[...p,{r:'assistant',c:'Loistavaa! Voit aina tarkentaa näitä Strategia-sivulta.\n\nTervetuloa Momentumiin!',opts:['Aloitetaan \u2192']}]);setDone(true)}
+    if(!done){setMsgs(p=>[...p,{r:'assistant',c:'Loistavaa! Voit aina tarkentaa näitä Strategia-sivulta.\n\nTervetuloa Hetkiin!',opts:['Aloitetaan \u2192']}]);setDone(true)}
     else onDone()};
 
   if(step===0)return(
-    <div className="onb"><div className="onb-wrap"><div className="onb-logo"><h1>Momentum</h1><p>{t('obWelcome')}</p></div>
+    <div className="onb"><div className="onb-wrap"><div className="onb-logo"><img src="media/brand/hetki-logo-white.png" alt="Hetki" style={{height:48,width:'auto'}}/><h1>Hetki</h1><p>{t('obWelcome')}</p></div>
     <div className="onb-card"><div className="onb-head"><h2>{t('obLogin')}</h2><p>{t('obStart')}</p></div>
     <div className="onb-body">
       <div className="field"><label>{t('obEmail')}</label><input className="input" placeholder="nimi@yritys.fi"/></div>
@@ -1279,7 +1283,7 @@ function Onboarding({onDone,toast,setOrg,t}){
     </div><div className="onb-foot"><div className="onb-dots"><div className="onb-dot active"/><div className="onb-dot"/><div className="onb-dot"/><div className="onb-dot"/></div><div/></div></div></div></div>);
 
   if(step===1)return(
-    <div className="onb"><div className="onb-wrap"><div className="onb-logo"><h1>Momentum</h1><p>{t('obOrgTitle')}</p></div>
+    <div className="onb"><div className="onb-wrap"><div className="onb-logo"><img src="media/brand/hetki-logo-white.png" alt="Hetki" style={{height:48,width:'auto'}}/><h1>Hetki</h1><p>{t('obOrgTitle')}</p></div>
     <div className="onb-card"><div className="onb-head"><h2>{t('obOrgTitle')}</h2><p>{t('obOrgSub')}</p></div>
     <div className="onb-body">
       <div className="field"><label>{t('obOrgName')} *</label><input className="input" placeholder={t('obOrgNamePh')} value={name} onChange={e=>setName(e.target.value)}/></div>
@@ -1313,7 +1317,7 @@ function Onboarding({onDone,toast,setOrg,t}){
     </div><div className="onb-foot"><div className="onb-dots"><div className="onb-dot done"/><div className="onb-dot active"/><div className="onb-dot"/><div className="onb-dot"/></div><button className="btn btn-primary" onClick={()=>setStep(2)} disabled={!name.trim()}>Jatka \u2192</button></div></div></div></div>);
 
   if(step===2)return(
-    <div className="onb"><div className="onb-wrap" style={{maxWidth:700}}><div className="onb-logo"><h1>Momentum</h1><p>{t('obStratTitle')}</p></div>
+    <div className="onb"><div className="onb-wrap" style={{maxWidth:700}}><div className="onb-logo"><img src="media/brand/hetki-logo-white.png" alt="Hetki" style={{height:48,width:'auto'}}/><h1>Hetki</h1><p>{t('obStratTitle')}</p></div>
     <div className="onb-card"><div className="onb-head"><h2>{t('obStratTitle')}</h2><p>{t('obStratSub')}</p></div>
     <div className="onb-body" style={{maxHeight:'65vh',overflowY:'auto'}}>
       <div className="strat-opts">
@@ -1355,9 +1359,9 @@ function Onboarding({onDone,toast,setOrg,t}){
 
   // Step 3: AI analysis
   return(
-    <div className="onb"><div className="onb-wrap" style={{maxWidth:700}}><div className="onb-logo"><h1>Momentum</h1><p>{t('obAITitle')}</p></div>
+    <div className="onb"><div className="onb-wrap" style={{maxWidth:700}}><div className="onb-logo"><img src="media/brand/hetki-logo-white.png" alt="Hetki" style={{height:48,width:'auto'}}/><h1>Hetki</h1><p>{t('obAITitle')}</p></div>
     <div className="onb-card"><div className="onb-head"><div style={{display:'flex',alignItems:'center',gap:'.75rem'}}>
-      <div className="ai-av" style={{width:38,height:38,fontSize:'.8rem',background:'linear-gradient(135deg,var(--pri),var(--purple))',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,color:'#fff'}}>AI</div>
+      <div className="ai-av" style={{width:38,height:38,fontSize:'.8rem',background:'linear-gradient(135deg,var(--pri),var(--hetki-green))',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,color:'#fff'}}>AI</div>
       <div><h2 style={{fontSize:'1.05rem'}}>{t('obAITitle')}</h2><p style={{fontSize:'.75rem',color:'var(--t2)',marginTop:'.1rem',fontWeight:500}}>{t('obAISub')}</p></div></div></div>
     <div className="onb-body" style={{maxHeight:400,overflowY:'auto'}}>
       <div className="ai-dialog">{msgs.map((m,i)=>(
@@ -1367,7 +1371,7 @@ function Onboarding({onDone,toast,setOrg,t}){
         </div></div>))}
         {typing&&<div className="ai-bub assistant"><div className="ai-av">AI</div><div className="ai-bub-c"><div className="typing"><span/><span/><span/></div></div></div>}
         <div ref={ref}/></div>
-    </div><div className="onb-foot"><div className="onb-dots"><div className="onb-dot done"/><div className="onb-dot done"/><div className="onb-dot done"/><div className="onb-dot active"/></div>{done&&<button className="btn btn-primary" onClick={onDone}>{t('obGoMomentum')} \u2192</button>}</div></div></div></div>);}
+    </div><div className="onb-foot"><div className="onb-dots"><div className="onb-dot done"/><div className="onb-dot done"/><div className="onb-dot done"/><div className="onb-dot active"/></div>{done&&<button className="btn btn-primary" onClick={onDone}>{t('obGoHetki')} \u2192</button>}</div></div></div></div>);}
 
 // ══════ DASHBOARD ══════
 function Home({go,toast,prj,events,org,t,chStats,setChStats}){
@@ -1393,7 +1397,7 @@ function Home({go,toast,prj,events,org,t,chStats,setChStats}){
   const now=new Date();const upcoming=events.filter(e=>{if(e.month===undefined)return false;const d=new Date(e.year,e.month,e.day);return d>=now&&d<=new Date(now.getTime()+14*86400000)}).slice(0,5);
 
   const steps=[
-    {key:'strat',title:t('step1Title'),desc:t('step1Desc'),icon:'\u25c8',done:hasStrat,action:()=>go('strategy'),color:'var(--purple)'},
+    {key:'strat',title:t('step1Title'),desc:t('step1Desc'),icon:'\u25c8',done:hasStrat,action:()=>go('strategy'),color:'var(--hetki-pink)'},
     {key:'prj',title:t('step2Title'),desc:t('step2Desc'),icon:'+',done:hasPrj,action:()=>go('brief'),color:'var(--pri-l)'},
     {key:'cal',title:t('step3Title'),desc:t('step3Desc'),icon:'\u25a6',done:hasEv,action:()=>go('calendar'),color:'var(--yellow)'}];
 
@@ -1487,7 +1491,7 @@ function Home({go,toast,prj,events,org,t,chStats,setChStats}){
         {tkSection.includes('stats')&&<div className="dc-b">
           <div className="tk-stats">
             <div className="tk-stat"><div className="num" style={{color:'var(--pri-l)'}}>{ctx.stats.tbiAnnual.toLocaleString()}</div><div className="lbl">{t('tbiPerYear')}</div></div>
-            <div className="tk-stat"><div className="num" style={{color:'var(--purple)'}}>{ctx.stats.avhAnnual.toLocaleString()}</div><div className="lbl">{t('avhPerYear')}</div></div>
+            <div className="tk-stat"><div className="num" style={{color:'var(--hetki-pink)'}}>{ctx.stats.avhAnnual.toLocaleString()}</div><div className="lbl">{t('avhPerYear')}</div></div>
             <div className="tk-stat"><div className="num" style={{color:'var(--green)'}}>{ctx.stats.combinedLiving.toLocaleString()}</div><div className="lbl">{t('livingWith')}</div></div>
             <div className="tk-stat"><div className="num" style={{color:'var(--orange)'}}>{ctx.stats.withFamilies.toLocaleString()}</div><div className="lbl">{t('affectsTotal')}</div></div>
             <div className="tk-stat"><div className="num" style={{color:'var(--yellow)'}}>100+</div><div className="lbl">{t('dailyNewStat')}</div></div>
@@ -1592,7 +1596,7 @@ function Brief({toast,prj,setPrj,go,org,t}){
     {loading&&<div className="ai-resp"><div className="ai-resp-h" style={{padding:'1.5rem'}}><div className="ava" style={{width:36,height:36,fontSize:'.8rem'}}>AI</div><div style={{flex:1}}><div style={{fontWeight:600}}>AI analysoi tarpeitanne...</div><div style={{fontSize:'.78rem',color:'var(--t3)',fontWeight:500}}>Strategia · Resurssit · Budjetti</div></div><div className="typing" style={{marginLeft:'auto'}}><span/><span/><span/></div></div></div>}
 
     {resp&&<div className="ai-resp">
-      <div className="ai-resp-h"><div className="ava" style={{width:36,height:36,fontSize:'.8rem'}}>AI</div><div><h4>Momentum AI</h4><p>Perustuu {org.s||org.name||'organisaation'} strategiaan</p></div>{resp.goals&&<div style={{marginLeft:'auto',display:'flex',gap:'.4rem'}}>{resp.goals.map((g,i)=><span key={i} className="strat-tag">{'\u27e1'} {g}</span>)}</div>}</div>
+      <div className="ai-resp-h"><div className="ava" style={{width:36,height:36,fontSize:'.8rem'}}>AI</div><div><h4>Hetki AI</h4><p>Perustuu {org.s||org.name||'organisaation'} strategiaan</p></div>{resp.goals&&<div style={{marginLeft:'auto',display:'flex',gap:'.4rem'}}>{resp.goals.map((g,i)=><span key={i} className="strat-tag">{'\u27e1'} {g}</span>)}</div>}</div>
       <div className="ai-resp-b">
         <div className="prelim"><div className="ic">💡</div><div className="tx">{t('preliminary')}</div></div>
         {resp.warn&&<div className="budget-warn">{resp.warn}</div>}
@@ -1843,7 +1847,7 @@ function Strat({toast,org,setOrg,t,chStats}){
                 render:g=><span>{g.m!=='\u2014'&&<strong>{g.m}</strong>}{g.m!=='\u2014'?' \u2014 ':''}{g.t}</span>},
               {key:'auds',items:parseResults.auds,label:t('audiences'),color:'var(--pri-l)',icon:'\ud83d\udc65',
                 render:a=><span><strong>{a.n}</strong>{a.d?' \u2014 '+a.d.slice(0,50):''}</span>},
-              {key:'vals',items:parseResults.vals,label:t('brandValues'),color:'var(--purple)',icon:'\u2b50',
+              {key:'vals',items:parseResults.vals,label:t('brandValues'),color:'var(--hetki-pink)',icon:'\u2b50',
                 render:v=><span><strong>{v.t}</strong>{v.d?' \u2014 '+v.d.slice(0,40):''}</span>},
               {key:'tone',items:parseResults.tone,label:t('tones'),color:'var(--yellow)',icon:'\ud83c\udfa8',
                 render:tn=><span>{tn}</span>}
@@ -2374,10 +2378,10 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
   const goTo=(page)=>{setV(page);setMobNav(false)};
   if(!ob)return<><Toasts t={toasts}/><Onboarding onDone={()=>setOB(true)} toast={add} setOrg={setOrg} t={t}/></>;
   const nav=[{id:'home',l:t('home'),ic:'\u25c9'},{id:'strategy',l:t('strategy'),ic:'\u25c8'},{id:'brief',l:t('newProject'),ic:'+',badge:true},{id:'pipeline',l:t('projects'),ic:'\u2630',cnt:prj.length},{id:'calendar',l:t('calendar'),ic:'\u25a6'},{id:'media',l:'Mediapankki',ic:'\ud83d\uddbc\ufe0f'}];
-  const hdr={home:{t:t('home'),s:(org.s||org.name||'Momentum')},brief:{t:t('newProject'),s:'AI'},pipeline:{t:t('projects'),s:prj.length+' '+t('projects').toLowerCase()},calendar:{t:t('calendar'),s:events.length+' '+t('publications_plural')},strategy:{t:t('strategy'),s:org.slogan||t('strategy')},media:{t:'Mediapankki',s:'Valokuvat, videot ja grafiikat'},settings:{t:t('settings'),s:t('manageOrg')}};
+  const hdr={home:{t:t('home'),s:(org.s||org.name||'Hetki')},brief:{t:t('newProject'),s:'AI'},pipeline:{t:t('projects'),s:prj.length+' '+t('projects').toLowerCase()},calendar:{t:t('calendar'),s:events.length+' '+t('publications_plural')},strategy:{t:t('strategy'),s:org.slogan||t('strategy')},media:{t:'Mediapankki',s:'Valokuvat, videot ja grafiikat'},settings:{t:t('settings'),s:t('manageOrg')}};
   const h=hdr[v]||hdr.home;
   const navContent=<>
-    <div className="side-hd" style={{position:'relative'}}><div className="logo-text">Momentum</div></div>
+    <div className="side-hd" style={{position:'relative'}}><div className="logo-text"><img src="media/brand/hetki-logo-white.png" alt="Hetki"/></div></div>
     <div className="ws-box" onClick={()=>goTo('settings')}><div className="ws-name">{org.name||'Organisaatio'}</div><div className="ws-plan">Free Plan</div></div>
     <nav style={{flex:1,padding:'.5rem 0',overflowY:'auto'}}>
       <div className="nav-sec">{t('tools')}</div>
