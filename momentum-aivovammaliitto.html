@@ -845,13 +845,13 @@ const AVL_CONTEXT={
 };
 
 const presetChannels=[
-  {name:'Instagram',color:'#E1306C',ic:'📷'},{name:'Facebook',color:'#1877F2',ic:'📘'},
-  {name:'TikTok',color:'#00f2ea',ic:'🎵'},{name:'LinkedIn',color:'#0A66C2',ic:'💼'}];
+  {name:'Instagram',color:'#E1306C',ic:'IG'},{name:'Facebook',color:'#1877F2',ic:'FB'},
+  {name:'TikTok',color:'#00f2ea',ic:'TT'},{name:'LinkedIn',color:'#0A66C2',ic:'LI'}];
 const extraChannels=[
-  {name:'Uutiskirje',color:'#fb923c',ic:'📧'},{name:'Sisäinen viestintä',color:'#2dd4a0',ic:'🏢'},
-  {name:'Nettisivut',color:'#9b7cf6',ic:'🌐'},{name:'Blogi',color:'#f5c542',ic:'📝'},
-  {name:'YouTube',color:'#FF0000',ic:'📺'},{name:'Podcast',color:'#8B5CF6',ic:'🎙️'},
-  {name:'Sähköposti',color:'#f09a52',ic:'✉️'},{name:'WhatsApp',color:'#25D366',ic:'💬'}];
+  {name:'Uutiskirje',color:'#fb923c',ic:'UK'},{name:'Sisäinen viestintä',color:'#2dd4a0',ic:'SV'},
+  {name:'Nettisivut',color:'#9b7cf6',ic:'WW'},{name:'Blogi',color:'#f5c542',ic:'BL'},
+  {name:'YouTube',color:'#FF0000',ic:'YT'},{name:'Podcast',color:'#8B5CF6',ic:'PC'},
+  {name:'Sähköposti',color:'#f09a52',ic:'SP'},{name:'WhatsApp',color:'#25D366',ic:'WA'}];
 const colorPalette=['#E1306C','#1877F2','#00f2ea','#0A66C2','#fb923c','#2dd4a0','#9b7cf6','#f5c542','#FF0000','#8B5CF6','#f09a52','#25D366','#e879a8','#4ad8d8','#ef6b6b','#34d399'];
 const getChColor=(org,chName)=>{const ch=org.channels.find(c=>c.name===chName);return ch?ch.color:'#8b95a8'};
 
@@ -1010,13 +1010,13 @@ const defaultOrgLEF={name:'Lapinlahden Elokuvajuhlat',s:'LLFF',slogan:'Elokuva t
   ],
   tone:['Innostava','Lämmin','Persoonallinen','Asiallinen'],
   channels:[
-    {name:'Instagram',color:'#E1306C',ic:'📷'},
-    {name:'Facebook',color:'#1877F2',ic:'📘'},
-    {name:'TikTok',color:'#00f2ea',ic:'🎵'},
-    {name:'LinkedIn',color:'#0A66C2',ic:'💼'},
-    {name:'Verkkosivut',color:'#5A639C',ic:'🌐'},
-    {name:'Fienta',color:'#ff6b35',ic:'🎟️'},
-    {name:'FilmFreeway',color:'#20c997',ic:'🎬'}
+    {name:'Instagram',color:'#E1306C',ic:'IG'},
+    {name:'Facebook',color:'#1877F2',ic:'FB'},
+    {name:'TikTok',color:'#00f2ea',ic:'TT'},
+    {name:'LinkedIn',color:'#0A66C2',ic:'LI'},
+    {name:'Verkkosivut',color:'#5A639C',ic:'WW'},
+    {name:'Fienta',color:'#ff6b35',ic:'FI'},
+    {name:'FilmFreeway',color:'#20c997',ic:'FF'}
   ],
   team:[
     {name:'Anton Baer',role:'Taiteellinen johtaja',desc:'Festivaalin taiteellinen linja ja kokonaisuus.'},
@@ -1505,7 +1505,7 @@ function Onboarding({onDone,toast,setOrg,t}){
   const isChSel=(name)=>selChs.some(c=>c.name===name);
   const[showExtra,setShowExtra]=useState(false);
   const[customName,setCustomName]=useState('');const[customColor,setCustomColor]=useState('#9b7cf6');
-  const addCustomCh=()=>{if(customName.trim()&&!isChSel(customName)){setSelChs(p=>[...p,{name:customName,color:customColor,ic:'📢'}]);setCustomName('')}};
+  const addCustomCh=()=>{if(customName.trim()&&!isChSel(customName)){setSelChs(p=>[...p,{name:customName,color:customColor,ic:'+'}]);setCustomName('')}};
   const selChannels=selChs.map(c=>c.name);
 
   const addGoal=()=>{if(gt.trim()){setGoals(p=>[...p,{m:gm||'—',t:gt,d:gd,p:0}]);setGm('');setGt('');setGd('')}};
@@ -1607,14 +1607,14 @@ function Onboarding({onDone,toast,setOrg,t}){
     <div className="onb-card"><div className="onb-head"><h2>{t('obStratTitle')}</h2><p>{t('obStratSub')}</p></div>
     <div className="onb-body" style={{maxHeight:'65vh',overflowY:'auto'}}>
       <div className="strat-opts">
-        <div className={`strat-opt ${sMode==='text'?'sel':''}`} onClick={()=>setSMode('text')}><h4>✏️ {t('obFreeText')}</h4><p>{t('obFreeTextSub')}</p></div>
-        <div className={`strat-opt ${sMode==='manual'?'sel':''}`} onClick={()=>setSMode('manual')}><h4>📋 {t('obManual')}</h4><p>{t('obManualSub')}</p></div>
-        <div className={`strat-opt ${sMode==='upload'?'sel':''}`} onClick={()=>setSMode('upload')}><h4>📄 {t('obUpload')}</h4><p>{t('obUploadSub')}</p></div>
+        <div className={`strat-opt ${sMode==='text'?'sel':''}`} onClick={()=>setSMode('text')}><h4>{t('obFreeText')}</h4><p>{t('obFreeTextSub')}</p></div>
+        <div className={`strat-opt ${sMode==='manual'?'sel':''}`} onClick={()=>setSMode('manual')}><h4>{t('obManual')}</h4><p>{t('obManualSub')}</p></div>
+        <div className={`strat-opt ${sMode==='upload'?'sel':''}`} onClick={()=>setSMode('upload')}><h4>{t('obUpload')}</h4><p>{t('obUploadSub')}</p></div>
       </div>
 
       {sMode==='text'&&<div>
         <textarea className="input textarea textarea-lg" placeholder="Kerro organisaatiosi viestintästrategiasta vapaasti. Esim:\n\nTavoitteenamme on kasvattaa kävijämääraa 4500:een. Kohderyhmämme ovat nuoret aikuiset ja perheet. Brändiarvomme ovat ammattimaisuus ja yhteisollisyys. Viestinnän sävy on innoittava ja asiallinen." value={sText} onChange={e=>setSText(e.target.value)}/>
-        <div className="tip-box">💡 AI jäsentää tekstistäsi tavoitteet, kohderyhmät, arvot ja sävyt automaattisesti. Voit tarkentaa myöhemmin.</div>
+        <div className="tip-box">AI jäsentää tekstistäsi tavoitteet, kohderyhmät, arvot ja sävyt automaattisesti. Voit tarkentaa myöhemmin.</div>
       </div>}
 
       {sMode==='manual'&&<div>
@@ -1963,7 +1963,7 @@ function Pipeline({prj,setPrj,toast,t,org}){
 
           {/* Deadline badge */}
           {dl&&<div style={{display:'inline-flex',alignItems:'center',gap:'.3rem',fontSize:'.68rem',fontWeight:600,padding:'.15rem .5rem',borderRadius:4,background:dl.bg,color:dl.color,marginBottom:'.4rem'}}>
-            {'📅'} {p.deadline} {'\u00b7'} {dl.label}
+            {''} {p.deadline} {'\u00b7'} {dl.label}
           </div>}
 
           {/* Task progress */}
@@ -2032,7 +2032,7 @@ function ProjectDetail({project,prj,setPrj,toast,t,onBack}){
         <div style={{display:'flex',gap:'.75rem',marginTop:'.5rem',flexWrap:'wrap',alignItems:'center'}}>
           {/* Deadline with color */}
           {project.deadline?<div style={{display:'inline-flex',alignItems:'center',gap:'.3rem',fontSize:'.75rem',fontWeight:600,padding:'.2rem .6rem',borderRadius:6,background:dl?.bg||'var(--elev)',color:dl?.color||'var(--t2)'}}>
-            {'📅'} {project.deadline} {dl&&<span style={{fontSize:'.65rem'}}>{'\u00b7'} {dl.label}</span>}
+            {''} {project.deadline} {dl&&<span style={{fontSize:'.65rem'}}>{'\u00b7'} {dl.label}</span>}
           </div>:<span style={{fontSize:'.75rem',color:'var(--t3)'}}>Ei deadlinea</span>}
           {/* Edit deadline */}
           <input type="date" className="input" value={project.deadline||''} onChange={e=>update({deadline:e.target.value})} style={{width:'auto',fontSize:'.75rem',padding:'.2rem .5rem'}}/>
@@ -2138,7 +2138,7 @@ function Cal({toast,events,setEvents,org,t}){
   const[filter,setFilter]=useState('all');const[modal,setModal]=useState(null);const[hover,setHover]=useState(null);
   const months=t('months');const monthsShort=t('monthsShort');const ds=t('days');
   const today=new Date();
-  const chList=org.channels.length?org.channels:[{name:'Muu',color:'#8b95a8',ic:'📌'}];
+  const chList=org.channels.length?org.channels:[{name:'Muu',color:'#8b95a8',ic:'--'}];
   const getColor=(chName)=>{const ch=chList.find(c=>c.name===chName);return ch?ch.color:'#8b95a8'};
   const defaultCh=chList[0]?.name||'Muu';
 
@@ -2309,7 +2309,7 @@ function Strat({toast,org,setOrg,t,chStats}){
   const chOpts=org.channels.length?org.channels.map(c=>c.name):['Instagram','Facebook','TikTok','LinkedIn'];
   // Channel management
   const[newChName,setNewChName]=useState('');const[newChColor,setNewChColor]=useState('#9b7cf6');const[showChColors,setShowChColors]=useState(null);
-  const addCh=()=>{if(newChName.trim()&&!org.channels.find(c=>c.name===newChName)){setOrg(p=>({...p,channels:[...p.channels,{name:newChName,color:newChColor,ic:'📢'}]}));setNewChName('');toast('Kanava lisätty!','success')}};
+  const addCh=()=>{if(newChName.trim()&&!org.channels.find(c=>c.name===newChName)){setOrg(p=>({...p,channels:[...p.channels,{name:newChName,color:newChColor,ic:'+'}]}));setNewChName('');toast('Kanava lisätty!','success')}};
   const rmCh=(name)=>setOrg(p=>({...p,channels:p.channels.filter(c=>c.name!==name)}));
   const setChColor=(name,color)=>setOrg(p=>({...p,channels:p.channels.map(c=>c.name===name?{...c,color}:c)}));
 
@@ -2531,6 +2531,7 @@ function MediaBank({toast,t}){
   const manifestFiles=_activeOrg==='lef'?(window.LLFF_MEDIA_MANIFEST||[]):(window.MEDIA_MANIFEST||[]);
   const[meta,setMeta]=useOrgState('media_meta',{});// {id: {tags:[], desc:'', title:''}}
   const[uploadedFiles,setUploadedFiles]=useOrgState('media_uploaded',[]);// drag&drop files stored as small dataURLs
+  const[dragging,setDragging]=useState(false);const dragCounter=useRef(0);
   const[cat,setCat]=useState('all');
   const[search,setSearch]=useState('');
   const[detailIdx,setDetailIdx]=useState(-1);// index in filtered list
