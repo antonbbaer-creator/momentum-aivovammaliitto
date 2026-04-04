@@ -2145,6 +2145,7 @@ function MediaBank({toast,t}){
               {'\u2192'}</button>
 
             {detail.type==='image'&&<img src={detail.path||detail.thumb} alt={getMeta(detail.id).title||detail.name}
+              onError={e=>{if(detail.thumb&&!e.target.dataset.fell){e.target.dataset.fell='1';e.target.src=detail.thumb}}}
               style={{maxWidth:'calc(100% - 100px)',maxHeight:'85vh',objectFit:'contain',borderRadius:'var(--r)',boxShadow:'0 8px 40px rgba(0,0,0,.5)'}}
               onClick={e=>e.stopPropagation()}/>}
             {detail.type==='video'&&<video src={detail.path} controls autoPlay style={{maxWidth:'calc(100% - 100px)',maxHeight:'85vh',borderRadius:'var(--r)'}} onClick={e=>e.stopPropagation()}/>}
