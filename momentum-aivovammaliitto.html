@@ -2129,24 +2129,25 @@ function MediaBank({toast,t}){
           {detailIdx+1} / {filtered.length}
         </div>
 
-        {/* Prev button */}
-        <button onClick={e=>{e.stopPropagation();goPrev()}} disabled={detailIdx<=0}
-          style={{position:'absolute',left:'1rem',top:'50%',transform:'translateY(-50%)',background:'rgba(0,0,0,.5)',border:'none',color:detailIdx>0?'#fff':'rgba(255,255,255,.2)',fontSize:'1.5rem',width:48,height:48,borderRadius:'50%',cursor:detailIdx>0?'pointer':'default',zIndex:10,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(8px)'}}>
-          {'\u2190'}</button>
-
-        {/* Next button */}
-        <button onClick={e=>{e.stopPropagation();goNext()}} disabled={detailIdx>=filtered.length-1}
-          style={{position:'absolute',right:'1rem',top:'50%',transform:'translateY(-50%)',background:'rgba(0,0,0,.5)',border:'none',color:detailIdx<filtered.length-1?'#fff':'rgba(255,255,255,.2)',fontSize:'1.5rem',width:48,height:48,borderRadius:'50%',cursor:detailIdx<filtered.length-1?'pointer':'default',zIndex:10,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(8px)'}}>
-          {'\u2192'}</button>
-
         {/* Main content area */}
-        <div style={{display:'flex',width:'100%',height:'100%',padding:'3.5rem 5rem 1rem'}}>
-          {/* Image */}
-          <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',minWidth:0}} onClick={closeDetail}>
+        <div style={{display:'flex',width:'100%',height:'100%',padding:'3.5rem 1rem 1rem'}}>
+          {/* Image area with nav arrows */}
+          <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',minWidth:0,position:'relative'}} onClick={closeDetail}>
+
+            {/* Prev button — left edge of image area */}
+            <button onClick={e=>{e.stopPropagation();goPrev()}} disabled={detailIdx<=0}
+              style={{position:'absolute',left:'.5rem',top:'50%',transform:'translateY(-50%)',background:'rgba(0,0,0,.6)',border:'1px solid rgba(255,255,255,.1)',color:detailIdx>0?'#fff':'rgba(255,255,255,.2)',fontSize:'1.3rem',width:44,height:44,borderRadius:'50%',cursor:detailIdx>0?'pointer':'default',zIndex:10,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(8px)',transition:'all .2s'}}>
+              {'\u2190'}</button>
+
+            {/* Next button — right edge of image area */}
+            <button onClick={e=>{e.stopPropagation();goNext()}} disabled={detailIdx>=filtered.length-1}
+              style={{position:'absolute',right:'.5rem',top:'50%',transform:'translateY(-50%)',background:'rgba(0,0,0,.6)',border:'1px solid rgba(255,255,255,.1)',color:detailIdx<filtered.length-1?'#fff':'rgba(255,255,255,.2)',fontSize:'1.3rem',width:44,height:44,borderRadius:'50%',cursor:detailIdx<filtered.length-1?'pointer':'default',zIndex:10,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(8px)',transition:'all .2s'}}>
+              {'\u2192'}</button>
+
             {detail.type==='image'&&<img src={detail.path||detail.thumb} alt={getMeta(detail.id).title||detail.name}
-              style={{maxWidth:'100%',maxHeight:'85vh',objectFit:'contain',borderRadius:'var(--r)',boxShadow:'0 8px 40px rgba(0,0,0,.5)'}}
+              style={{maxWidth:'calc(100% - 100px)',maxHeight:'85vh',objectFit:'contain',borderRadius:'var(--r)',boxShadow:'0 8px 40px rgba(0,0,0,.5)'}}
               onClick={e=>e.stopPropagation()}/>}
-            {detail.type==='video'&&<video src={detail.path} controls autoPlay style={{maxWidth:'100%',maxHeight:'85vh',borderRadius:'var(--r)'}} onClick={e=>e.stopPropagation()}/>}
+            {detail.type==='video'&&<video src={detail.path} controls autoPlay style={{maxWidth:'calc(100% - 100px)',maxHeight:'85vh',borderRadius:'var(--r)'}} onClick={e=>e.stopPropagation()}/>}
           </div>
 
           {/* Sidebar info panel */}
