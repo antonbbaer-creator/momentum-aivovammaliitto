@@ -561,6 +561,28 @@ const _migrateOrgData=(()=>{
   localStorage.setItem('momentum_migrated_v1','1');
 })();
 
+// Migration v2: replace emoji channel icons with text abbreviations
+const _migrateEmojiIcons=(()=>{
+  if(localStorage.getItem('momentum_migrated_v2'))return;
+  const iconMap={'FB':'FB','IG':'IG','LI':'LI','TT':'TT','YT':'YT','WW':'WW','UK':'UK','JK':'JK','AL':'AL','MT':'MT','LT':'LT','ES':'ES'};
+  Object.keys(localStorage).filter(k=>k.startsWith('momentum_')&&k.includes('_org')).forEach(k=>{
+    try{
+      const data=JSON.parse(localStorage.getItem(k));
+      if(data&&data.channels){
+        let changed=false;
+        data.channels.forEach(ch=>{
+          if(ch.ic&&ch.ic.length>3){
+            const abbr=ch.name==='Facebook'?'FB':ch.name==='Instagram'?'IG':ch.name==='LinkedIn'?'LI':ch.name==='TikTok'?'TT':ch.name==='YouTube'?'YT':ch.name==='Nettisivut'||ch.name==='Verkkosivut'?'WW':ch.name==='Uutiskirje'?'UK':ch.name==='Jäsenkirje'?'JK':ch.name==='Aivoitus-lehti'?'AL':ch.name==='Messut ja tapahtumat'?'MT':ch.name==='Lehdistötiedotteet'?'LT':ch.name==='Esitteet'?'ES':ch.name.substring(0,2).toUpperCase();
+            ch.ic=abbr;changed=true;
+          }
+        });
+        if(changed)localStorage.setItem(k,JSON.stringify(data));
+      }
+    }catch{}
+  });
+  localStorage.setItem('momentum_migrated_v2','1');
+})();
+
 const clearOrgData=(orgId)=>{Object.keys(localStorage).filter(k=>k.startsWith('momentum_'+orgId+'_')).forEach(k=>localStorage.removeItem(k))};
 const clearAllData=()=>{Object.keys(localStorage).filter(k=>k.startsWith('momentum_')).forEach(k=>localStorage.removeItem(k))};
 
@@ -1743,7 +1765,7 @@ function Home({go,toast,prj,events,org,t,chStats,setChStats,orgCtx}){
         <div className="dc-h" style={{cursor:'pointer'}} onClick={()=>togTk('channels')}>
           <h3 style={{display:'flex',alignItems:'center',gap:'.5rem'}}>{t('channelStatsTitle')}{chStats.filter(s=>s.followers).length>0&&<span style={{fontSize:'.6rem',padding:'.15rem .45rem',borderRadius:9999,background:'rgba(45,212,160,.1)',color:'var(--green)',fontWeight:700}}>{chStats.filter(s=>s.followers).length} aktiivista</span>}</h3>
           <div style={{display:'flex',gap:'.4rem',alignItems:'center'}}>
-            {!editingStats&&<button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();startEditStats()}} style={{fontSize:'.7rem'}}>{'\u270f\ufe0f'} {t('editCounts')}</button>}
+            {!editingStats&&<button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();startEditStats()}} style={{fontSize:'.7rem'}}>{t('editCounts')}</button>}
             <span style={{color:'var(--t3)',fontSize:'.75rem'}}>{tkSection.includes('channels')?'\u2212':'+'}</span>
           </div>
         </div>
@@ -2852,7 +2874,7 @@ function MediaBank({toast,t}){
             </div>
 
             {/* Editable title & description */}
-            {!editingMeta?<button className="btn btn-secondary btn-sm" onClick={startEdit} style={{alignSelf:'flex-start'}}>{'\u270f\ufe0f'} Muokkaa tietoja</button>
+            {!editingMeta?<button className="btn btn-secondary btn-sm" onClick={startEdit} style={{alignSelf:'flex-start'}}>Muokkaa tietoja</button>
             :<div style={{display:'flex',flexDirection:'column',gap:'.5rem'}}>
               <div><label style={{fontSize:'.68rem',fontWeight:600,color:'var(--t3)',textTransform:'uppercase'}}>Otsikko</label>
                 <input className="input" value={titleInput} onChange={e=>setTitleInput(e.target.value)} placeholder={detail.name} style={{fontSize:'.82rem',padding:'.45rem .6rem'}}/></div>
