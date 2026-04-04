@@ -2,7 +2,7 @@
 <html lang="fi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Momentum — Aivovammaliitto</title>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -22,7 +22,8 @@
       --font:'Plus Jakarta Sans',system-ui,sans-serif;
     }
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.5}
+    body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.5;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+    body.no-scroll{overflow:hidden;position:fixed;width:100%;touch-action:none}
     ::selection{background:var(--pri);color:#fff}
     ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 
@@ -415,8 +416,97 @@
     .tk-msg h4{font-size:.78rem;font-weight:700;margin-bottom:.15rem}
     .tk-msg p{font-size:.7rem;color:var(--t2);font-weight:500;line-height:1.4}
 
-    @media(max-width:1200px){.strat-lay{grid-template-columns:1fr}.ai-chat{position:relative;top:0;height:400px}.dash{grid-template-columns:1fr}.dash-w{grid-column:span 1}.pipe{grid-template-columns:1fr 1fr}.cb-grid{grid-template-columns:1fr 1fr}.stats{grid-template-columns:1fr 1fr}}
-    @media(max-width:768px){.side{display:none}.main{margin-left:0}.stats{grid-template-columns:1fr}.pipe{grid-template-columns:1fr}.cb-grid{grid-template-columns:1fr}.ch-grid{grid-template-columns:1fr}}
+    /* ─── MOBILE NAV ─── */
+    .mob-toggle{display:none;background:none;border:none;color:var(--t1);font-size:1.4rem;cursor:pointer;padding:.25rem;width:40px;height:40px;align-items:center;justify-content:center;border-radius:var(--r);transition:background .15s}
+    .mob-toggle:hover{background:rgba(255,255,255,.05)}
+    .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:99;animation:fadeIn .2s}
+    .mob-drawer{position:fixed;left:0;top:0;bottom:0;width:280px;background:var(--card);border-right:1px solid var(--border);z-index:100;transform:translateX(-100%);transition:transform .3s ease;display:flex;flex-direction:column;overflow-y:auto}
+    .mob-drawer.open{transform:translateX(0)}
+    .mob-drawer .side-hd,.mob-drawer .ws-box,.mob-drawer nav,.mob-drawer .side-ft{display:block}
+    .mob-close{position:absolute;top:.75rem;right:.75rem;background:none;border:none;color:var(--t2);font-size:1.2rem;cursor:pointer;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:50%}
+    .mob-close:hover{color:var(--t1);background:rgba(255,255,255,.05)}
+
+    @media(max-width:1200px){
+      .strat-lay{grid-template-columns:1fr}
+      .ai-chat{position:relative;top:0;height:400px}
+      .dash{grid-template-columns:1fr}
+      .dash-w{grid-column:span 1}
+      .pipe{grid-template-columns:1fr 1fr}
+      .cb-grid{grid-template-columns:1fr 1fr}
+      .stats{grid-template-columns:1fr 1fr}
+    }
+    @media(max-width:768px){
+      .side{display:none}
+      .main{margin-left:0}
+      .mob-toggle{display:flex}
+      .stats{grid-template-columns:1fr 1fr}
+      .pipe{grid-template-columns:1fr}
+      .cb-grid{grid-template-columns:1fr}
+      .ch-grid{grid-template-columns:1fr}
+      .page{padding:1rem}
+      .topbar{padding:.75rem 1rem}
+      .topbar h1{font-size:1.1rem}
+      .topbar p{font-size:.7rem}
+      .toast-wrap{top:.75rem;right:.75rem;left:.75rem}
+      .toast{min-width:auto;max-width:100%}
+      .modal{max-width:calc(100vw - 2rem);margin:1rem}
+      .modal-b{padding:1rem}
+      .modal-h{padding:1rem}
+      .onb{padding:1rem}
+      .onb-logo h1{font-size:2rem}
+      .onb-head{padding:1.25rem 1.25rem}
+      .onb-body{padding:1.25rem}
+      .onb-foot{padding:1rem 1.25rem}
+      .cal-grid{grid-template-columns:repeat(7,1fr)}
+      .cal-d{min-height:60px;padding:.3rem}
+      .cal-dn{font-size:.62rem}
+      .cal-ev{font-size:.5rem;padding:.1rem .2rem}
+      .cal-h h2{font-size:1.1rem}
+      .yr-grid{grid-template-columns:repeat(2,1fr)}
+      .mb-grid{grid-template-columns:repeat(2,1fr);gap:.6rem}
+      .mb-thumb{height:120px}
+      .mb-meta{padding:.6rem .75rem}
+      .mb-meta h4{font-size:.72rem}
+      .mb-cats{gap:.35rem;margin-bottom:1rem}
+      .mb-cat{padding:.4rem .75rem;font-size:.72rem}
+      .strat-hero{padding:1.5rem}
+      .strat-hero h2{font-size:1.3rem}
+      .ai-rec{flex-direction:column;padding:1rem}
+      .quick-grid{grid-template-columns:1fr}
+      .brand-grid{grid-template-columns:1fr 1fr}
+      .goal-grid{grid-template-columns:1fr}
+      .tk-grid{grid-template-columns:repeat(2,1fr)}
+      .tk-stats{grid-template-columns:1fr 1fr}
+      .pulse-wrap{flex-direction:column;gap:1rem;align-items:stretch}
+      .pulse-ring{align-self:center}
+      .clock-wrap{flex-direction:column;gap:1rem}
+      .ai-chat{height:350px}
+      .ai-chat-sugs{gap:.25rem;padding:.4rem .5rem}
+      .chat-sug{font-size:.6rem;padding:.3rem .5rem}
+      .dc-h{padding:1rem 1.1rem}
+      .dc-b{padding:1rem}
+      .stat-num{font-size:1.6rem}
+      .brief-wrap{max-width:100%}
+      .bcard-h{padding:1rem 1.25rem}
+      .bcard-b{padding:1.25rem}
+      .res-tabs{flex-wrap:wrap}
+      .mb-upload{min-height:100px;padding:1.5rem}
+      .pipe{gap:.6rem}
+      .lb-layout{flex-direction:column!important;padding:3rem .5rem .5rem!important}
+      .lb-sidebar{width:100%!important;border-left:none!important;border-top:1px solid var(--border);max-height:40vh;flex-shrink:0!important}
+      .mb-detail-inner{max-width:100vw}
+      .mb-detail-inner img,.mb-detail-inner video{max-width:95vw}
+    }
+    @media(max-width:480px){
+      .stats{grid-template-columns:1fr}
+      .tk-grid{grid-template-columns:1fr 1fr}
+      .tk-stats{grid-template-columns:1fr}
+      .brand-grid{grid-template-columns:1fr}
+      .mb-grid{grid-template-columns:1fr}
+      .cal-dh{padding:.4rem;font-size:.55rem}
+      .cal-d{min-height:50px}
+      .mb-thumb{height:180px}
+    }
   </style>
 </head>
 <body>
@@ -2050,6 +2140,24 @@ function MediaBank({toast,t}){
     return()=>window.removeEventListener('keydown',handler);
   },[detailIdx,filtered.length]);
 
+  // Touch swipe navigation for mobile
+  const touchRef=useRef(null);
+  useEffect(()=>{
+    if(detailIdx<0)return;
+    let startX=0,startY=0;
+    const onStart=(e)=>{startX=e.touches[0].clientX;startY=e.touches[0].clientY};
+    const onEnd=(e)=>{
+      const dx=e.changedTouches[0].clientX-startX;
+      const dy=e.changedTouches[0].clientY-startY;
+      if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>50){
+        if(dx<0)goNext();else goPrev();
+      }
+    };
+    document.addEventListener('touchstart',onStart,{passive:true});
+    document.addEventListener('touchend',onEnd,{passive:true});
+    return()=>{document.removeEventListener('touchstart',onStart);document.removeEventListener('touchend',onEnd)};
+  },[detailIdx,filtered.length]);
+
   // Collect all unique tags for tag cloud
   const allTags=[...new Set(allFiles.flatMap(f=>(getMeta(f.id).tags||[])))].sort();
 
@@ -2121,25 +2229,25 @@ function MediaBank({toast,t}){
       <div style={{display:'flex',alignItems:'center',width:'100%',height:'100%',position:'relative'}} onClick={e=>e.stopPropagation()}>
 
         {/* Close button */}
-        <button onClick={closeDetail} style={{position:'absolute',top:'1rem',right:'1.5rem',background:'rgba(0,0,0,.5)',border:'none',color:'#fff',fontSize:'1.3rem',width:40,height:40,borderRadius:'50%',cursor:'pointer',zIndex:10,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(8px)'}}>
+        <button onClick={closeDetail} style={{position:'absolute',top:'.75rem',right:'.75rem',background:'rgba(0,0,0,.5)',border:'none',color:'#fff',fontSize:'1.3rem',width:40,height:40,borderRadius:'50%',cursor:'pointer',zIndex:20,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(8px)'}}>
           {'\u2715'}</button>
 
         {/* Counter */}
-        <div style={{position:'absolute',top:'1.2rem',left:'50%',transform:'translateX(-50%)',color:'rgba(255,255,255,.6)',fontSize:'.78rem',fontWeight:600,zIndex:10}}>
+        <div style={{position:'absolute',top:'1rem',left:'50%',transform:'translateX(-50%)',color:'rgba(255,255,255,.6)',fontSize:'.78rem',fontWeight:600,zIndex:20}}>
           {detailIdx+1} / {filtered.length}
         </div>
 
-        {/* Main content area */}
-        <div style={{display:'flex',width:'100%',height:'100%',padding:'3.5rem 1rem 1rem'}}>
+        {/* Main content area — responsive flex */}
+        <div className="lb-layout" style={{display:'flex',width:'100%',height:'100%',padding:'3.5rem 1rem 1rem'}}>
           {/* Image area with nav arrows */}
           <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',minWidth:0,position:'relative'}} onClick={closeDetail}>
 
-            {/* Prev button — left edge of image area */}
+            {/* Prev button */}
             <button onClick={e=>{e.stopPropagation();goPrev()}} disabled={detailIdx<=0}
               style={{position:'absolute',left:'.5rem',top:'50%',transform:'translateY(-50%)',background:'rgba(0,0,0,.6)',border:'1px solid rgba(255,255,255,.1)',color:detailIdx>0?'#fff':'rgba(255,255,255,.2)',fontSize:'1.3rem',width:44,height:44,borderRadius:'50%',cursor:detailIdx>0?'pointer':'default',zIndex:10,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(8px)',transition:'all .2s'}}>
               {'\u2190'}</button>
 
-            {/* Next button — right edge of image area */}
+            {/* Next button */}
             <button onClick={e=>{e.stopPropagation();goNext()}} disabled={detailIdx>=filtered.length-1}
               style={{position:'absolute',right:'.5rem',top:'50%',transform:'translateY(-50%)',background:'rgba(0,0,0,.6)',border:'1px solid rgba(255,255,255,.1)',color:detailIdx<filtered.length-1?'#fff':'rgba(255,255,255,.2)',fontSize:'1.3rem',width:44,height:44,borderRadius:'50%',cursor:detailIdx<filtered.length-1?'pointer':'default',zIndex:10,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(8px)',transition:'all .2s'}}>
               {'\u2192'}</button>
@@ -2151,11 +2259,11 @@ function MediaBank({toast,t}){
             {detail.type==='video'&&<video src={detail.path} controls autoPlay style={{maxWidth:'calc(100% - 100px)',maxHeight:'85vh',borderRadius:'var(--r)'}} onClick={e=>e.stopPropagation()}/>}
           </div>
 
-          {/* Sidebar info panel */}
-          <div style={{width:320,flexShrink:0,background:'var(--card)',borderLeft:'1px solid var(--border)',padding:'1.25rem',overflowY:'auto',display:'flex',flexDirection:'column',gap:'1rem'}} onClick={e=>e.stopPropagation()}>
+          {/* Sidebar info panel — hidden on mobile, toggle with info button */}
+          <div className="lb-sidebar" style={{width:320,flexShrink:0,background:'var(--card)',borderLeft:'1px solid var(--border)',padding:'1.25rem',overflowY:'auto',display:'flex',flexDirection:'column',gap:'1rem'}} onClick={e=>e.stopPropagation()}>
             <div>
               <h3 style={{fontSize:'1rem',fontWeight:700,letterSpacing:'-.01em',marginBottom:'.25rem',wordBreak:'break-word'}}>{getMeta(detail.id).title||detail.name}</h3>
-              <p style={{fontSize:'.78rem',color:'var(--t2)',fontWeight:500}}>{formatSize(detail.size)} \u00b7 {detail.ext.toUpperCase()} \u00b7 {detail.folder}</p>
+              <p style={{fontSize:'.78rem',color:'var(--t2)',fontWeight:500}}>{formatSize(detail.size)} {'\u00b7'} {detail.ext.toUpperCase()} {'\u00b7'} {detail.folder}</p>
             </div>
 
             {getMeta(detail.id).desc&&<p style={{fontSize:'.82rem',color:'var(--t2)',lineHeight:1.6,fontWeight:500}}>{getMeta(detail.id).desc}</p>}
@@ -2261,24 +2369,40 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
 
   const resetAll=()=>{clearAllData();setOB(false);setOrg(defaultOrg);setPrj([]);setEvents(defaultEvents);setChStats(AVL_CONTEXT.channelStats);setLang('fi');setV('home')};
 
+  const[mobNav,setMobNav]=useState(false);
+  useEffect(()=>{if(mobNav)document.body.classList.add('no-scroll');else document.body.classList.remove('no-scroll');return()=>document.body.classList.remove('no-scroll')},[mobNav]);
+  const goTo=(page)=>{setV(page);setMobNav(false)};
   if(!ob)return<><Toasts t={toasts}/><Onboarding onDone={()=>setOB(true)} toast={add} setOrg={setOrg} t={t}/></>;
   const nav=[{id:'home',l:t('home'),ic:'\u25c9'},{id:'strategy',l:t('strategy'),ic:'\u25c8'},{id:'brief',l:t('newProject'),ic:'+',badge:true},{id:'pipeline',l:t('projects'),ic:'\u2630',cnt:prj.length},{id:'calendar',l:t('calendar'),ic:'\u25a6'},{id:'media',l:'Mediapankki',ic:'\ud83d\uddbc\ufe0f'}];
   const hdr={home:{t:t('home'),s:(org.s||org.name||'Momentum')},brief:{t:t('newProject'),s:'AI'},pipeline:{t:t('projects'),s:prj.length+' '+t('projects').toLowerCase()},calendar:{t:t('calendar'),s:events.length+' '+t('publications_plural')},strategy:{t:t('strategy'),s:org.slogan||t('strategy')},media:{t:'Mediapankki',s:'Valokuvat, videot ja grafiikat'},settings:{t:t('settings'),s:t('manageOrg')}};
   const h=hdr[v]||hdr.home;
+  const navContent=<>
+    <div className="side-hd" style={{position:'relative'}}><div className="logo-text">Momentum</div></div>
+    <div className="ws-box" onClick={()=>goTo('settings')}><div className="ws-name">{org.name||'Organisaatio'}</div><div className="ws-plan">Free Plan</div></div>
+    <nav style={{flex:1,padding:'.5rem 0',overflowY:'auto'}}>
+      <div className="nav-sec">{t('tools')}</div>
+      {nav.map(n=><div key={n.id} className={`nav-i ${v===n.id?'act':''}`} onClick={()=>goTo(n.id)}><span className="nav-ic">{n.ic}</span><span>{n.l}</span>{n.badge&&<span className="badge badge-ai">AI</span>}{n.cnt>0&&<span className="badge badge-c">{n.cnt}</span>}</div>)}
+      <div className="nav-sec">{t('system')}</div>
+      <div className={`nav-i ${v==='settings'?'act':''}`} onClick={()=>goTo('settings')}><span className="nav-ic">{'\u2699'}</span><span>{t('settings')}</span></div>
+    </nav>
+    <div className="side-ft"><div className="ava">{'AB'}</div><div><div style={{fontSize:'.8rem',fontWeight:600}}>Anton Baer</div><div style={{fontSize:'.62rem',color:'var(--t3)',fontWeight:500}}>Viestintävastaava</div></div></div>
+  </>;
   return(<div className="app"><Toasts t={toasts}/>
-    <aside className="side"><div className="side-hd"><div className="logo-text">Momentum</div></div>
-      <div className="ws-box" onClick={()=>setV('settings')}><div className="ws-name">{org.name||'Organisaatio'}</div><div className="ws-plan">Free Plan</div></div>
-      <nav style={{flex:1,padding:'.5rem 0',overflowY:'auto'}}>
-        <div className="nav-sec">{t('tools')}</div>
-        {nav.map(n=><div key={n.id} className={`nav-i ${v===n.id?'act':''}`} onClick={()=>setV(n.id)}><span className="nav-ic">{n.ic}</span><span>{n.l}</span>{n.badge&&<span className="badge badge-ai">AI</span>}{n.cnt>0&&<span className="badge badge-c">{n.cnt}</span>}</div>)}
-        <div className="nav-sec">{t('system')}</div>
-        <div className={`nav-i ${v==='settings'?'act':''}`} onClick={()=>setV('settings')}><span className="nav-ic">{'\u2699'}</span><span>{t('settings')}</span></div>
-      </nav>
-      <div className="side-ft"><div className="ava">{'AB'}</div><div><div style={{fontSize:'.8rem',fontWeight:600}}>Anton Baer</div><div style={{fontSize:'.62rem',color:'var(--t3)',fontWeight:500}}>Viestintävastaava</div></div></div>
-    </aside>
+    {/* Desktop sidebar */}
+    <aside className="side">{navContent}</aside>
+    {/* Mobile drawer */}
+    {mobNav&&<div className="mob-overlay" style={{display:'block'}} onClick={()=>setMobNav(false)}/>}
+    <div className={`mob-drawer ${mobNav?'open':''}`}>
+      <button className="mob-close" onClick={()=>setMobNav(false)}>{'\u2715'}</button>
+      {navContent}
+    </div>
     <main className="main">
-      <header className="topbar"><div><h1>{h.t}</h1><p>{h.s}</p></div>
-        {(v==='home'||v==='pipeline')&&<button className="btn btn-primary" onClick={()=>setV('brief')}>+ {t('newProject')}</button>}
+      <header className="topbar">
+        <div style={{display:'flex',alignItems:'center',gap:'.75rem'}}>
+          <button className="mob-toggle" onClick={()=>setMobNav(true)}>{'\u2630'}</button>
+          <div><h1>{h.t}</h1><p>{h.s}</p></div>
+        </div>
+        {(v==='home'||v==='pipeline')&&<button className="btn btn-primary btn-sm" onClick={()=>setV('brief')}>+ {t('newProject')}</button>}
       </header>
       <div className="page">
         {v==='home'&&<Home go={setV} toast={add} prj={prj} events={events} org={org} t={t} chStats={chStats} setChStats={setChStats}/>}
