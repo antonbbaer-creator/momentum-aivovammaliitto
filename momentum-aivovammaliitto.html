@@ -96,7 +96,7 @@
     .ch-card{background:var(--elev);border:1px solid var(--border);border-radius:var(--rl);padding:1.1rem;cursor:pointer;transition:all .4s cubic-bezier(.16,1,.3,1);display:flex;align-items:center;gap:.875rem}
     .ch-card:hover{border-color:var(--pri);transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.2)}
     .ch-card.on{border-color:var(--green);background:rgba(45,212,160,.04);box-shadow:0 0 0 1px rgba(45,212,160,.15)}
-    .ch-icon{width:42px;height:42px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
+    .ch-icon{font-size:.75rem;font-weight:700;letter-spacing:.04em;flex-shrink:0;text-transform:uppercase;font-family:var(--font-display)}
     .ch-info h4{font-size:.85rem;font-weight:700}
     .ch-info p{font-size:.72rem;color:var(--t3);margin-top:.1rem}
     .ch-stat{margin-left:auto;text-align:right}
@@ -423,7 +423,7 @@
     .tk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.65rem}
     .tk-card{background:var(--card);border:1px solid var(--border);border-radius:var(--rl);padding:.875rem;transition:all .2s;position:relative;overflow:hidden;cursor:default}
     .tk-card:hover{border-color:var(--pri);transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.2)}
-    .tk-card-ic{width:32px;height:32px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:.9rem;margin-bottom:.5rem}
+    .tk-card-ic{font-size:.7rem;font-weight:700;letter-spacing:.04em;margin-bottom:.5rem;text-transform:uppercase;font-family:var(--font-display)}
     .tk-card h4{font-size:.75rem;font-weight:700;margin-bottom:.1rem;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .tk-num{font-family:var(--font-display);font-size:1.3rem;font-weight:500;letter-spacing:-.01em;line-height:1.1}
     .tk-label{font-size:.58rem;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-top:.1rem}
@@ -1602,8 +1602,7 @@ function Onboarding({onDone,toast,setOrg,t}){
       <div style={{marginTop:'1rem'}}><label style={{display:'block',fontSize:'.75rem',fontWeight:600,color:'var(--t3)',marginBottom:'.5rem',textTransform:'uppercase',letterSpacing:'.04em'}}>{t('obChannels')}</label>
       <div className="ch-grid">{presetChannels.map(c=>(
         <div key={c.name} className={`ch-card ${isChSel(c.name)?'on':''}`} onClick={()=>toggleCh(c)}>
-          <div className="ch-icon" style={{background:c.color+'18',color:c.color}}>{c.ic}</div>
-          <div className="ch-info"><h4>{c.name}</h4></div>
+          <div className="ch-info"><h4>{c.ic} {c.name}</h4></div>
           {isChSel(c.name)?<span className="ch-status" style={{background:'rgba(45,212,160,.12)',color:'var(--green)'}}>Valittu</span>
           :<span className="ch-status" style={{background:'var(--elev)',color:'var(--t3)'}}>Valitse</span>}
         </div>))}</div>
@@ -1611,8 +1610,7 @@ function Onboarding({onDone,toast,setOrg,t}){
       {showExtra&&<div style={{marginTop:'.75rem'}}>
         <div className="ch-grid" style={{marginBottom:'.75rem'}}>{extraChannels.filter(c=>!isChSel(c.name)).map(c=>(
           <div key={c.name} className="ch-card" onClick={()=>toggleCh(c)}>
-            <div className="ch-icon" style={{background:c.color+'18',color:c.color}}>{c.ic}</div>
-            <div className="ch-info"><h4>{c.name}</h4></div>
+            <div className="ch-info"><h4>{c.ic} {c.name}</h4></div>
             <span className="ch-status" style={{background:'var(--elev)',color:'var(--t3)'}}>Valitse</span>
           </div>))}</div>
         <div style={{borderTop:'1px solid var(--border)',paddingTop:'.75rem'}}><label style={{display:'block',fontSize:'.72rem',fontWeight:600,color:'var(--t3)',marginBottom:'.35rem',textTransform:'uppercase',letterSpacing:'.04em'}}>Oma kanava</label>
@@ -1772,8 +1770,7 @@ function Home({go,toast,prj,events,org,t,chStats,setChStats,orgCtx}){
         {tkSection.includes('channels')&&<div className="dc-b">
           {editingStats?<div>
             <div className="tk-grid">{editStats.map((s,i)=>{const co=chColor(s.name);return<div key={i} className="tk-card" style={{borderColor:co+'30'}}>
-              <div className="tk-card-ic" style={{background:co+'18',color:co}}>{chIcon(s.name)}</div>
-              <h4 style={{color:co}}>{s.name}</h4>
+              <h4 style={{color:co}}>{chIcon(s.name)} {s.name}</h4>
               <input className="tk-edit-num" value={s.followers===null?'':s.followers} onChange={e=>updateEditStat(i,e.target.value)} placeholder="\u2014" type="number"/>
               <div className="tk-label">{s.metric}</div>
             </div>})}</div>
@@ -1784,8 +1781,7 @@ function Home({go,toast,prj,events,org,t,chStats,setChStats,orgCtx}){
           </div>
           :<div className="tk-grid">{chStats.map((s,i)=>{const co=chColor(s.name);const hasNum=s.followers!==null&&s.followers!==undefined;
             return<div key={i} className="tk-card" style={{borderColor:co+'20'}}>
-              <div className="tk-card-ic" style={{background:co+'18',color:co}}>{chIcon(s.name)}</div>
-              <h4>{s.name}</h4>
+              <h4>{chIcon(s.name)} {s.name}</h4>
               {hasNum?<><div className="tk-num" style={{color:co}}>{s.followers.toLocaleString()}</div><div className="tk-label">{s.metric}</div></>
                 :<><div className="tk-num" style={{color:'var(--t3)',fontSize:'.85rem'}}>{s.handle||'\u2014'}</div><div className="tk-label">{s.metric}</div></>}
               {s.lastUpdated&&<div style={{fontSize:'.55rem',color:'var(--t3)',marginTop:'.25rem',fontWeight:500}}>{t('lastUpdated')}: {s.lastUpdated}</div>}
