@@ -3,79 +3,87 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Hetki — Aivovammaliitto</title>
+  <title>Hetki — Momentum</title>
   <link rel="icon" type="image/png" href="media/brand/hetki-logo-black.png">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
   <script src="media/manifest.js"></script>
+  <script src="media/llff-manifest.js"></script>
   <style>
+    /* ─── HETKI BRAND FONTS ─── */
+    @font-face{font-family:'Pitch Sans';src:url('media/fonts/PitchSans-Regular.otf') format('opentype'),url('media/fonts/pitch-sans-regular.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+    @font-face{font-family:'Pitch Sans';src:url('media/fonts/PitchSans-Medium.otf') format('opentype'),url('media/fonts/pitch-sans-medium.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap}
+    @font-face{font-family:'DM Sans';src:url('media/fonts/DMSans-Light.ttf') format('truetype');font-weight:300;font-style:normal;font-display:swap}
+    @font-face{font-family:'DM Sans';src:url('media/fonts/DMSans-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+
     :root {
-      --pri:#0776ab;--pri-l:#1a9dd4;--pri-d:#055a82;
-      --bg:#0a0c10;--card:#10131a;--card2:#161a24;--elev:#1a1f2c;--border:#222838;--border-l:#2e3648;
-      --t1:#f0f2f5;--t2:#8b95a8;--t3:#505a6e;
-      --green:#1f6766;--green-l:#2a8a89;--yellow:#e2ab2a;--red:#ef6b6b;--purple:#9b7cf6;--purple-l:#b49bfa;--pink:#e7698e;--orange:#f09a52;--cyan:#2a8a89;
-      --r:10px;--rl:14px;--rxl:18px;
-      --glass:rgba(10,12,16,.75);--glass-border:rgba(255,255,255,.06);
-      --shadow:0 4px 24px rgba(0,0,0,.3);
+      /* Hetki Brand Colors — exact from Visual Identity palette */
+      --pri:#056b9f;--pri-l:#3788b2;--pri-d:#044d73;
+      --bg:#0a0c10;--card:#111318;--card2:#181b22;--elev:#1e222c;--border:#282d3a;--border-l:#343a4a;
+      --t1:#f0f2f5;--t2:#949bac;--t3:#5a6278;
+      --green:#185e5b;--green-l:#2a8a86;--yellow:#f1b434;--red:#ef6b6b;--pink:#e45c81;--orange:#f09a52;--cyan:#2a8a86;
+      --r:6px;--rl:10px;--rxl:14px;
+      --glass:rgba(10,12,16,.8);--glass-border:rgba(255,255,255,.05);
+      --shadow:0 4px 24px rgba(0,0,0,.4);
       --font:'DM Sans',system-ui,sans-serif;
-      --hetki-blue:#0776ab;--hetki-green:#1f6766;--hetki-pink:#e7698e;--hetki-yellow:#e2ab2a;--hetki-black:#3b3a35;
+      --font-display:'Pitch Sans','DM Sans',monospace;
+      --hetki-blue:#056b9f;--hetki-green:#185e5b;--hetki-pink:#e45c81;--hetki-yellow:#f1b434;--hetki-black:#303030;
     }
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.5;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+    body{font-family:var(--font);font-weight:300;background:var(--bg);color:var(--t1);line-height:1.55;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
     body.no-scroll{overflow:hidden;position:fixed;width:100%;touch-action:none}
-    ::selection{background:var(--pri);color:#fff}
-    ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+    ::selection{background:var(--hetki-blue);color:#fff}
+    ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--border-l)}
 
-    @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:translateY(0)}}
     @keyframes fadeIn{from{opacity:0}to{opacity:1}}
     @keyframes scaleIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
-    @keyframes glow{0%,100%{box-shadow:0 0 20px rgba(26,143,196,.15)}50%{box-shadow:0 0 30px rgba(26,143,196,.25)}}
     @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
-    @keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
     @keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
     /* ─── TOAST ─── */
     .toast-wrap{position:fixed;top:1.5rem;right:1.5rem;z-index:1000;display:flex;flex-direction:column;gap:.5rem}
     .toast{padding:.875rem 1.25rem;border-radius:var(--rl);animation:fadeUp .3s;min-width:300px;font-size:.85rem;backdrop-filter:blur(16px);font-weight:500}
-    .toast.success{background:rgba(45,212,160,.12);border:1px solid rgba(45,212,160,.3);color:var(--green)}
-    .toast.info{background:rgba(26,143,196,.12);border:1px solid rgba(26,143,196,.3);color:var(--pri-l)}
+    .toast.success{background:rgba(24,94,91,.15);border:1px solid rgba(24,94,91,.4);color:var(--green-l)}
+    .toast.info{background:rgba(5,107,159,.15);border:1px solid rgba(5,107,159,.4);color:var(--pri-l)}
 
     /* ─── FORMS ─── */
     .field{margin-bottom:1.25rem}
     .field label{display:block;font-size:.75rem;font-weight:600;color:var(--t3);margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.04em}
     .input{width:100%;padding:.75rem 1rem;border:1px solid var(--border);border-radius:var(--r);font-size:.9rem;background:var(--elev);color:var(--t1);font-family:var(--font);transition:all .2s}
-    .input:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3px rgba(26,143,196,.12)}
+    .input:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3px rgba(5,107,159,.15)}
     .input::placeholder{color:var(--t3)}
     .textarea{resize:vertical;min-height:120px;line-height:1.7}
     .textarea-lg{min-height:180px;font-size:1rem;padding:1.25rem}
 
     /* ─── BUTTONS ─── */
-    .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.65rem 1.25rem;border-radius:var(--r);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s;border:none;font-family:var(--font);letter-spacing:-.01em}
+    .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.6rem 1.2rem;border-radius:var(--r);font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;border:none;font-family:var(--font);letter-spacing:.01em;text-transform:none}
     .btn:disabled{opacity:.35;cursor:not-allowed}
-    .btn-primary{background:linear-gradient(135deg,var(--pri),var(--pri-l));color:#fff;box-shadow:0 2px 12px rgba(7,118,171,.25)}
-    .btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 20px rgba(7,118,171,.35)}
+    .btn-primary{background:var(--pri);color:#fff;box-shadow:none}
+    .btn-primary:hover:not(:disabled){background:var(--pri-l);box-shadow:0 2px 12px rgba(5,107,159,.3)}
     .btn-secondary{background:var(--elev);color:var(--t1);border:1px solid var(--border)}
     .btn-secondary:hover:not(:disabled){border-color:var(--pri);background:rgba(26,143,196,.05)}
     .btn-ghost{background:transparent;color:var(--t2);padding:.4rem .6rem;font-weight:500}
     .btn-ghost:hover{color:var(--t1)}
     .btn-lg{padding:.875rem 2rem;font-size:.95rem;border-radius:var(--rl)}
     .btn-sm{padding:.4rem .8rem;font-size:.78rem}
-    .btn-hetki{background:linear-gradient(135deg,var(--pri-d),var(--pri),var(--hetki-green));background-size:200% 200%;animation:gradientShift 3s ease infinite;color:#fff;font-weight:700;box-shadow:0 2px 16px rgba(7,118,171,.3)}
-    .btn-hetki:hover{transform:translateY(-1px);box-shadow:0 4px 24px rgba(7,118,171,.4)}
+    .btn-hetki{background:var(--hetki-black);color:#fff;font-weight:500;font-family:var(--font-display);letter-spacing:.06em;text-transform:uppercase;box-shadow:none}
+    .btn-hetki:hover{background:#444;box-shadow:0 2px 12px rgba(0,0,0,.3)}
 
     /* ─── ONBOARDING ─── */
-    .onb{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;background:radial-gradient(ellipse at 50% 0%,rgba(26,143,196,.08) 0%,transparent 60%)}
-    .onb-wrap{width:100%;max-width:640px;animation:scaleIn .5s ease}
+    .onb{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;background:var(--bg) url('media/textures/texture-black.jpg') center/cover;position:relative}
+    .onb::before{content:'';position:absolute;inset:0;background:rgba(10,12,16,.75)}
+    .onb-wrap{width:100%;max-width:640px;animation:scaleIn .5s cubic-bezier(.16,1,.3,1);position:relative;z-index:1}
     .onb-logo{text-align:center;margin-bottom:2.5rem}
-    .onb-logo h1{font-size:2.8rem;font-weight:800;letter-spacing:-.04em;color:var(--t1)}
+    .onb-logo h1{font-family:var(--font-display);font-size:2.4rem;font-weight:500;letter-spacing:.02em;text-transform:uppercase;color:var(--t1)}
     .onb-logo img{height:48px;width:auto;margin-bottom:.5rem}
     .onb-logo p{color:var(--t2);font-size:.9rem;margin-top:.3rem;font-weight:500}
-    .onb-card{background:var(--card);border:1px solid var(--glass-border);border-radius:var(--rxl);overflow:hidden;backdrop-filter:blur(20px);box-shadow:var(--shadow)}
+    .onb-card{background:var(--card);border:1px solid var(--glass-border);border-radius:var(--rxl);overflow:hidden;backdrop-filter:blur(20px);box-shadow:var(--shadow);position:relative}
+    .onb-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;display:flex;z-index:1;background:linear-gradient(90deg,var(--hetki-blue) 0%,var(--hetki-blue) 20%,var(--hetki-green) 20%,var(--hetki-green) 40%,var(--hetki-yellow) 40%,var(--hetki-yellow) 60%,var(--hetki-pink) 60%,var(--hetki-pink) 80%,var(--hetki-black) 80%,var(--hetki-black) 100%)}
     .onb-head{padding:1.75rem 2rem;border-bottom:1px solid var(--border)}
-    .onb-head h2{font-size:1.15rem;font-weight:700;letter-spacing:-.02em}
+    .onb-head h2{font-family:var(--font-display);font-size:1.05rem;font-weight:500;letter-spacing:.02em;text-transform:uppercase}
     .onb-head p{color:var(--t2);font-size:.82rem;margin-top:.3rem}
     .onb-body{padding:2rem}
     .onb-foot{padding:1.25rem 2rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
@@ -85,37 +93,37 @@
     .onb-dot.done{background:var(--green)}
 
     .ch-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
-    .ch-card{background:var(--elev);border:1px solid var(--border);border-radius:var(--rl);padding:1.1rem;cursor:pointer;transition:all .25s;display:flex;align-items:center;gap:.875rem}
+    .ch-card{background:var(--elev);border:1px solid var(--border);border-radius:var(--rl);padding:1.1rem;cursor:pointer;transition:all .4s cubic-bezier(.16,1,.3,1);display:flex;align-items:center;gap:.875rem}
     .ch-card:hover{border-color:var(--pri);transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.2)}
     .ch-card.on{border-color:var(--green);background:rgba(45,212,160,.04);box-shadow:0 0 0 1px rgba(45,212,160,.15)}
     .ch-icon{width:42px;height:42px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
     .ch-info h4{font-size:.85rem;font-weight:700}
     .ch-info p{font-size:.72rem;color:var(--t3);margin-top:.1rem}
     .ch-stat{margin-left:auto;text-align:right}
-    .ch-stat .num{font-size:1rem;font-weight:800;color:var(--t1);animation:countUp .4s ease}
+    .ch-stat .num{font-family:var(--font-display);font-size:1rem;font-weight:500;color:var(--t1);animation:countUp .4s cubic-bezier(.16,1,.3,1)}
     .ch-stat .lbl{font-size:.6rem;color:var(--t3);text-transform:uppercase;letter-spacing:.04em}
     .ch-status{font-size:.65rem;padding:.25rem .55rem;border-radius:9999px;font-weight:600;margin-left:auto}
 
     .strat-opts{display:flex;flex-direction:column;gap:.75rem;margin-bottom:1.25rem}
-    .strat-opt{background:var(--elev);border:1px solid var(--border);border-radius:var(--rl);padding:1.1rem 1.25rem;cursor:pointer;transition:all .25s}
+    .strat-opt{background:var(--elev);border:1px solid var(--border);border-radius:var(--rl);padding:1.1rem 1.25rem;cursor:pointer;transition:all .4s cubic-bezier(.16,1,.3,1)}
     .strat-opt:hover{border-color:var(--pri)}
     .strat-opt.sel{border-color:var(--pri);background:rgba(26,143,196,.06);box-shadow:0 0 0 1px rgba(26,143,196,.15)}
     .strat-opt h4{font-size:.9rem;font-weight:700;margin-bottom:.2rem}
     .strat-opt p{font-size:.78rem;color:var(--t3)}
-    .tip-box{background:linear-gradient(135deg,rgba(26,143,196,.06),rgba(155,124,246,.06));border:1px solid rgba(26,143,196,.12);border-radius:var(--r);padding:.875rem 1.1rem;font-size:.82rem;color:var(--pri-l);margin-top:1rem;line-height:1.6}
+    .tip-box{background:rgba(5,107,159,.06);border:1px solid rgba(5,107,159,.15);border-radius:var(--r);padding:.875rem 1.1rem;font-size:.82rem;color:var(--pri-l);margin-top:1rem;line-height:1.6}
     .skip{color:var(--t3);font-size:.82rem;cursor:pointer;font-weight:500;transition:color .2s}
     .skip:hover{color:var(--t1)}
 
     /* AI Dialog */
     .ai-dialog{display:flex;flex-direction:column;gap:.75rem;max-height:380px;overflow-y:auto;padding-right:.25rem}
-    .ai-bub{display:flex;gap:.6rem;animation:fadeUp .3s ease}
+    .ai-bub{display:flex;gap:.6rem;animation:fadeUp .5s cubic-bezier(.16,1,.3,1)}
     .ai-bub.user{flex-direction:row-reverse}
-    .ai-av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:800;flex-shrink:0}
-    .ai-bub.assistant .ai-av{background:linear-gradient(135deg,var(--pri),var(--hetki-green));color:#fff}
+    .ai-av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:500;flex-shrink:0;font-family:var(--font-display)}
+    .ai-bub.assistant .ai-av{background:var(--pri);color:#fff}
     .ai-bub.user .ai-av{background:var(--elev);color:var(--t2)}
     .ai-bub-c{padding:.8rem 1rem;border-radius:var(--rl);max-width:85%;font-size:.85rem;line-height:1.65}
     .ai-bub.assistant .ai-bub-c{background:var(--elev);border:1px solid var(--border)}
-    .ai-bub.user .ai-bub-c{background:linear-gradient(135deg,var(--pri),var(--pri-l));color:#fff}
+    .ai-bub.user .ai-bub-c{background:var(--pri);color:#fff}
     .ai-bub-c p{margin-bottom:.4rem}.ai-bub-c p:last-child{margin-bottom:0}
     .ai-opts{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.6rem}
     .ai-opt-btn{background:var(--card);border:1px solid var(--border);padding:.45rem .8rem;border-radius:9999px;font-size:.75rem;cursor:pointer;color:var(--t2);font-family:var(--font);font-weight:500;transition:all .2s}
@@ -126,59 +134,62 @@
 
     /* ─── APP SHELL ─── */
     .app{display:flex;min-height:100vh}
-    .side{width:264px;background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;height:100vh;z-index:50}
-    .side-hd{padding:1.5rem 1.5rem 1.25rem;border-bottom:1px solid var(--border)}
-    .logo-text{font-weight:800;font-size:1.15rem;letter-spacing:-.03em;color:var(--t1);display:flex;align-items:center;gap:.6rem}
-    .logo-text img{height:22px;width:auto}
-    .ws-box{margin:.875rem 1.25rem;padding:.8rem 1rem;background:var(--elev);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;transition:all .2s}
-    .ws-box:hover{border-color:var(--pri)}
+    .side{width:264px;background:var(--pri-d) url('media/textures/texture-blue.jpg') center/cover;background-blend-mode:overlay;border-right:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;position:fixed;height:100vh;z-index:50}
+    .side-hd{padding:1.5rem 1.5rem 1.25rem;border-bottom:1px solid rgba(255,255,255,.12)}
+    .logo-text{font-family:var(--font-display);font-weight:500;font-size:1.1rem;letter-spacing:.05em;text-transform:uppercase;color:var(--t1);display:flex;align-items:center;gap:.6rem}
+    .logo-text img{height:20px;width:auto}
+    .ws-box{margin:.875rem 1.25rem;padding:.8rem 1rem;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:var(--r);cursor:pointer;transition:all .2s}
+    .ws-box:hover{border-color:rgba(255,255,255,.3)}
     .ws-name{font-weight:700;font-size:.82rem;letter-spacing:-.01em}
     .ws-plan{font-size:.6rem;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-top:.2rem;font-weight:600}
-    .nav-sec{padding:1.25rem 1.5rem .5rem;font-size:.6rem;text-transform:uppercase;color:var(--t3);letter-spacing:.08em;font-weight:700}
-    .nav-i{display:flex;align-items:center;padding:.7rem 1.5rem;color:var(--t2);cursor:pointer;font-size:.87rem;position:relative;transition:all .15s;gap:.65rem;font-weight:500}
-    .nav-i:hover{background:rgba(255,255,255,.02);color:var(--t1)}
-    .nav-i.act{color:var(--pri-l);background:linear-gradient(90deg,rgba(26,143,196,.08),transparent)}
-    .nav-i.act::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:3px;background:linear-gradient(180deg,var(--pri),var(--hetki-green));border-radius:0 3px 3px 0}
+    .nav-sec{padding:1.5rem 1.5rem .5rem;font-family:var(--font-display);font-size:.6rem;text-transform:uppercase;color:rgba(255,255,255,.4);letter-spacing:.1em;font-weight:500}
+    .nav-i{display:flex;align-items:center;padding:.65rem 1.5rem;color:rgba(255,255,255,.65);cursor:pointer;font-size:.84rem;position:relative;transition:all .15s;gap:.65rem;font-weight:400;letter-spacing:.01em}
+    .nav-i:hover{background:rgba(255,255,255,.08);color:#fff}
+    .nav-i.act{color:#fff;background:rgba(255,255,255,.12)}
+    .nav-i.act::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:#fff}
     .nav-ic{width:20px;text-align:center;font-size:.85rem;opacity:.5}
     .nav-i.act .nav-ic{opacity:1}
     .badge{margin-left:auto;font-size:.6rem;padding:.2rem .55rem;border-radius:9999px;font-weight:700}
-    .badge-ai{background:linear-gradient(135deg,var(--pri),var(--hetki-green));color:#fff}
+    .badge-ai{background:rgba(255,255,255,.2);color:#fff}
     .badge-n{background:rgba(45,212,160,.12);color:var(--green);border:1px solid rgba(45,212,160,.2)}
     .badge-c{background:var(--elev);color:var(--t3);border:1px solid var(--border)}
-    .side-ft{padding:1rem 1.25rem;border-top:1px solid var(--border);display:flex;align-items:center;gap:.75rem}
-    .ava{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--pri),var(--hetki-green));display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#fff}
+    .side-ft{padding:1rem 1.25rem;border-top:1px solid rgba(255,255,255,.12);display:flex;align-items:center;gap:.75rem;position:relative}
+    .side-ft::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;display:flex}
+    .color-band{display:flex;height:3px;width:100%}
+    .color-band span{flex:1}
+    .ava{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:.75rem;font-weight:500;color:#fff}
 
     .main{flex:1;margin-left:264px;display:flex;flex-direction:column}
-    .topbar{background:rgba(12,15,21,.85);backdrop-filter:blur(16px);padding:1rem 2rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10}
-    .topbar h1{font-size:1.3rem;font-weight:800;letter-spacing:-.02em}
-    .topbar p{font-size:.78rem;color:var(--t2);font-weight:500}
+    .topbar{background:rgba(10,12,16,.9);backdrop-filter:blur(16px);padding:1rem 2rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10}
+    .topbar h1{font-family:var(--font-display);font-size:1.15rem;font-weight:500;letter-spacing:.03em;text-transform:uppercase}
+    .topbar p{font-size:.75rem;color:var(--t3);font-weight:400;letter-spacing:.02em}
     .page{flex:1;padding:2rem;overflow-y:auto}
-    .page-enter{animation:fadeUp .4s ease}
+    .page-enter{animation:fadeUp .8s cubic-bezier(.16,1,.3,1)}
 
     /* ─── DASHBOARD ─── */
     .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.75rem}
-    .stat{background:var(--card);border:1px solid var(--border);border-radius:var(--rl);padding:1.25rem 1.4rem;animation:fadeUp .4s ease backwards;position:relative;overflow:hidden}
-    .stat::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px 2px 0 0}
-    .stat:nth-child(1)::after{background:linear-gradient(90deg,var(--pri),var(--pri-l))}.stat:nth-child(1){animation-delay:0s}
-    .stat:nth-child(2)::after{background:linear-gradient(90deg,var(--green),var(--cyan))}.stat:nth-child(2){animation-delay:.05s}
-    .stat:nth-child(3)::after{background:linear-gradient(90deg,var(--yellow),var(--orange))}.stat:nth-child(3){animation-delay:.1s}
-    .stat:nth-child(4)::after{background:linear-gradient(90deg,var(--hetki-pink),var(--hetki-yellow))}.stat:nth-child(4){animation-delay:.15s}
-    .stat-num{font-size:2.2rem;font-weight:800;letter-spacing:-.03em}
-    .stat-lbl{font-size:.72rem;color:var(--t2);font-weight:500;margin-top:.1rem}
+    .stat{background:var(--card);border:1px solid var(--border);border-radius:var(--rl);padding:1.25rem 1.4rem;animation:fadeUp .8s cubic-bezier(.16,1,.3,1) backwards;position:relative;overflow:hidden}
+    .stat::after{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+    .stat:nth-child(1)::after{background:var(--hetki-blue)}.stat:nth-child(1){animation-delay:0s}
+    .stat:nth-child(2)::after{background:var(--hetki-green)}.stat:nth-child(2){animation-delay:.05s}
+    .stat:nth-child(3)::after{background:var(--hetki-yellow)}.stat:nth-child(3){animation-delay:.1s}
+    .stat:nth-child(4)::after{background:var(--hetki-pink)}.stat:nth-child(4){animation-delay:.15s}
+    .stat-num{font-family:var(--font-display);font-size:2rem;font-weight:500;letter-spacing:-.01em}
+    .stat-lbl{font-size:.72rem;color:var(--t2);font-weight:400;margin-top:.15rem;letter-spacing:.02em}
     .dash{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.25rem}
     .dash-w{grid-column:span 2}
-    .dc{background:var(--card);border:1px solid var(--border);border-radius:var(--rxl);overflow:hidden;animation:fadeUp .4s ease backwards}
+    .dc{background:var(--card);border:1px solid var(--border);border-radius:var(--rxl);overflow:hidden;animation:fadeUp .8s cubic-bezier(.16,1,.3,1) backwards}
     .dc:nth-child(2){animation-delay:.05s}.dc:nth-child(3){animation-delay:.1s}.dc:nth-child(4){animation-delay:.15s}
     .dc-h{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
-    .dc-h h3{font-size:.92rem;font-weight:700;letter-spacing:-.01em}
+    .dc-h h3{font-family:var(--font-display);font-size:.88rem;font-weight:500;letter-spacing:.02em;text-transform:uppercase}
     .dc-b{padding:1.5rem}
 
     /* AI Recommend card */
-    .ai-rec{background:linear-gradient(135deg,rgba(26,143,196,.08),rgba(155,124,246,.06));border:1px solid rgba(26,143,196,.15);border-radius:var(--rxl);padding:1.5rem;margin-bottom:1.75rem;display:flex;gap:1.25rem;align-items:flex-start;animation:fadeUp .5s ease .1s backwards}
-    .ai-rec-av{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--pri),var(--hetki-green));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;color:#fff;flex-shrink:0;animation:glow 2s ease infinite}
+    .ai-rec{background:rgba(5,107,159,.06) url('media/textures/texture-blue.jpg') center/cover;background-blend-mode:soft-light;border:1px solid rgba(5,107,159,.15);border-radius:var(--rxl);padding:1.5rem;margin-bottom:1.75rem;display:flex;gap:1.25rem;align-items:flex-start;animation:fadeUp .8s cubic-bezier(.16,1,.3,1) .1s backwards}
+    .ai-rec-av{width:44px;height:44px;border-radius:50%;background:var(--pri);display:flex;align-items:center;justify-content:center;font-weight:500;font-size:.85rem;color:#fff;flex-shrink:0;font-family:var(--font-display)}
     .ai-rec-body{flex:1}
-    .ai-rec-body h3{font-size:.95rem;font-weight:700;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem}
-    .ai-rec-body h3 .ai-badge{font-size:.55rem;padding:.2rem .5rem;border-radius:9999px;background:linear-gradient(135deg,var(--pri),var(--hetki-green));color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+    .ai-rec-body h3{font-family:var(--font-display);font-size:.9rem;font-weight:500;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem;letter-spacing:.02em}
+    .ai-rec-body h3 .ai-badge{font-size:.55rem;padding:.2rem .5rem;border-radius:9999px;background:var(--pri);color:#fff;font-weight:500;text-transform:uppercase;letter-spacing:.06em;font-family:var(--font-display)}
     .ai-rec-body p{font-size:.85rem;color:var(--t2);line-height:1.6}
     .ai-rec-actions{display:flex;gap:.5rem;margin-top:.75rem}
 
@@ -187,13 +198,13 @@
     .pulse-ring{position:relative;width:120px;height:120px;flex-shrink:0}
     .pulse-ring svg{transform:rotate(-90deg)}
     .pulse-sc{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-    .pulse-sc .n{font-size:2rem;font-weight:800;letter-spacing:-.03em}
+    .pulse-sc .n{font-family:var(--font-display);font-size:2rem;font-weight:500;letter-spacing:-.01em}
     .pulse-sc .l{font-size:.6rem;color:var(--t3);font-weight:600}
     .pulse-items{flex:1;display:flex;flex-direction:column;gap:.35rem}
     .pulse-it{display:flex;justify-content:space-between;padding:.35rem 0;font-size:.78rem;font-weight:500}
 
     .quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
-    .qcard{background:var(--elev);border:1px solid var(--border);border-radius:var(--rl);padding:1.1rem;cursor:pointer;transition:all .25s;display:flex;align-items:flex-start;gap:.8rem}
+    .qcard{background:var(--elev);border:1px solid var(--border);border-radius:var(--rl);padding:1.1rem;cursor:pointer;transition:all .4s cubic-bezier(.16,1,.3,1);display:flex;align-items:flex-start;gap:.8rem}
     .qcard:hover{border-color:var(--pri);transform:translateY(-2px);box-shadow:0 4px 16px rgba(26,143,196,.08)}
     .qi{width:38px;height:38px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
     .qt h4{font-size:.82rem;font-weight:700;margin-bottom:.15rem;letter-spacing:-.01em}
@@ -207,15 +218,15 @@
     .brief-wrap{max-width:920px;margin:0 auto}
     .bcard{background:var(--card);border:1px solid var(--border);border-radius:var(--rxl);overflow:hidden;margin-bottom:1.5rem}
     .bcard-h{padding:1.4rem 1.75rem;border-bottom:1px solid var(--border)}
-    .bcard-h h3{font-size:1.05rem;font-weight:700;letter-spacing:-.02em}
+    .bcard-h h3{font-family:var(--font-display);font-size:.95rem;font-weight:500;letter-spacing:.02em;text-transform:uppercase}
     .bcard-h p{font-size:.82rem;color:var(--t2);margin-top:.2rem;font-weight:500}
     .bcard-b{padding:1.75rem}
     .res-sec{margin-top:1.75rem;padding-top:1.5rem;border-top:1px solid var(--border)}
-    .res-sec h4{font-size:.92rem;font-weight:700;margin-bottom:.25rem}
+    .res-sec h4{font-family:var(--font-display);font-size:.88rem;font-weight:500;margin-bottom:.25rem;letter-spacing:.02em;text-transform:uppercase}
     .res-sec>p{font-size:.8rem;color:var(--t2);margin-bottom:1rem;font-weight:500}
     .res-tabs{display:flex;gap:.5rem;margin-bottom:1rem}
     .res-tab{padding:.5rem 1rem;border-radius:9999px;font-size:.8rem;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--t2);font-family:var(--font);font-weight:600;transition:all .2s}
-    .res-tab.act{background:linear-gradient(135deg,var(--pri),var(--pri-l));border-color:transparent;color:#fff}
+    .res-tab.act{background:var(--pri);border-color:transparent;color:#fff}
     .res-per{background:var(--elev);border:1px solid var(--border);border-radius:var(--r);padding:.875rem;margin-bottom:.55rem;display:flex;gap:.75rem;align-items:center;transition:all .2s}
     .res-per:hover{border-color:var(--border-l)}
     .res-per .nm{font-size:.85rem;font-weight:600}.res-per .sk{font-size:.72rem;color:var(--t3);font-weight:500}
@@ -224,13 +235,13 @@
     .add-row{display:flex;gap:.5rem;margin-top:.75rem}
 
     /* AI Response */
-    .ai-resp{background:var(--card);border:1px solid rgba(26,143,196,.3);border-radius:var(--rxl);overflow:hidden;margin-bottom:1.5rem;animation:scaleIn .4s ease;box-shadow:0 0 40px rgba(26,143,196,.06)}
-    .ai-resp-h{padding:1.1rem 1.5rem;background:linear-gradient(135deg,rgba(26,143,196,.06),rgba(155,124,246,.04));border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem}
-    .ai-resp-h h4{font-size:.9rem;font-weight:700}.ai-resp-h p{font-size:.7rem;color:var(--t2);font-weight:500}
+    .ai-resp{background:var(--card);border:1px solid rgba(5,107,159,.25);border-radius:var(--rxl);overflow:hidden;margin-bottom:1.5rem;animation:scaleIn .5s cubic-bezier(.16,1,.3,1);box-shadow:none}
+    .ai-resp-h{padding:1.1rem 1.5rem;background:rgba(5,107,159,.08) url('media/textures/texture-blue.jpg') center/cover;background-blend-mode:soft-light;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem}
+    .ai-resp-h h4{font-family:var(--font-display);font-size:.85rem;font-weight:500;letter-spacing:.02em;text-transform:uppercase}.ai-resp-h p{font-size:.7rem;color:var(--t2);font-weight:400}
     .ai-resp-b{padding:1.75rem}
-    .ai-resp-b h4{font-size:.95rem;font-weight:700;margin-bottom:.75rem;letter-spacing:-.01em}
+    .ai-resp-b h4{font-family:var(--font-display);font-size:.9rem;font-weight:500;margin-bottom:.75rem;letter-spacing:.02em;text-transform:uppercase}
     .ai-resp-b>p{color:var(--t2);line-height:1.7;margin-bottom:1rem;font-size:.9rem;font-weight:500}
-    .prelim{background:linear-gradient(135deg,rgba(245,197,66,.06),rgba(240,154,82,.04));border:1px solid rgba(245,197,66,.15);border-radius:var(--r);padding:1rem 1.15rem;margin-bottom:1.25rem;display:flex;gap:.75rem;align-items:flex-start}
+    .prelim{background:rgba(241,180,52,.06);border:1px solid rgba(241,180,52,.15);border-radius:var(--r);padding:1rem 1.15rem;margin-bottom:1.25rem;display:flex;gap:.75rem;align-items:flex-start}
     .prelim .ic{font-size:1.1rem;flex-shrink:0}.prelim .tx{font-size:.85rem;color:var(--yellow);line-height:1.55;font-weight:500}
     .proposal{background:var(--elev);border-radius:var(--rl);padding:1.25rem;margin-bottom:.75rem;border-left:3px solid var(--pri);transition:all .2s;position:relative}
     .proposal:hover{border-left-color:var(--pri-l);background:rgba(22,27,39,.9)}
@@ -253,10 +264,10 @@
     .pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;min-height:400px}
     .pipe-col{background:var(--card);border:1px solid var(--border);border-radius:var(--rl);display:flex;flex-direction:column}
     .pipe-col-h{padding:1rem 1.1rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
-    .pipe-col-h h3{font-size:.82rem;font-weight:700;display:flex;align-items:center;gap:.5rem}
+    .pipe-col-h h3{font-family:var(--font-display);font-size:.8rem;font-weight:500;display:flex;align-items:center;gap:.5rem;letter-spacing:.02em;text-transform:uppercase}
     .pipe-cnt{font-size:.65rem;background:var(--elev);padding:.2rem .5rem;border-radius:9999px;color:var(--t3);font-weight:600}
     .pipe-body{padding:.7rem;flex:1;display:flex;flex-direction:column;gap:.55rem}
-    .pipe-c{background:var(--elev);border:1px solid var(--border);border-radius:var(--r);padding:.95rem;cursor:pointer;transition:all .25s}
+    .pipe-c{background:var(--elev);border:1px solid var(--border);border-radius:var(--r);padding:.95rem;cursor:pointer;transition:all .4s cubic-bezier(.16,1,.3,1)}
     .pipe-c:hover{border-color:var(--pri);transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.2)}
     .pipe-c h4{font-size:.8rem;font-weight:700;margin-bottom:.25rem;letter-spacing:-.01em}
     .pipe-c>p{font-size:.7rem;color:var(--t3);margin-bottom:.4rem;font-weight:500}
@@ -268,14 +279,14 @@
 
     /* ─── CALENDAR ─── */
     .cal-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem}
-    .cal-h h2{font-size:1.4rem;font-weight:800;letter-spacing:-.03em}
+    .cal-h h2{font-family:var(--font-display);font-size:1.2rem;font-weight:500;letter-spacing:.02em;text-transform:uppercase}
     .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden}
-    .cal-dh{background:var(--card);padding:.75rem;text-align:center;font-size:.68rem;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.04em}
+    .cal-dh{background:var(--card);padding:.75rem;text-align:center;font-family:var(--font-display);font-size:.65rem;font-weight:500;color:var(--t3);text-transform:uppercase;letter-spacing:.08em}
     .cal-d{background:var(--card);min-height:105px;padding:.55rem;position:relative;transition:background .15s}
     .cal-d:hover{background:var(--card2)}
     .cal-d.oth{opacity:.25}
     .cal-d.tod{background:rgba(26,143,196,.04)}
-    .cal-d.tod::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--pri),var(--hetki-green))}
+    .cal-d.tod::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--pri)}
     .cal-dn{font-size:.72rem;font-weight:600;margin-bottom:.3rem}
     .cal-ev{font-size:.57rem;padding:.15rem .3rem;border-radius:3px;margin-bottom:.15rem;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;transition:opacity .15s}
     .cal-ev:hover{opacity:.75}
@@ -283,9 +294,9 @@
     /* ─── CONTENT BANK ─── */
     .cb-f-wrap{display:flex;gap:.5rem;margin-bottom:1.5rem;flex-wrap:wrap}
     .cb-f{padding:.45rem .95rem;border-radius:9999px;font-size:.8rem;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--t2);font-family:var(--font);font-weight:600;transition:all .2s}
-    .cb-f.act{background:linear-gradient(135deg,var(--pri),var(--pri-l));border-color:transparent;color:#fff}
+    .cb-f.act{background:var(--pri);border-color:transparent;color:#fff}
     .cb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
-    .cb-it{background:var(--card);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;transition:all .25s;cursor:pointer;animation:fadeUp .4s ease backwards}
+    .cb-it{background:var(--card);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;transition:all .4s cubic-bezier(.16,1,.3,1);cursor:pointer;animation:fadeUp .8s cubic-bezier(.16,1,.3,1) backwards}
     .cb-it:hover{border-color:var(--pri);transform:translateY(-3px);box-shadow:0 8px 32px rgba(0,0,0,.35)}
     .cb-prev{height:130px;display:flex;align-items:center;justify-content:center;font-size:2.5rem;position:relative}
     .cb-ch{position:absolute;top:.5rem;right:.5rem;font-size:.6rem;padding:.2rem .55rem;border-radius:5px;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);font-weight:600}
@@ -296,34 +307,43 @@
 
     /* ─── STRATEGY ─── */
     .strat-lay{display:grid;grid-template-columns:1fr 360px;gap:2rem}
-    .strat-hero{background:linear-gradient(135deg,var(--pri-d),var(--pri),var(--hetki-green));background-size:200% 200%;animation:gradientShift 6s ease infinite;border-radius:var(--rxl);padding:2.5rem;position:relative;overflow:hidden}
-    .strat-hero::before{content:'';position:absolute;top:-50%;right:-15%;width:350px;height:350px;background:radial-gradient(circle,rgba(255,255,255,.06) 0%,transparent 70%)}
-    .strat-hero .ob{display:inline-flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.12);padding:.4rem .95rem;border-radius:9999px;font-size:.72rem;margin-bottom:1.1rem;font-weight:600;backdrop-filter:blur(4px)}
-    .strat-hero h2{font-size:1.8rem;font-weight:800;letter-spacing:-.03em;margin-bottom:.3rem;position:relative}
+    .strat-hero{background:var(--hetki-black) url('media/textures/texture-black.jpg') center/cover;border-radius:var(--rxl);padding:2.5rem;position:relative;overflow:hidden}
+    .strat-hero::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--hetki-blue) 20%,var(--hetki-green) 20% 40%,var(--hetki-yellow) 40% 60%,var(--hetki-pink) 60% 80%,var(--hetki-black) 80%)}
+    .strat-hero::after{content:'';position:absolute;inset:0;background:rgba(48,48,48,.6)}
+    .strat-hero>*{position:relative;z-index:1}
+    .strat-hero .ob{display:inline-flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.12);padding:.4rem .95rem;border-radius:9999px;font-size:.72rem;margin-bottom:1.1rem;font-weight:500;backdrop-filter:blur(4px);font-family:var(--font-display);letter-spacing:.04em;text-transform:uppercase}
+    .strat-hero h2{font-family:var(--font-display);font-size:1.6rem;font-weight:500;letter-spacing:.02em;text-transform:uppercase;margin-bottom:.3rem;position:relative}
     .strat-sec{background:var(--card);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:1rem}
     .strat-sec-h{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:background .15s}
     .strat-sec-h:hover{background:rgba(255,255,255,.015)}
-    .strat-sec-h h3{font-size:.92rem;font-weight:700}
+    .strat-sec-h h3{font-family:var(--font-display);font-size:.88rem;font-weight:500;letter-spacing:.02em;text-transform:uppercase}
     .strat-sec-b{padding:1.25rem}
     .goal-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
     .goal{background:var(--elev);border-radius:var(--r);padding:1.15rem;border-left:3px solid var(--pri);transition:all .2s}
     .goal:hover{border-left-color:var(--pri-l)}
-    .goal .met{font-size:1.5rem;font-weight:800;color:var(--pri-l);letter-spacing:-.02em}
+    .goal .met{font-family:var(--font-display);font-size:1.5rem;font-weight:500;color:var(--pri-l);letter-spacing:-.01em}
     .goal h4{font-size:.82rem;font-weight:600;margin-top:.15rem;margin-bottom:.25rem}
     .goal p{font-size:.72rem;color:var(--t2);margin:0;font-weight:500}
     .goal-bar{margin-top:.6rem;background:var(--bg);border-radius:3px;height:4px;overflow:hidden}
-    .goal-fill{height:100%;background:linear-gradient(90deg,var(--pri),var(--pri-l));border-radius:3px;transition:width 1s}
+    .goal-fill{height:100%;background:var(--pri);border-radius:3px;transition:width 1s cubic-bezier(.16,1,.3,1)}
     .brand-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem}
     .brand{background:var(--elev);border-radius:var(--r);padding:1.15rem;text-align:center;border:1px solid transparent;transition:all .2s}
     .brand:hover{border-color:var(--pri)}
-    .brand .bic{width:40px;height:40px;background:linear-gradient(135deg,var(--pri),var(--hetki-green));border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto .75rem;font-weight:800;font-size:.8rem;color:#fff}
+    .brand .bic{width:40px;height:40px;background:var(--hetki-black);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto .75rem;font-weight:500;font-size:.8rem;color:#fff;font-family:var(--font-display)}
     .brand h4{font-size:.82rem;font-weight:700;margin-bottom:.25rem}
     .brand p{font-size:.7rem;color:var(--t2);font-weight:500}
     .tone-list{display:flex;flex-wrap:wrap;gap:.4rem}
-    .tone{background:linear-gradient(135deg,var(--pri),var(--pri-l));padding:.35rem .8rem;border-radius:9999px;font-size:.72rem;font-weight:600}
+    .tone{background:var(--pri);padding:.35rem .8rem;border-radius:9999px;font-size:.72rem;font-weight:500;font-family:var(--font-display);letter-spacing:.02em}
 
-    /* AI Chat */
-    .ai-chat{background:var(--card);border:1px solid var(--border);border-radius:var(--rxl);flex:1;display:flex;flex-direction:column;overflow:hidden;height:calc(100vh - 130px);position:sticky;top:90px}
+    /* AI Chat — Global floating panel */
+    @keyframes slideInRight{from{transform:translateX(100%)}to{transform:translateX(0)}}
+    @keyframes slideOutRight{from{transform:translateX(0)}to{transform:translateX(100%)}}
+    .chat-fab{position:fixed;bottom:1.5rem;right:1.5rem;width:52px;height:52px;border-radius:50%;background:var(--pri);color:#fff;border:none;cursor:pointer;z-index:150;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:.85rem;font-weight:500;letter-spacing:.03em;box-shadow:0 4px 20px rgba(5,107,159,.4);transition:all .2s}
+    .chat-fab:hover{transform:scale(1.08);box-shadow:0 6px 28px rgba(5,107,159,.5)}
+    .chat-panel-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:180;animation:fadeIn .2s}
+    .chat-panel{position:fixed;top:0;right:0;bottom:0;width:420px;max-width:100vw;z-index:190;animation:slideInRight .3s cubic-bezier(.16,1,.3,1);display:flex;flex-direction:column;background:var(--card);border-left:1px solid var(--border);box-shadow:-8px 0 40px rgba(0,0,0,.4)}
+    .chat-panel .ai-chat{height:100%;border:none;border-radius:0;position:static}
+    .ai-chat{background:var(--card);border:1px solid var(--border);border-radius:var(--rxl);flex:1;display:flex;flex-direction:column;overflow:hidden;height:100%}
     .ai-chat-h{padding:1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem}
     .ai-chat-msgs{flex:1;overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:.75rem}
     .ai-chat-sugs{padding:.5rem .75rem;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:.35rem}
@@ -332,7 +352,7 @@
     .ai-chat-in-area{padding:.75rem;border-top:1px solid var(--border);display:flex;gap:.5rem}
     .chat-in{flex:1;background:var(--elev);border:1px solid var(--border);border-radius:var(--r);padding:.6rem .875rem;font-size:.8rem;color:var(--t1);font-family:var(--font)}
     .chat-in:focus{outline:none;border-color:var(--pri)}
-    .chat-send{background:linear-gradient(135deg,var(--pri),var(--hetki-green));border:none;border-radius:var(--r);width:36px;height:36px;cursor:pointer;color:#fff;font-weight:800;font-size:.9rem;transition:all .2s}
+    .chat-send{background:var(--pri);border:none;border-radius:var(--r);width:36px;height:36px;cursor:pointer;color:#fff;font-weight:500;font-size:.9rem;transition:all .2s}
     .chat-send:disabled{opacity:.3}
     .chat-send:hover:not(:disabled){transform:scale(1.05)}
 
@@ -340,7 +360,7 @@
     .modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:200;animation:fadeIn .2s}
     .modal{background:var(--card);border:1px solid var(--border);border-radius:var(--rxl);width:100%;max-width:520px;animation:scaleIn .3s;box-shadow:0 24px 64px rgba(0,0,0,.5)}
     .modal-h{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
-    .modal-h h3{font-size:1.05rem;font-weight:700}
+    .modal-h h3{font-family:var(--font-display);font-size:.95rem;font-weight:500;letter-spacing:.02em;text-transform:uppercase}
     .modal-x{background:none;border:none;color:var(--t3);font-size:1.2rem;cursor:pointer;transition:color .15s}
     .modal-x:hover{color:var(--t1)}
     .modal-b{padding:1.5rem}.modal-f{padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:.75rem}
@@ -356,7 +376,7 @@
     .cal-ch-btn{padding:.35rem .7rem;border-radius:9999px;font-size:.72rem;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--t2);font-family:var(--font);font-weight:600;transition:all .2s}
     .cal-ch-btn.act{color:#fff}
     .yr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem}
-    .yr-cell{background:var(--card);border:1px solid var(--border);border-radius:var(--rl);padding:1rem;cursor:pointer;transition:all .25s;min-height:100px}
+    .yr-cell{background:var(--card);border:1px solid var(--border);border-radius:var(--rl);padding:1rem;cursor:pointer;transition:all .4s cubic-bezier(.16,1,.3,1);min-height:100px}
     .yr-cell:hover{border-color:var(--pri);transform:translateY(-2px)}
     .yr-cell.tod{border-color:var(--pri);background:rgba(26,143,196,.04)}
     .yr-cell h4{font-size:.78rem;font-weight:700;margin-bottom:.5rem}
@@ -379,9 +399,9 @@
     .mb-cats{display:flex;gap:.5rem;margin-bottom:1.5rem;flex-wrap:wrap}
     .mb-cat{padding:.55rem 1.1rem;border-radius:9999px;font-size:.82rem;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--t2);font-family:var(--font);font-weight:600;transition:all .2s;display:flex;align-items:center;gap:.4rem}
     .mb-cat:hover{border-color:var(--pri)}
-    .mb-cat.act{background:linear-gradient(135deg,var(--pri),var(--pri-l));border-color:transparent;color:#fff}
+    .mb-cat.act{background:var(--pri);border-color:transparent;color:#fff}
     .mb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem}
-    .mb-item{background:var(--card);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;cursor:pointer;transition:all .25s;animation:fadeUp .4s ease backwards}
+    .mb-item{background:var(--card);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;cursor:pointer;transition:all .4s cubic-bezier(.16,1,.3,1);animation:fadeUp .8s cubic-bezier(.16,1,.3,1) backwards}
     .mb-item:hover{border-color:var(--pri);transform:translateY(-3px);box-shadow:0 8px 32px rgba(0,0,0,.35)}
     .mb-thumb{height:160px;display:flex;align-items:center;justify-content:center;background:var(--elev);position:relative;overflow:hidden}
     .mb-thumb img{width:100%;height:100%;object-fit:cover}
@@ -391,7 +411,7 @@
     .mb-meta h4{font-size:.8rem;font-weight:700;margin-bottom:.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .mb-meta p{font-size:.68rem;color:var(--t3);font-weight:500}
     .mb-badge{position:absolute;top:.5rem;right:.5rem;font-size:.6rem;padding:.2rem .5rem;border-radius:5px;background:rgba(0,0,0,.65);backdrop-filter:blur(8px);color:#fff;font-weight:600;text-transform:uppercase}
-    .mb-upload{background:var(--card);border:2px dashed var(--border);border-radius:var(--rl);padding:2.5rem;text-align:center;cursor:pointer;transition:all .25s;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem}
+    .mb-upload{background:var(--card);border:2px dashed var(--border);border-radius:var(--rl);padding:2.5rem;text-align:center;cursor:pointer;transition:all .4s cubic-bezier(.16,1,.3,1);min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem}
     .mb-upload:hover{border-color:var(--pri);background:rgba(26,143,196,.03)}
     .mb-detail{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s}
     .mb-detail-inner{max-width:90vw;max-height:90vh;display:flex;flex-direction:column;align-items:center;gap:1rem}
@@ -405,13 +425,13 @@
     .tk-card:hover{border-color:var(--pri);transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.2)}
     .tk-card-ic{width:32px;height:32px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:.9rem;margin-bottom:.5rem}
     .tk-card h4{font-size:.75rem;font-weight:700;margin-bottom:.1rem;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .tk-num{font-size:1.3rem;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+    .tk-num{font-family:var(--font-display);font-size:1.3rem;font-weight:500;letter-spacing:-.01em;line-height:1.1}
     .tk-label{font-size:.58rem;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-top:.1rem}
-    .tk-edit-num{background:var(--elev);border:1px solid var(--border);border-radius:var(--r);padding:.25rem .4rem;font-size:1.1rem;font-weight:800;color:var(--t1);font-family:var(--font);width:90px;text-align:center}
+    .tk-edit-num{background:var(--elev);border:1px solid var(--border);border-radius:var(--r);padding:.25rem .4rem;font-size:1.1rem;font-weight:500;color:var(--t1);font-family:var(--font-display);width:90px;text-align:center}
     .tk-edit-num:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 2px rgba(26,143,196,.15)}
     .tk-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.65rem}
     .tk-stat{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:.75rem;text-align:center}
-    .tk-stat .num{font-size:1.15rem;font-weight:800;color:var(--t1);letter-spacing:-.02em}
+    .tk-stat .num{font-family:var(--font-display);font-size:1.15rem;font-weight:500;color:var(--t1);letter-spacing:-.01em}
     .tk-stat .lbl{font-size:.62rem;color:var(--t3);margin-top:.15rem;font-weight:500;line-height:1.3}
     .tk-campaign{background:var(--elev);border:1px solid var(--border);border-radius:var(--r);padding:.65rem .875rem;display:flex;align-items:center;gap:.75rem;margin-bottom:.4rem;transition:all .2s}
     .tk-campaign:hover{border-color:var(--pri)}
@@ -424,7 +444,7 @@
     .mob-toggle{display:none;background:none;border:none;color:var(--t1);font-size:1.4rem;cursor:pointer;padding:.25rem;width:40px;height:40px;align-items:center;justify-content:center;border-radius:var(--r);transition:background .15s}
     .mob-toggle:hover{background:rgba(255,255,255,.05)}
     .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:99;animation:fadeIn .2s}
-    .mob-drawer{position:fixed;left:0;top:0;bottom:0;width:280px;background:var(--card);border-right:1px solid var(--border);z-index:100;transform:translateX(-100%);transition:transform .3s ease;display:flex;flex-direction:column;overflow-y:auto}
+    .mob-drawer{position:fixed;left:0;top:0;bottom:0;width:280px;background:var(--pri-d) url('media/textures/texture-blue.jpg') center/cover;background-blend-mode:overlay;border-right:1px solid rgba(255,255,255,.08);z-index:100;transform:translateX(-100%);transition:transform .3s cubic-bezier(.16,1,.3,1);display:flex;flex-direction:column;overflow-y:auto}
     .mob-drawer.open{transform:translateX(0)}
     .mob-drawer .side-hd,.mob-drawer .ws-box,.mob-drawer nav,.mob-drawer .side-ft{display:block}
     .mob-close{position:absolute;top:.75rem;right:.75rem;background:none;border:none;color:var(--t2);font-size:1.2rem;cursor:pointer;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:50%}
@@ -525,6 +545,23 @@ const usePersistedState=(key,defaultValue)=>{
   useEffect(()=>{try{localStorage.setItem('momentum_'+key,JSON.stringify(state))}catch{}},[key,state]);
   return[state,setState];
 };
+
+// ══════ MULTI-ORG ══════
+const ORG_REGISTRY={avl:{id:'avl',name:'Aivovammaliitto',shortName:'AVL'},lef:{id:'lef',name:'Lapinlahden Elokuvajuhlat',shortName:'LLFF'}};
+const _activeOrg=(()=>{try{return JSON.parse(localStorage.getItem('momentum_activeOrg'))||'avl'}catch{return 'avl'}})();
+const useOrgState=(key,def)=>usePersistedState(_activeOrg+'_'+key,def);
+const switchOrg=(orgId)=>{localStorage.setItem('momentum_activeOrg',JSON.stringify(orgId));window.location.reload()};
+
+// Migration: move legacy un-namespaced keys to avl namespace (runs once)
+const _migrateOrgData=(()=>{
+  if(localStorage.getItem('momentum_migrated_v1'))return;
+  const legacyKeys=['org','projects','events','channelStats','media_meta','media_uploaded'];
+  legacyKeys.forEach(k=>{const old=localStorage.getItem('momentum_'+k);if(old&&!localStorage.getItem('momentum_avl_'+k)){localStorage.setItem('momentum_avl_'+k,old)}});
+  if(!localStorage.getItem('momentum_activeOrg'))localStorage.setItem('momentum_activeOrg','"avl"');
+  localStorage.setItem('momentum_migrated_v1','1');
+})();
+
+const clearOrgData=(orgId)=>{Object.keys(localStorage).filter(k=>k.startsWith('momentum_'+orgId+'_')).forEach(k=>localStorage.removeItem(k))};
 const clearAllData=()=>{Object.keys(localStorage).filter(k=>k.startsWith('momentum_')).forEach(k=>localStorage.removeItem(k))};
 
 // ══════ DEFAULT ORG ══════
@@ -851,6 +888,188 @@ const defaultEvents=[
   {day:1,month:4,year:2026,t:'Selvana liikenteessä -kampanja',ch:'Instagram',co:'#E1306C'},
 ];
 
+// ══════ LEF (Lapinlahden Elokuvajuhlat) ══════
+const LEF_CONTEXT={
+  org:{
+    fullName:'Lapinlahden Elokuvajuhlat / Lapinlahti Film Festival',
+    shortName:'LLFF',
+    founded:2024,
+    hq:'Helsinki, Lapinlahden Lähde (vanha mielisairaala)',
+    subtitle:'Elokuva tekee hyvää / Cinema Works Wonders',
+    model:'Vapaaehtoisvetoinen ilmainen elokuvafestivaali',
+    association:'Kino Lapinlahti ry',
+    volunteers:50,
+    bilingual:true,
+    expansion2026:'Vuonna 2026 festivaali laajenee viikon mittaiseksi, levittäytyy alueen elokuvateattereihin ja huipentuu ulkoilmanäytöksiin sairaalan kivipihalla ja puutarhateltassa.',
+    themeNote:'Festivaali rakentuu vuosittain vaihtuvan yhteiskunnallisen teeman ympärille. Vuoden 2026 teema lukitaan Q1:n aikana.',
+    freeEthos:'Ilmaisuus on festivaalin radikaali perusperuste — elokuva kuuluu kaikille.'
+  },
+  stats:{
+    visitorTarget:10000,
+    visitors2024:null,
+    visitorTarget2025:4500,
+    visitorTarget2026:10000,
+    visitorTarget2027:15000,
+    model:'Ilmainen, vapaaehtoisvetoinen',
+    location:'Lapinlahden Lähde, Helsinki',
+    budgetNote:'Budjetti riippuvainen apurahoista. Suunnitelmia voidaan joutua sopeuttamaan resurssien toteutumisen mukaan.'
+  },
+  program:{
+    themed:{name:'Teemaohjelmisto',desc:'Noin 20 pitkää elokuvaa ympäri maailman, sekä klassikoita että uutuuksia.',curator:'Siiri Siltala'},
+    nordicFrames:{name:'Nordic Frames',desc:'Pohjoismainen sarja: lyhytelokuvia (avoin haku) sekä noin 5 pitkää elokuvaa pohjoismaisilta esikois- ja toisinkoistekijöiltä. Sisältää tekijävieraat (~5 vierasta).',curator:'Hanna Hovitie'},
+    guestProgram:{name:'Päävierasohjelma',desc:'Merkittävä elokuva-alan tekijä: teoksia, keskusteluja ja mahdollisesti masterclass-työpaja.',curator:null},
+    now:{name:'NØW-työpaja',desc:'Festivaaliviikolla järjestettävä työpaja, jossa nuoret ja ammattilaiset luovat yhdessä uusia lyhytelokuvia. Teokset esitetään päätösnäytöksessä.',leader:'Anna Lehtonen'},
+    sideProgram:{name:'Oheisohjelmisto',desc:'Musiikkiesityksiä ja yhteiskunnallisia puheenvuoroja jotka syventävät teemaa.',curator:null}
+  },
+  channelStats:[
+    {name:'Instagram',handle:'@lapinlahtifilmfestival',url:'https://instagram.com/lapinlahtifilmfestival',followers:null,metric:'seuraajaa',lastUpdated:'2026-04',note:'Pääkanava, erityisesti nuorten ja some-aktiivisten tavoittamiseen. Julkaisut, reelsit ja tarinat.',kpis:['seuraajat','tykkäysmäärät','tavoitetut']},
+    {name:'Facebook',handle:'Kino Lapinlahti ry',url:null,followers:null,metric:'tykkäystä',lastUpdated:'2026-04',note:'Laajempi yleisö, tapahtumamarkkinointi, yhteistyökumppanien tavoittaminen.',kpis:['sivujen tykkääjät','tavoitetut','sitoutetut']},
+    {name:'TikTok',handle:'@llff',url:null,followers:null,metric:'seuraajaa',lastUpdated:'2026-04',note:'Nuorten tavoittaminen, viraalipotentiaali, behind-the-scenes -sisältö.',kpis:['seuraajat','katselut']},
+    {name:'LinkedIn',handle:'LLFF',url:null,followers:null,metric:'seuraajaa',lastUpdated:'2026-04',note:'Ammattimainen näkyvyys, yhteistyökumppanit, elokuva-alan verkostot, rahoittajat.',kpis:['seuraajat','julkaisujen näkyvyys']},
+    {name:'Verkkosivut',handle:'lapinlahdenelokuvajuhlat.fi',url:'https://lapinlahdenelokuvajuhlat.fi',followers:null,metric:'kävijää/kk',lastUpdated:'2026-04',note:'Festivaalin käyntikortti. Kaikki virallinen informaatio. Lehdistö, ammattilaiset ja kumppanit katsovat tämän ensimmäisenä.',kpis:['kävijämäärät','sivukatselut']},
+    {name:'Fienta',handle:null,url:null,followers:null,metric:'varauksia',lastUpdated:'2026-04',note:'Lippuvarausjärjestelmä.',kpis:['varaukset']},
+    {name:'FilmFreeway',handle:null,url:null,followers:null,metric:'hakemuksia',lastUpdated:'2026-04',note:'Avoimen haun alusta lyhytelokuville (Nordic Frames).',kpis:['hakemukset']},
+    {name:'Linktree',handle:null,url:null,followers:null,metric:'klikkejä',lastUpdated:'2026-04',note:'Linkkikeskus somesta verkkosivuille ja lippuvarauksiin.',kpis:['klikkaukset']}
+  ],
+  keyMessages:[
+    {title:'Elokuva tekee hyvää',desc:'Laadukas elokuvakulttuuri edistää hyvinvointia ja yhteisöllisyyttä. Ilmainen festivaali purkaa taloudellisia esteitä.',theme:'brändi'},
+    {title:'Kaikille avoin',desc:'Tervetuloa sukupuoleen, seksuaalisuuteen, etnisyyteen, vammaisuuteen tai ikään katsomatta. Saavutettavuus läpileikkaa kaiken.',theme:'tasa-arvo'},
+    {title:'Vuoden teema',desc:'Kolmas mielikuva vaihtuu vuosittain teeman mukana. 2025: yksinäisyys ja yhteisöllisyys. 2026: määritellään erikseen.',theme:'teema'},
+    {title:'Ammattimaisuus',desc:'Vapaaehtoisvetoinen mutta ammattimainen. Vertainen korkean budjetin festivaaleihin. Vaikuttaa kumppanuuksiin ja rahoitukseen.',theme:'brändi'}
+  ],
+  campaigns:[
+    {name:'Festivaali 2026',month:null,week:null,desc:'Viikon mittainen pääfestivaali Lapinlahden Lähteellä ja alueen teattereissa. Ilmaiset näytökset, oheis- ja vierasohjelma.',channels:['Instagram','Facebook','Verkkosivut','TikTok','LinkedIn']},
+    {name:'Ohjelmiston julkaisu',month:null,week:null,desc:'Koko ohjelmiston julkaisu kaikissa kanavissa. Avainhetki maksetulle markkinoinnille.',channels:['Instagram','Facebook','Verkkosivut','TikTok','LinkedIn']},
+    {name:'Lippuvarauksen avautuminen',month:null,week:null,desc:'Fienta-lippuvaraus aukeaa. Ohjaus somesta Fientaan ja verkkosivuille.',channels:['Instagram','Facebook','Verkkosivut','Linktree']},
+    {name:'Nordic Frames avoin haku',month:null,week:null,desc:'FilmFreeway-haku lyhytelokuville. Kohdennettu elokuva-alan ammattilaisille ja opiskelijoille.',channels:['Instagram','LinkedIn','FilmFreeway']},
+    {name:'Pressitiedotteet medialle',month:null,week:null,desc:'HS kaupunkitoimitus, elokuva-alan julkaisut, Kaupunkiradio, Radio Helsinki, Yle.',channels:['LinkedIn','Verkkosivut']},
+    {name:'Rekrytointikampanja',month:null,week:null,desc:'Vapaaehtoisten rekrytointi. Noin 50 vapaaehtoisen verkosto.',channels:['Instagram','Facebook']}
+  ],
+  brand:{
+    colors:{plum:'#441752',peony:'#FFD0EC',mysticGrape:'#4C3D6F',blueberry:'#5A639C',cloud:'#FCF1FF'},
+    values:['Ammattimaisuus','Tasa-arvo ja monimuotoisuus','Vuoden teema (vaihtuu vuosittain)'],
+    tones:['Innostava','Lämmin','Persoonallinen','Asiallinen'],
+    font:'DM Sans',
+    principles:['Laatu > volyymi: yksi julkaisu per alusta per päivä','Kaikki sisällöt suomeksi ja englanniksi','Saavutettavuus: alt-tekstit, kontrastierot, selkokielisyys','Ei korporaatiokieltä, ei ylilyövää hypeä','Orgaaninen, autenttinen sisältö ensisijaisesti']
+  },
+  audiences:[
+    {name:'Kultainen kulturelli',desc:'Elokuva-alan ammattilaiset ja aktiiviset festivaalikävijät. Tavoite: osallistuttaa ja sitouttaa yhdistyksen jäseniksi.',channels:['Instagram','Facebook','LinkedIn','Posterit']},
+    {name:'Normaali kuluttaja',desc:'Perheet, eläkeläiset, keski-ikäiset. Tavoite: tarjota ainutlaatuinen elämys ja tutustuttaa elokuvakulttuuriin.',channels:['Instagram','Facebook','Posterit']},
+    {name:'Nuoret ja passiivit',desc:'12-29v. Eivät ole löytäneet elokuvafestivaaleja. Tavoite: inspiroida, tarjota merkityksellisyyttä ja yhteisöllisyyttä.',channels:['Instagram','TikTok','Posterit']},
+    {name:'Noviisit',desc:'Kokemattomia festivaalikävijöitä, tulevat läheisen kutsumana. Tavoite: tarjota elämys joka saa palaamaan.',channels:['Instagram','Facebook','Posterit']},
+    {name:'Kansainvälinen yleisö',desc:'Nordic Frames -tekijävieraat, kansainväliset ammattilaiset, Helsingissä asuvat ulkomaalaiset. Uusi segmentti 2026.',channels:['Instagram','LinkedIn','Verkkosivut']}
+  ],
+  partnerships:{
+    funding:['Yle','Helsingin kaupunki','Nordic Culture Point','Nordic Film & TV Fund'],
+    organizations:['Mieli ry','HelsinkiMissio','Elokapina'],
+    festivals:['Rakkautta & Anarkiaa','Espoo Ciné','DocPoint'],
+    venue:'Lapinlahden Lähde Oy',
+    distribution:'Cinema Mondo Oy',
+    potentialMedia:['HS:n kaupunkitoimitus','Elokuva-alan julkaisut','Kaupunkiradio','Radio Helsinki','Yle']
+  },
+  metaAds:{
+    note:'Orgaaninen sisältö ensisijaisesti, maksettu markkinointi täydentää kriittisissä kohdissa.',
+    cpm:'3-8€ per 1000 näyttökertaa',
+    cpc:'0.20-0.80€ per klikkaus',
+    costPerFollower:'0.50-2.00€ per uusi seuraaja',
+    budgetLevels:[
+      {name:'Minimibudjetti',range:'100-300€',reach:'30 000-100 000 näyttökertaa',desc:'Muutaman avainhetken boostaaminen: ohjelmiston julkaisu, lippuvaraus, festivaaliviikon aloitus.'},
+      {name:'Kohtuullinen',range:'500-1 000€',reach:'100 000-300 000 näyttökertaa',desc:'Jatkuva pieni kampanja 4-6 viikkoa ennen festivaalia + yksittäisten julkaisujen boostaaminen.'},
+      {name:'Kunnianhimoinen',range:'1 500-3 000€',reach:'300 000-800 000 näyttökertaa',desc:'Pidempi kampanjakaari, A/B-testaus, kohderyhmäräätälöinti ja retargeting.'}
+    ],
+    tips:['Kohdista: Helsinki +30km, 18-45v, elokuva/kulttuuri/festivaalit','Boostaa orgaanisesti parhaiten toimineita julkaisuja','Video ja reels toimivat paremmin kuin staattiset kuvat','Ajasta 2-3 viikkoa ennen festivaalia','Retargeting on kustannustehokkainta']
+  },
+  aiGuidelines:{
+    budgetMindset:'Pieni mutta kunnianhimoinen. Ehdotusten oltava toteuttamiskelpoisia pienellä tiimillä.',
+    toneGuide:'Innostava, lämmin, persoonallinen ja asiallinen. Ei korporaatiokieltä.',
+    freeHighlight:'Ilmaisuus on tärkein erottautumistekijä suomalaisella kentällä — korosta sitä.',
+    placeIdentity:'Lapinlahden paikka on olennainen osa festivaalin identiteettiä — historiallinen ympäristö, luonto, yhteisöllisyys.',
+    contentStyle:'Painota orgaanista, autenttista sisältöä. Älä ehdota isoja tuotantoja ellei erikseen kysytä.',
+    teamDecisions:'Kaikki viestintäpäätökset tehdään yhdessä tiimin kanssa. Linjakkuus > yksittäiset loistavat ideat.'
+  }
+};
+
+const defaultOrgLEF={name:'Lapinlahden Elokuvajuhlat',s:'LLFF',slogan:'Elokuva tekee hyvää / Cinema Works Wonders',
+  goals:[
+    {m:'10 000',t:'Kävijämäärätavoite 2026',d:'Viikon mittainen festivaali, laajennus elokuvateattereihin. 2027 tavoite: 15 000.',p:40},
+    {m:'jatkuva',t:'Sidosryhmien sitouttaminen',d:'Ammattimainen mielikuva houkuttelee yhteistyökumppaneita ja rahoittajia (Yle, Helsinki, Nordic-rahastot).',p:30},
+    {m:'jatkuva',t:'Organisaation vahvistaminen',d:'~50 vapaaehtoisen verkoston rekrytointi ja sisäisen viestinnän kehittäminen.',p:20},
+    {m:'jatkuva',t:'Tunnettuuden kasvattaminen',d:'Brändin rakentaminen ja kansainvälisen yleisön tavoittaminen (uusi segmentti 2026).',p:25}
+  ],
+  vals:[
+    {i:'A',t:'Ammattimaisuus',d:'Vertainen korkean budjetin festivaaleihin vapaaehtoisvoimista huolimatta. Vaikuttaa kumppanuuksiin ja rahoitukseen.'},
+    {i:'T',t:'Tasa-arvo ja monimuotoisuus',d:'Ilmaisuus purkaa taloudellisia esteitä. Kaikille avoin sukupuoleen, etnisyyteen, vammaisuuteen tai ikään katsomatta.'},
+    {i:'V',t:'Vuoden teema',d:'Kolmas mielikuva vaihtuu vuosittain. 2025: yksinäisyys ja yhteisöllisyys. 2026: määritellään erikseen.'}
+  ],
+  auds:[
+    {n:'Kultainen kulturelli',d:'Elokuva-alan ammattilaiset ja aktiiviset festivaalikävijät. Tavoite: sitouttaa jäseniksi.',c:['Instagram','Facebook','LinkedIn']},
+    {n:'Normaali kuluttaja',d:'Perheet, eläkeläiset, keski-ikäiset. Tavoite: ainutlaatuinen elämys.',c:['Instagram','Facebook']},
+    {n:'Nuoret ja passiivit',d:'12-29v, inspirointi ja merkityksellisyys.',c:['Instagram','TikTok']},
+    {n:'Noviisit',d:'Kokemattomat festivaalikävijät, tulevat läheisen kutsumana.',c:['Instagram','Facebook']},
+    {n:'Kansainvälinen yleisö',d:'Nordic Frames -tekijävieraat, kv. ammattilaiset, Helsingissä asuvat ulkomaalaiset. Uusi 2026.',c:['Instagram','LinkedIn','Verkkosivut']}
+  ],
+  tone:['Innostava','Lämmin','Persoonallinen','Asiallinen'],
+  channels:[
+    {name:'Instagram',color:'#E1306C',ic:'📷'},
+    {name:'Facebook',color:'#1877F2',ic:'📘'},
+    {name:'TikTok',color:'#00f2ea',ic:'🎵'},
+    {name:'LinkedIn',color:'#0A66C2',ic:'💼'},
+    {name:'Verkkosivut',color:'#5A639C',ic:'🌐'},
+    {name:'Fienta',color:'#ff6b35',ic:'🎟️'},
+    {name:'FilmFreeway',color:'#20c997',ic:'🎬'}
+  ],
+  team:[
+    {name:'Anton Baer',role:'Taiteellinen johtaja',desc:'Festivaalin taiteellinen linja ja kokonaisuus.'},
+    {name:'Svetlana Romanova',role:'Vastaava tuottaja',desc:'Tuotanto ja budjetti yhdessä Antonin kanssa.'},
+    {name:'Arttu Uuranmäki',role:'Viestinnän vastaava',desc:'Kaikki ulkoinen ja sisäinen viestintä.'},
+    {name:'Siiri Siltala',role:'Elokuvakuraattori',desc:'Teemaohjelmiston kuratointi (~20 pitkää elokuvaa).'},
+    {name:'Hanna Hovitie',role:'Nordic Frames -kuraattori',desc:'Pohjoismainen sarja: lyhyt- ja pitkät elokuvat, tekijävieraat.'},
+    {name:'Anna Lehtonen',role:'NØW-työpajan vetäjä',desc:'Nuorten ja ammattilaisten yhteinen lyhytelokuvatyöpaja.'}
+  ],
+  strategyText:'',strategyFileName:''
+};
+
+const defaultEventsLEF=[
+  // Alkuvuosi — valmistelu
+  {day:15,month:0,year:2026,t:'Nordic Frames avoin haku aukeaa (FilmFreeway)',ch:'Instagram',co:'#E1306C'},
+  {day:15,month:0,year:2026,t:'Nordic Frames haku — ammattilaiskärki',ch:'LinkedIn',co:'#0A66C2'},
+  {day:1,month:1,year:2026,t:'Vapaaehtoisten rekrytointikampanja alkaa',ch:'Instagram',co:'#E1306C'},
+  {day:1,month:1,year:2026,t:'Rekrytointi — Facebook-julkaisu',ch:'Facebook',co:'#1877F2'},
+  {day:15,month:2,year:2026,t:'Nordic Frames haku päättyy',ch:'Instagram',co:'#E1306C'},
+  // Kevät — ohjelmiston rakentaminen
+  {day:1,month:3,year:2026,t:'Teeman julkaisu — 2026 teema lukittu',ch:'Instagram',co:'#E1306C'},
+  {day:1,month:3,year:2026,t:'Teemajulkaisu — Facebook',ch:'Facebook',co:'#1877F2'},
+  {day:1,month:3,year:2026,t:'Teemajulkaisu — verkkosivut',ch:'Verkkosivut',co:'#5A639C'},
+  {day:15,month:3,year:2026,t:'Kuraattorien esittely -sarja alkaa (IG)',ch:'Instagram',co:'#E1306C'},
+  {day:1,month:4,year:2026,t:'Päävieraan julkaisu',ch:'Instagram',co:'#E1306C'},
+  {day:1,month:4,year:2026,t:'Päävierasjulkaisu — LinkedIn',ch:'LinkedIn',co:'#0A66C2'},
+  {day:15,month:4,year:2026,t:'Ohjelmiston julkaisu — kaikki kanavat',ch:'Instagram',co:'#E1306C'},
+  {day:15,month:4,year:2026,t:'Ohjelmiston julkaisu — Facebook',ch:'Facebook',co:'#1877F2'},
+  {day:15,month:4,year:2026,t:'Ohjelmiston julkaisu — verkkosivut',ch:'Verkkosivut',co:'#5A639C'},
+  {day:15,month:4,year:2026,t:'Ohjelmiston julkaisu — TikTok-traileri',ch:'TikTok',co:'#00f2ea'},
+  // Kesä — markkinointi ja festivaali
+  {day:1,month:5,year:2026,t:'Lippuvaraus aukeaa (Fienta)',ch:'Instagram',co:'#E1306C'},
+  {day:1,month:5,year:2026,t:'Lippuvaraus — Facebook-tapahtuma',ch:'Facebook',co:'#1877F2'},
+  {day:1,month:5,year:2026,t:'Pressitiedote medialle',ch:'LinkedIn',co:'#0A66C2'},
+  {day:8,month:5,year:2026,t:'Meta-mainonta alkaa (boost-kampanja)',ch:'Facebook',co:'#1877F2'},
+  {day:15,month:5,year:2026,t:'Behind-the-scenes -sarja alkaa',ch:'Instagram',co:'#E1306C'},
+  {day:15,month:5,year:2026,t:'BTS-sisältöä — TikTok',ch:'TikTok',co:'#00f2ea'},
+  {day:1,month:6,year:2026,t:'Countdown festivaaliin — 2 viikkoa',ch:'Instagram',co:'#E1306C'},
+  {day:7,month:6,year:2026,t:'Countdown festivaaliin — 1 viikko',ch:'Instagram',co:'#E1306C'},
+  {day:14,month:6,year:2026,t:'Festivaaliviikko alkaa!',ch:'Instagram',co:'#E1306C'},
+  {day:14,month:6,year:2026,t:'Festivaaliviikko — Facebook',ch:'Facebook',co:'#1877F2'},
+  {day:14,month:6,year:2026,t:'NØW-työpaja alkaa',ch:'Instagram',co:'#E1306C'},
+  {day:20,month:6,year:2026,t:'Ulkoilmanäytökset — päätösviikonloppu',ch:'Instagram',co:'#E1306C'},
+  // Jälkimarkkinointi
+  {day:1,month:7,year:2026,t:'Kiitokset ja kooste — festivaalin jälkeen',ch:'Instagram',co:'#E1306C'},
+  {day:1,month:7,year:2026,t:'Kiitokset kumppaneille — LinkedIn',ch:'LinkedIn',co:'#0A66C2'},
+  {day:15,month:7,year:2026,t:'Festivaalin tunnelmaraportti — verkkosivut',ch:'Verkkosivut',co:'#5A639C'}
+];
+
+// ══════ ORG_CONTEXTS ══════
+const ORG_CONTEXTS={avl:AVL_CONTEXT,lef:LEF_CONTEXT};
+const ORG_DEFAULTS={avl:{org:defaultOrg,events:defaultEvents},lef:{org:defaultOrgLEF,events:defaultEventsLEF}};
+
 // ══════ I18N ══════
 const TR={
   fi:{
@@ -862,7 +1081,7 @@ const TR={
     login:'Kirjaudu',create:'Luo',edit:'Muokkaa',close:'Sulje',send:'Lähetä',back:'Takaisin',
     confirm:'Vahvista',yes:'Kyllä',no:'Ei',select:'Valitse',selected:'Valittu',update:'Päivitä',
     // Onboarding
-    obWelcome:'Viestinnän strateginen työkalu',obLogin:'Kirjaudu sisaan',obStart:'Aloita käyttämään Hetkiä',
+    obWelcome:'Viestinnän strateginen työkalu',obLogin:'Kirjaudu sisaan',obStart:'Aloita käyttämään Momentumia',
     obEmail:'Sähköposti',obPassword:'Salasana',obGoogle:'Jatka Google-tililla',obOr:'tai',
     obOrgTitle:'Organisaation tiedot',obOrgSub:'Perustiedot ohjaavat AI:n ehdotuksia',
     obOrgName:'Organisaation nimi',obOrgNamePh:'esim. Helsingin kulttuuriyhdistys',
@@ -874,9 +1093,9 @@ const TR={
     obUpload:'Lataa PDF',obUploadSub:'Strategiadokumentti tai viestintäsuunnitelma',
     obFreeTextPh:'Kerro organisaatiosi viestintästrategiasta vapaasti...',
     obTip:'AI jäsentää tekstistäsi tavoitteet, kohderyhmät, arvot ja sävyt automaattisesti. Voit tarkentaa myöhemmin.',
-    obAITitle:'Hetki AI analysoi',obAISub:'Varmistaa että ymmärtää organisaatiosi',
-    obCorrect:'Kyllä, oikein!',obRefine:'Haluan tarkentaa myöhemmin',obDone:'Aloitetaan',obGoHetki:'Siirry Hetkiin',
-    obGreat:'Loistavaa! Voit aina tarkentaa näitä Strategia-sivulta.\n\nTervetuloa Hetkiin!',
+    obAITitle:'Momentum AI analysoi',obAISub:'Varmistaa että ymmärtää organisaatiosi',
+    obCorrect:'Kyllä, oikein!',obRefine:'Haluan tarkentaa myöhemmin',obDone:'Aloitetaan',obGoHetki:'Siirry Momentumiin',
+    obGreat:'Loistavaa! Voit aina tarkentaa näitä Strategia-sivulta.\n\nTervetuloa Momentumiin!',
     // Strategy
     goals:'Tavoitteet',brandValues:'Brändiarvot',audiences:'Kohderyhmät',tones:'Viestinnän sävyt',
     channels:'Viestintäkanavat',addGoal:'Lisää tavoite',editGoal:'Muokkaa tavoitetta',
@@ -933,7 +1152,7 @@ const TR={
     // General
     freePlan:'Free Plan',admin:'Admin',user:'Käyttäjä',organization:'Organisaatio',added:'Lisätty!',updated:'Päivitetty!',
     // Home
-    welcomeTo:'Tervetuloa Hetkiin',welcomeDesc:'Hetki on älykäs viestinnän suunnittelukumppani. Syötä strategiasi \u2014 AI auttaa suunnittelemaan ja toteuttamaan viestintää.',
+    welcomeTo:'Tervetuloa Momentumiin',welcomeDesc:'Momentum on älykäs viestinnän suunnittelukumppani. Syötä strategiasi \u2014 AI auttaa suunnittelemaan ja toteuttamaan viestintää.',
     home:'Etusivu',getStarted:'Aloita tasta',
     step1Title:'Syota strategia',step1Desc:'Lataa viestintästrategia tai täytä tavoitteet, kohderyhmät ja arvot.',
     step2Title:'Luo projekti',step2Desc:'Kuvaile tarpeesi ja AI ehdottaa toteutuksen strategiasi pohjalta.',
@@ -1153,7 +1372,7 @@ const genBrief=(text,budget,res,org)=>{const l=text.toLowerCase(),b=parseInt(bud
     r.props=[{t:'Viestintäsuunnitelma',d:'Räätälöity tavoitteiden pohjalta.',b:Math.round(b*.3)+'\u20ac',g:g2,pp:ppl[0]?[ppl[0].n]:[],mo:Math.round(b*.3)},{t:'Sisältötuotanto',d:'Graafinen suunnittelu, tekstit.',b:Math.round(b*.5)+'\u20ac',g:g1,pp:ppl.map(p=>p.n),mo:Math.round(b*.5)},{t:'Kampanjan hallinta',d:'Ajastus ja raportointi.',b:Math.round(b*.2)+'\u20ac',g:g2,pp:[],mo:Math.round(b*.2)}];
     r.time='Sovitaan yhdessa';}return r;};
 
-const genChat=(q,org,chStats)=>{const l=q.toLowerCase();const nm=org.s||org.name||'Organisaatio';const ctx=AVL_CONTEXT;const stats=chStats||ctx.channelStats;
+const genChat=(q,org,chStats,orgCtx,events,prj)=>{const l=q.toLowerCase();const nm=org.s||org.name||'Organisaatio';const ctx=orgCtx||ORG_CONTEXTS[_activeOrg]||AVL_CONTEXT;const stats=chStats||ctx.channelStats;const evts=events||[];const projects=prj||[];
   // Channel stats / followers
   if(l.includes('seuraaj')||l.includes('follower')||l.includes('tykkaa')||(l.includes('kanav')&&(l.includes('tilast')||l.includes('luku')||l.includes('monta')))){
     const withNums=stats.filter(s=>s.followers);const noNums=stats.filter(s=>!s.followers);
@@ -1164,12 +1383,14 @@ const genChat=(q,org,chStats)=>{const l=q.toLowerCase();const nm=org.s||org.name
     return`${nm}:n kampanjat ja viestinnälliset hetket:\n\n${ctx.campaigns.map(c=>'\u2022 '+c.name+(c.month!==null?' ('+ms[c.month]+')':' (jatkuva)')+':\n  '+c.desc.slice(0,100)+'\n  Kanavat: '+c.channels.join(', ')).join('\n\n')}`}
   // Statistics / facts
   if(l.includes('tilasto')||l.includes('luku')||l.includes('fakta')||l.includes('stats')||l.includes('montako')||l.includes('kuinka mon')){
-    return`Aivovaurioiden avainluvut Suomessa:\n\n\u2022 ${ctx.stats.tbiAnnual.toLocaleString()} aivovammaa vuosittain (>90% lievia)\n\u2022 ${ctx.stats.avhAnnual.toLocaleString()} aivoverenkiertohäiriötapausta vuosittain\n\u2022 ${ctx.stats.combinedLiving.toLocaleString()} ihmista elää seurausten kanssa\n\u2022 Laheisten kanssa ${ctx.stats.withFamilies.toLocaleString()} koskettaa\n\u2022 ${ctx.stats.dailyNew}\n\u2022 ${ctx.stats.alcoholRelated}\n\u2022 ${ctx.stats.childrenSevere}\n\u2022 Aivovammoista ${ctx.stats.malePercent}% miehille, ${ctx.stats.youngAge}\n\u2022 AVH-hoitokustannukset: ${ctx.stats.avhCostPerPatient.toLocaleString()}\u20ac/potilas, ${ctx.stats.avhTotalCost}`}
+    if(ctx.stats.tbiAnnual)return`Aivovaurioiden avainluvut Suomessa:\n\n\u2022 ${ctx.stats.tbiAnnual.toLocaleString()} aivovammaa vuosittain (>90% lievia)\n\u2022 ${ctx.stats.avhAnnual.toLocaleString()} aivoverenkiertohäiriötapausta vuosittain\n\u2022 ${ctx.stats.combinedLiving.toLocaleString()} ihmista elää seurausten kanssa\n\u2022 Laheisten kanssa ${ctx.stats.withFamilies.toLocaleString()} koskettaa\n\u2022 ${ctx.stats.dailyNew}\n\u2022 ${ctx.stats.alcoholRelated}\n\u2022 ${ctx.stats.childrenSevere}\n\u2022 Aivovammoista ${ctx.stats.malePercent}% miehille, ${ctx.stats.youngAge}\n\u2022 AVH-hoitokustannukset: ${ctx.stats.avhCostPerPatient.toLocaleString()}\u20ac/potilas, ${ctx.stats.avhTotalCost}`;
+    const s=ctx.stats;let r=`${nm}:n avainluvut:\n`;if(s.visitorTarget)r+=`\n\u2022 Kävijätavoite 2026: ${s.visitorTarget.toLocaleString()}`;if(s.visitorTarget2025)r+=`\n\u2022 Kävijätavoite 2025: ${s.visitorTarget2025.toLocaleString()}`;if(s.visitorTarget2027)r+=`\n\u2022 Kävijätavoite 2027: ${s.visitorTarget2027.toLocaleString()}`;if(s.model)r+=`\n\u2022 Malli: ${s.model}`;if(s.location)r+=`\n\u2022 Sijainti: ${s.location}`;if(s.budgetNote)r+=`\n\n${s.budgetNote}`;return r.trim()}
   // Key messages
   if(l.includes('ydinviesti')||l.includes('viesti')&&l.includes('teema')||l.includes('avainviesti')){
     return`${nm}:n ydinviestit:\n\n${ctx.keyMessages.map(m=>'\u2022 '+m.title+' ['+m.theme+']:\n  '+m.desc).join('\n\n')}`}
   // Member survey
   if(l.includes('jäsenkysely')||l.includes('kysely')||l.includes('survey')||l.includes('jäsen')&&l.includes('tulos')){
+    if(!ctx.memberSurvey)return`${nm}:lla ei ole jäsenkyselydataa saatavilla.`;
     const s=ctx.memberSurvey;
     return`Jäsenkyselyn tulokset (${s.respondents} vastaajaa, ikäryhmästä ${s.ageGroup}):\n\n\u2022 ${s.notFollowSome}% EI seuraa mitaan AVL:n somea\n\u2022 ${s.followFacebook}% seuraa Facebookia\n\u2022 ${s.followWebsite}% seuraa nettisivuja\n\u2022 ${s.readAivoitus}% lukee Aivoitus-lehtea\n\u2022 ${s.preferPrint}% haluaa painetun lehden\n\u2022 ${s.receiveMemberLetter}% saa jäsenkirjeen\n\u2022 ${s.brainInjurySurvivors}% vastaajista itse aivovaurion kokeneita\n\u2022 ${s.preferFaceToFace}% haluaa kasvokkain vertaistukea`}
   // Team
@@ -1178,24 +1399,89 @@ const genChat=(q,org,chStats)=>{const l=q.toLowerCase();const nm=org.s||org.name
   // Aivoitus-lehti
   if(l.includes('aivoitus')||l.includes('lehti')&&!l.includes('lehdisto')){
     const ai=ctx.channelStats.find(c=>c.name==='Aivoitus-lehti');
-    return`Aivoitus-lehti:\n\n${ai?.note||''}\n\n2026 numerot ja teemat:\n${ctx.campaigns.filter(c=>c.name.includes('Aivoitus')).map(c=>'\u2022 '+c.name+' (vko '+c.week+'): '+c.desc).join('\n')}\n\nJäsenkysely: ${ctx.memberSurvey.readAivoitus}% jäsenistä lukee, ${ctx.memberSurvey.preferPrint}% haluaa painetun version.`}
+    return`Aivoitus-lehti:\n\n${ai?.note||''}\n\n2026 numerot ja teemat:\n${ctx.campaigns.filter(c=>c.name.includes('Aivoitus')).map(c=>'\u2022 '+c.name+' (vko '+c.week+'): '+c.desc).join('\n')}${ctx.memberSurvey?'\n\nJäsenkysely: '+ctx.memberSurvey.readAivoitus+'% jäsenistä lukee, '+ctx.memberSurvey.preferPrint+'% haluaa painetun version.':''}`}
   // Organization info
-  if(l.includes('organisaatio')||l.includes('avl')&&l.includes('tiet')||l.includes('perustiet')||l.includes('liitto')){
-    return`${ctx.org.fullName}\n\nPerustettu: ${ctx.org.founded}\nKotipaikka: ${ctx.org.hq}\nPuheenjohtaja: ${ctx.org.chair}\nToiminnanjohtaja: ${ctx.org.execDirector}\nPaikallisyhdistykset: ${ctx.org.localAssociations}\nRahoittaja: ${ctx.org.funder}\n\n${ctx.org.expansion2026}\n\n${ctx.org.toivoApp}`}
+  if(l.includes('organisaatio')||l.includes('avl')&&l.includes('tiet')||l.includes('perustiet')||l.includes('liitto')||l.includes('llff')&&l.includes('tiet')){
+    const o=ctx.org;let r=`${o.fullName}\n\nPerustettu: ${o.founded}\nKotipaikka: ${o.hq}`;
+    if(o.association)r+=`\nTaustaorganisaatio: ${o.association}`;
+    if(o.chair)r+=`\nPuheenjohtaja: ${o.chair}`;if(o.execDirector)r+=`\nToiminnanjohtaja: ${o.execDirector}`;
+    if(o.localAssociations)r+=`\nPaikallisyhdistykset: ${o.localAssociations}`;if(o.funder)r+=`\nRahoittaja: ${o.funder}`;
+    if(o.volunteers)r+=`\nVapaaehtoisverkosto: ~${o.volunteers} henkilöä`;
+    if(o.subtitle)r+=`\n\n${o.subtitle}`;if(o.model)r+=`\nMalli: ${o.model}`;
+    if(o.bilingual)r+=`\nViestintä: kaksikielinen (suomi + englanti)`;
+    if(o.freeEthos)r+=`\n\n${o.freeEthos}`;
+    if(o.expansion2026)r+=`\n\n${o.expansion2026}`;if(o.themeNote)r+=`\n${o.themeNote}`;
+    if(o.toivoApp)r+=`\n\n${o.toivoApp}`;
+    return r}
   // Goals
   if(l.includes('tavoite')||l.includes('goal')){if(!org.goals.length)return`Strategiassanne ei ole vielä tavoitteita. Lisää ne Strategia-sivulta!`;return`${nm}:n viestintätavoitteet:\n\n${org.goals.map(g=>'\u2022 '+g.t+' ('+g.m+'):\n  '+g.d).join('\n\n')}`}
   // Audiences
   if(l.includes('kohde')||l.includes('yleisö')){if(!org.auds.length)return`Kohderyhmiä ei ole vielä määritelty.`;return`Kohderyhmät:\n\n${org.auds.map(a=>'\u2022 '+a.n+':\n  '+a.d+'\n  Kanavat: '+(a.c||[]).join(', ')).join('\n\n')}`}
   // Ideas
   if(l.includes('ehdot')||l.includes('idea')||l.includes('sisalt')){
+    if(ctx.program){return`${nm}:n kontekstin ja strategian pohjalta ehdotan:\n\n\u2022 Instagram Reels: Behind-the-scenes -sarja festivaalin valmistelusta — autenttinen, lämmin\n\u2022 Instagram/TikTok: Kuraattorien esittelyt (Siiri, Hanna, Anna) — persoonallinen ote\n\u2022 Facebook: Countdown-julkaisut festivaaliin — ohjelmiston paljastukset vaiheittain\n\u2022 LinkedIn: Nordic Frames -tekijävieraiden esittely — ammattimainen kärki\n\u2022 Verkkosivut: Elokuvien taustoitusartikkelit — teemaa syventävät\n\nPeriaatteet: orgaaninen sisältö ensin, laatu > volyymi, suomi + englanti.\nIlmaisuus on tärkein erottautumistekijä — korosta sitä.\n\nHaluatko tarkentaa jotain?`}
     const chs=org.channels.length?org.channels.map(c=>c.name):['some'];
     return`Strategianne ja kontekstin pohjalta ehdotan:\n\n\u2022 ${chs[0]||'Facebook'}: Aivoterveysvinkkisarja (#aivoterveysvinkit) — viikoittainen\n\u2022 ${chs[1]||'Instagram'}: Kokemustarina-sarja (#elamajatkuu) — 2x/kk\n\u2022 Kampanjayhteistyo: Kippista kohtuudella -materiaali\n\u2022 Webinaarisarja ammattilaisille (LinkedIn + YouTube)\n\nNama tukevat ydinviestejanne: näkymätön vamma, ennaltaehkäisy, vertaistuki.\n\nHaluatko tarkentaa jotain?`}
   // Values
   if(l.includes('arvo')||l.includes('brand')){if(!org.vals.length)return`Brändiarvoja ei ole vielä määritelty.`;return`Brändiarvot:\n\n${org.vals.map(v=>'\u2022 '+v.t+': '+v.d).join('\n')}`}
   // Tones
-  if(l.includes('sävy')||l.includes('tone')){if(!org.tone.length)return`Viestinnän sävyjä ei ole vielä määritelty.`;return`Viestinnän sävyt: ${org.tone.join(', ')}\n\nNama sävyt ohjaavat kaikkea viestintää — erityisesti tarkea aivovammaviestinnassa, jossa empaattisuus ja luotettavuus ovat avainasemassa.`}
+  if(l.includes('sävy')||l.includes('tone')){if(!org.tone.length)return`Viestinnän sävyjä ei ole vielä määritelty.`;let toneNote=ctx.aiGuidelines?ctx.aiGuidelines.toneGuide:'Nämä sävyt ohjaavat kaikkea viestintää.';if(ctx.stats.tbiAnnual)toneNote='Erityisesti tärkeä aivovammaviestinnässä, jossa empaattisuus ja luotettavuus ovat avainasemassa.';return`Viestinnän sävyt: ${org.tone.join(', ')}\n\n${toneNote}`}
+  // Calendar / publications
+  const msNames=['tammikuu','helmikuu','maaliskuu','huhtikuu','toukokuu','kesäkuu','heinäkuu','elokuu','syyskuu','lokakuu','marraskuu','joulukuu'];
+  if(l.includes('julkais')||l.includes('kalenteri')||l.includes('ensi kuu')||l.includes('tässä kuu')||l.includes('mitä tulee')||l.includes('aikataulu')){
+    const now=new Date();const cm=now.getMonth();const cy=now.getFullYear();
+    let targetMonth=cm;let targetYear=cy;
+    if(l.includes('ensi kuu')){targetMonth=cm+1;if(targetMonth>11){targetMonth=0;targetYear++}}
+    msNames.forEach((mn,i)=>{if(l.includes(mn.slice(0,5)))targetMonth=i});
+    const monthEvts=evts.filter(e=>e.month===targetMonth&&e.year===targetYear);
+    if(monthEvts.length===0)return`${msNames[targetMonth]} ${targetYear}: ei suunniteltuja julkaisuja.`;
+    const byChannel={};monthEvts.forEach(e=>{if(!byChannel[e.ch])byChannel[e.ch]=[];byChannel[e.ch].push(e)});
+    return`${nm} — ${msNames[targetMonth]} ${targetYear} (${monthEvts.length} julkaisua):\n\n${Object.entries(byChannel).map(([ch,es])=>ch+':\n'+es.map(e=>'  \u2022 '+e.day+'.'+( targetMonth+1)+'. '+e.t).join('\n')).join('\n\n')}`}
+  // Projects / pipeline
+  if(l.includes('projekti')||l.includes('pipeline')||l.includes('aktiivi')&&l.includes('projekti')||l.includes('kampanja')&&l.includes('käynnissä')){
+    const active=projects.filter(p=>!p.archived);if(!active.length)return`${nm}:lla ei ole vielä projekteja. Luo uusi projekti Projektit-sivulta!`;
+    const byStatus={idea:[],active:[],done:[]};active.forEach(p=>byStatus[p.st]?.push(p));
+    let r=`${nm}:n projektit (${active.length}):\n`;
+    if(byStatus.active.length)r+=`\nTyöstössä (${byStatus.active.length}):\n${byStatus.active.map(p=>'\u2022 '+p.t+(p.deadline?' — DL: '+p.deadline:'')).join('\n')}`;
+    if(byStatus.idea.length)r+=`\n\nIdeat (${byStatus.idea.length}):\n${byStatus.idea.map(p=>'\u2022 '+p.t).join('\n')}`;
+    if(byStatus.done.length)r+=`\n\nValmiit (${byStatus.done.length}):\n${byStatus.done.map(p=>'\u2022 '+p.t).join('\n')}`;
+    const archived=projects.filter(p=>p.archived);if(archived.length)r+=`\n\nArkistoidut: ${archived.length}`;
+    return r}
+  // Program (LEF-specific)
+  if(l.includes('ohjelm')||l.includes('program')||l.includes('elokuv')&&(l.includes('mitä')||l.includes('rakenne'))||l.includes('nordic frames')||l.includes('nøw')||l.includes('kuraatt')){
+    if(!ctx.program)return`${nm}:lla ei ole ohjelmistodataa saatavilla.`;
+    const p=ctx.program;return`${nm}:n ohjelmiston rakenne 2026:\n\n\u2022 ${p.themed.name}: ${p.themed.desc}\n  Kuraattori: ${p.themed.curator}\n\n\u2022 ${p.nordicFrames.name}: ${p.nordicFrames.desc}\n  Kuraattori: ${p.nordicFrames.curator}\n\n\u2022 ${p.guestProgram.name}: ${p.guestProgram.desc}\n\n\u2022 ${p.now.name}: ${p.now.desc}\n  Vetäjä: ${p.now.leader}\n\n\u2022 ${p.sideProgram.name}: ${p.sideProgram.desc}`}
+  // Partnerships
+  if(l.includes('kumppan')||l.includes('partner')||l.includes('yhteistyö')||l.includes('rahoitt')||l.includes('sponsor')){
+    if(!ctx.partnerships)return`${nm}:lla ei ole kumppanidataa saatavilla.`;
+    const p=ctx.partnerships;return`${nm}:n kumppaniverkosto:\n\nRahoitus ja näkyvyys:\n${p.funding.map(f=>'\u2022 '+f).join('\n')}\n\nJärjestökumppanit:\n${p.organizations.map(o=>'\u2022 '+o).join('\n')}\n\nFestivaalikumppanit:\n${p.festivals.map(f=>'\u2022 '+f).join('\n')}\n\nPaikkakumppani: ${p.venue}\nLevityskumppani: ${p.distribution}\n\nPotentiaaliset mediat:\n${p.potentialMedia.map(m=>'\u2022 '+m).join('\n')}`}
+  // Meta ads / paid marketing
+  if(l.includes('meta')&&l.includes('ad')||l.includes('maksettu')&&l.includes('markkinoin')||l.includes('mainon')||l.includes('boost')||l.includes('budjetti')&&(l.includes('mainon')||l.includes('some'))){
+    if(!ctx.metaAds)return`${nm}:lla ei ole Meta-mainonnan dataa saatavilla.`;
+    const m=ctx.metaAds;return`${nm} — Meta-mainonta (Instagram & Facebook):\n\n${m.note}\n\nHintatasot Suomessa:\n\u2022 CPM: ${m.cpm}\n\u2022 CPC: ${m.cpc}\n\u2022 Uusi seuraaja: ${m.costPerFollower}\n\nBudjettitasot:\n${m.budgetLevels.map(b=>'\u2022 '+b.name+' ('+b.range+'): '+b.reach+'\n  '+b.desc).join('\n\n')}\n\nVinkit:\n${m.tips.map(t=>'\u2022 '+t).join('\n')}`}
+  // Brand (LEF-specific brand object, or general brand values)
+  if(l.includes('brändi')||l.includes('mielikuv')||l.includes('brand')&&!l.includes('arvo')){
+    if(ctx.brand){const b=ctx.brand;let r=`${nm}:n brändi:\n\nMielikuvat: ${b.values.join(', ')}\nSävyt: ${b.tones.join(', ')}\nFontti: ${b.font}\n\nVärit:\n${Object.entries(b.colors).map(([k,v])=>'\u2022 '+k+': '+v).join('\n')}`;if(b.principles)r+=`\n\nViestinnän periaatteet:\n${b.principles.map(p=>'\u2022 '+p).join('\n')}`;return r}
+    if(org.vals.length)return`${nm}:n brändiarvot:\n\n${org.vals.map(v=>'\u2022 '+v.t+': '+v.d).join('\n')}`;
+    return`Bränditietoja ei ole vielä määritelty.`}
+
   // Default: rich overview
-  return`${nm} \u2014 viestinnän tilannekuva:\n\n\u2022 ${ctx.stats.dailyNew}\n\u2022 ${ctx.stats.combinedLiving.toLocaleString()} ihmista elää aivovaurion kanssa\n${org.goals.length?'\u2022 '+org.goals.length+' viestintätavoitetta':''}\n${org.channels.length?'\u2022 '+org.channels.length+' viestintäkanavaa':''}\n${(org.team||[]).length?'\u2022 '+org.team.length+' tiimijäsenta':''}\n${ctx.campaigns.length?'\u2022 '+ctx.campaigns.length+' kampanjaa/viestinnällista hetkea':''}\n\nKysy tarkemmin:\nseuraajat, kampanjat, tilastot, ydinviestit, jäsenkysely, tiimi, tavoitteet, kohderyhmät, arvot, sävyt, Aivoitus-lehti, organisaatio`};
+  let overview=`${nm} \u2014 viestinnän tilannekuva:\n\n`;
+  if(ctx.stats.dailyNew)overview+=`\u2022 ${ctx.stats.dailyNew}\n`;
+  if(ctx.stats.combinedLiving)overview+=`\u2022 ${ctx.stats.combinedLiving.toLocaleString()} ihmistä elää aivovaurion kanssa\n`;
+  if(ctx.stats.visitorTarget)overview+=`\u2022 Kävijätavoite 2026: ${ctx.stats.visitorTarget.toLocaleString()}\n`;
+  if(ctx.org.subtitle)overview+=`\u2022 ${ctx.org.subtitle}\n`;
+  if(ctx.org.expansion2026)overview+=`\u2022 2026: viikon mittainen festivaali\n`;
+  if(ctx.program)overview+=`\u2022 ${Object.keys(ctx.program).length} ohjelmistolohkoa\n`;
+  if(org.goals.length)overview+=`\u2022 ${org.goals.length} viestintätavoitetta\n`;
+  if(org.channels.length)overview+=`\u2022 ${org.channels.length} viestintäkanavaa\n`;
+  if((org.team||[]).length)overview+=`\u2022 ${org.team.length} tiimijäsentä\n`;
+  if(ctx.campaigns.length)overview+=`\u2022 ${ctx.campaigns.length} kampanjaa/viestinnällistä hetkeä\n`;
+  if(ctx.partnerships)overview+=`\u2022 ${ctx.partnerships.funding.length+ctx.partnerships.organizations.length+ctx.partnerships.festivals.length} kumppania\n`;
+  let topics='seuraajat, kampanjat, tilastot, ydinviestit, tiimi, tavoitteet, kohderyhmät, arvot, sävyt, organisaatio';
+  if(ctx.program)topics+=', ohjelmisto';if(ctx.partnerships)topics+=', kumppanit';if(ctx.metaAds)topics+=', Meta-mainonta';
+  overview+=`\nKysy tarkemmin:\n${topics}`;
+  return overview};
 
 const useToast=()=>{const[t,sT]=useState([]);return{toasts:t,add:(m,ty='info')=>{const id=Date.now();sT(p=>[...p,{id,message:m,type:ty}]);setTimeout(()=>sT(p=>p.filter(x=>x.id!==id)),3500)}}};
 
@@ -1266,11 +1552,11 @@ function Onboarding({onDone,toast,setOrg,t}){
   };
 
   const clickOpt=async o=>{setMsgs(p=>[...p,{r:'user',c:o}]);setTyping(true);await wait(1000);setTyping(false);
-    if(!done){setMsgs(p=>[...p,{r:'assistant',c:'Loistavaa! Voit aina tarkentaa näitä Strategia-sivulta.\n\nTervetuloa Hetkiin!',opts:['Aloitetaan \u2192']}]);setDone(true)}
+    if(!done){setMsgs(p=>[...p,{r:'assistant',c:'Loistavaa! Voit aina tarkentaa näitä Strategia-sivulta.\n\nTervetuloa Momentumiin!',opts:['Aloitetaan \u2192']}]);setDone(true)}
     else onDone()};
 
   if(step===0)return(
-    <div className="onb"><div className="onb-wrap"><div className="onb-logo"><img src="media/brand/hetki-logo-white.png" alt="Hetki" style={{height:48,width:'auto'}}/><h1>Hetki</h1><p>{t('obWelcome')}</p></div>
+    <div className="onb"><div className="onb-wrap"><div className="onb-logo"><img src="media/brand/hetki-logo-white.png" alt="Hetki" style={{height:48,width:'auto'}}/><h1>Momentum</h1><p>{t('obWelcome')}</p></div>
     <div className="onb-card"><div className="onb-head"><h2>{t('obLogin')}</h2><p>{t('obStart')}</p></div>
     <div className="onb-body">
       <div className="field"><label>{t('obEmail')}</label><input className="input" placeholder="nimi@yritys.fi"/></div>
@@ -1283,7 +1569,7 @@ function Onboarding({onDone,toast,setOrg,t}){
     </div><div className="onb-foot"><div className="onb-dots"><div className="onb-dot active"/><div className="onb-dot"/><div className="onb-dot"/><div className="onb-dot"/></div><div/></div></div></div></div>);
 
   if(step===1)return(
-    <div className="onb"><div className="onb-wrap"><div className="onb-logo"><img src="media/brand/hetki-logo-white.png" alt="Hetki" style={{height:48,width:'auto'}}/><h1>Hetki</h1><p>{t('obOrgTitle')}</p></div>
+    <div className="onb"><div className="onb-wrap"><div className="onb-logo"><img src="media/brand/hetki-logo-white.png" alt="Hetki" style={{height:48,width:'auto'}}/><h1>Momentum</h1><p>{t('obOrgTitle')}</p></div>
     <div className="onb-card"><div className="onb-head"><h2>{t('obOrgTitle')}</h2><p>{t('obOrgSub')}</p></div>
     <div className="onb-body">
       <div className="field"><label>{t('obOrgName')} *</label><input className="input" placeholder={t('obOrgNamePh')} value={name} onChange={e=>setName(e.target.value)}/></div>
@@ -1317,7 +1603,7 @@ function Onboarding({onDone,toast,setOrg,t}){
     </div><div className="onb-foot"><div className="onb-dots"><div className="onb-dot done"/><div className="onb-dot active"/><div className="onb-dot"/><div className="onb-dot"/></div><button className="btn btn-primary" onClick={()=>setStep(2)} disabled={!name.trim()}>Jatka \u2192</button></div></div></div></div>);
 
   if(step===2)return(
-    <div className="onb"><div className="onb-wrap" style={{maxWidth:700}}><div className="onb-logo"><img src="media/brand/hetki-logo-white.png" alt="Hetki" style={{height:48,width:'auto'}}/><h1>Hetki</h1><p>{t('obStratTitle')}</p></div>
+    <div className="onb"><div className="onb-wrap" style={{maxWidth:700}}><div className="onb-logo"><img src="media/brand/hetki-logo-white.png" alt="Hetki" style={{height:48,width:'auto'}}/><h1>Momentum</h1><p>{t('obStratTitle')}</p></div>
     <div className="onb-card"><div className="onb-head"><h2>{t('obStratTitle')}</h2><p>{t('obStratSub')}</p></div>
     <div className="onb-body" style={{maxHeight:'65vh',overflowY:'auto'}}>
       <div className="strat-opts">
@@ -1359,9 +1645,9 @@ function Onboarding({onDone,toast,setOrg,t}){
 
   // Step 3: AI analysis
   return(
-    <div className="onb"><div className="onb-wrap" style={{maxWidth:700}}><div className="onb-logo"><img src="media/brand/hetki-logo-white.png" alt="Hetki" style={{height:48,width:'auto'}}/><h1>Hetki</h1><p>{t('obAITitle')}</p></div>
+    <div className="onb"><div className="onb-wrap" style={{maxWidth:700}}><div className="onb-logo"><img src="media/brand/hetki-logo-white.png" alt="Hetki" style={{height:48,width:'auto'}}/><h1>Momentum</h1><p>{t('obAITitle')}</p></div>
     <div className="onb-card"><div className="onb-head"><div style={{display:'flex',alignItems:'center',gap:'.75rem'}}>
-      <div className="ai-av" style={{width:38,height:38,fontSize:'.8rem',background:'linear-gradient(135deg,var(--pri),var(--hetki-green))',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,color:'#fff'}}>AI</div>
+      <div className="ai-av" style={{width:38,height:38,fontSize:'.8rem',background:'var(--pri)',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:500,color:'#fff',fontFamily:'var(--font-display)'}}>AI</div>
       <div><h2 style={{fontSize:'1.05rem'}}>{t('obAITitle')}</h2><p style={{fontSize:'.75rem',color:'var(--t2)',marginTop:'.1rem',fontWeight:500}}>{t('obAISub')}</p></div></div></div>
     <div className="onb-body" style={{maxHeight:400,overflowY:'auto'}}>
       <div className="ai-dialog">{msgs.map((m,i)=>(
@@ -1374,7 +1660,7 @@ function Onboarding({onDone,toast,setOrg,t}){
     </div><div className="onb-foot"><div className="onb-dots"><div className="onb-dot done"/><div className="onb-dot done"/><div className="onb-dot done"/><div className="onb-dot active"/></div>{done&&<button className="btn btn-primary" onClick={onDone}>{t('obGoHetki')} \u2192</button>}</div></div></div></div>);}
 
 // ══════ DASHBOARD ══════
-function Home({go,toast,prj,events,org,t,chStats,setChStats}){
+function Home({go,toast,prj,events,org,t,chStats,setChStats,orgCtx}){
   const hasStrat=org.goals.length>0||org.auds.length>0||org.vals.length>0;
   const hasPrj=prj.length>0;const hasEv=events.length>0;
   const[editingStats,setEditingStats]=useState(false);
@@ -1398,10 +1684,10 @@ function Home({go,toast,prj,events,org,t,chStats,setChStats}){
 
   const steps=[
     {key:'strat',title:t('step1Title'),desc:t('step1Desc'),icon:'\u25c8',done:hasStrat,action:()=>go('strategy'),color:'var(--hetki-pink)'},
-    {key:'prj',title:t('step2Title'),desc:t('step2Desc'),icon:'+',done:hasPrj,action:()=>go('brief'),color:'var(--pri-l)'},
+    {key:'prj',title:t('step2Title'),desc:t('step2Desc'),icon:'+',done:hasPrj,action:()=>go('pipeline'),color:'var(--pri-l)'},
     {key:'cal',title:t('step3Title'),desc:t('step3Desc'),icon:'\u25a6',done:hasEv,action:()=>go('calendar'),color:'var(--yellow)'}];
 
-  const ctx=AVL_CONTEXT;
+  const ctx=orgCtx||ORG_CONTEXTS[_activeOrg]||AVL_CONTEXT;
   const ms=t('months');const msShort=t('monthsShort');
 
   // Channel icon lookup
@@ -1449,7 +1735,7 @@ function Home({go,toast,prj,events,org,t,chStats,setChStats}){
     <div style={{marginBottom:'1.75rem'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}}>
         <h3 style={{fontSize:'.8rem',fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.06em'}}>{t('tilannekuva')}</h3>
-        <span style={{fontSize:'.65rem',color:'var(--t3)',fontWeight:500}}>{ctx.org.expansion2026.slice(0,60)}...</span>
+        {ctx.org.expansion2026&&<span style={{fontSize:'.65rem',color:'var(--t3)',fontWeight:500}}>{ctx.org.expansion2026.slice(0,60)}...</span>}
       </div>
 
       {/* ── Channel Stats ── */}
@@ -1489,6 +1775,7 @@ function Home({go,toast,prj,events,org,t,chStats,setChStats}){
       <div className="dc" style={{marginBottom:'.75rem',animation:'fadeUp .4s ease .16s backwards'}}>
         <div className="dc-h" style={{cursor:'pointer'}} onClick={()=>togTk('stats')}><h3>{t('keyStatsTitle')}</h3><span style={{color:'var(--t3)',fontSize:'.75rem'}}>{tkSection.includes('stats')?'\u2212':'+'}</span></div>
         {tkSection.includes('stats')&&<div className="dc-b">
+          {ctx.stats.tbiAnnual?<>
           <div className="tk-stats">
             <div className="tk-stat"><div className="num" style={{color:'var(--pri-l)'}}>{ctx.stats.tbiAnnual.toLocaleString()}</div><div className="lbl">{t('tbiPerYear')}</div></div>
             <div className="tk-stat"><div className="num" style={{color:'var(--hetki-pink)'}}>{ctx.stats.avhAnnual.toLocaleString()}</div><div className="lbl">{t('avhPerYear')}</div></div>
@@ -1502,6 +1789,11 @@ function Home({go,toast,prj,events,org,t,chStats,setChStats}){
             <span style={{fontSize:'.65rem',padding:'.2rem .5rem',borderRadius:9999,background:'rgba(155,124,246,.06)',color:'var(--t2)',fontWeight:500}}>{ctx.stats.malePercent}% miehia, {ctx.stats.youngAge}</span>
             <span style={{fontSize:'.65rem',padding:'.2rem .5rem',borderRadius:9999,background:'rgba(239,107,107,.06)',color:'var(--t2)',fontWeight:500}}>{ctx.stats.childrenSevere}</span>
           </div>
+          </>:<div className="tk-stats">
+            {ctx.stats.visitorTarget&&<div className="tk-stat"><div className="num" style={{color:'var(--pri-l)'}}>{ctx.stats.visitorTarget.toLocaleString()}</div><div className="lbl">Kävijätavoite</div></div>}
+            {ctx.stats.model&&<div className="tk-stat"><div className="num" style={{color:'var(--green)',fontSize:'.85rem'}}>{ctx.stats.model}</div><div className="lbl">Malli</div></div>}
+            {ctx.stats.location&&<div className="tk-stat"><div className="num" style={{color:'var(--yellow)',fontSize:'.85rem'}}>{ctx.stats.location}</div><div className="lbl">Sijainti</div></div>}
+          </div>}
         </div>}
       </div>
 
@@ -1550,7 +1842,7 @@ function Home({go,toast,prj,events,org,t,chStats,setChStats}){
       {/* Active projects */}
       {hasPrj&&<div className="dc" style={{animation:'fadeUp .4s ease .32s backwards'}}>
         <div className="dc-h"><h3>{t('activeProjects')}</h3><button className="btn btn-ghost btn-sm" onClick={()=>go('pipeline')}>{t('all')} \u2192</button></div>
-        <div className="dc-b">{prj.filter(p=>p.st==='active'||p.st==='proposal').slice(0,4).map(p=><div key={p.id} className="act-it" style={{cursor:'pointer'}} onClick={()=>go('pipeline')}><div className="act-dot" style={{background:p.st==='active'?'var(--green)':'var(--yellow)'}}/><div style={{flex:1}}><div style={{fontSize:'.82rem',fontWeight:600}}>{p.t}</div><div style={{fontSize:'.65rem',color:'var(--t3)',marginTop:'.1rem',fontWeight:500}}>{p.st==='active'?t('running'):t('proposal')} \u00b7 {p.b}</div></div></div>)}</div>
+        <div className="dc-b">{prj.filter(p=>!p.archived&&(p.st==='active'||p.st==='idea')).slice(0,4).map(p=>{const dl=deadlineColor(p.deadline);const prog=taskProgress(p.tasks);return<div key={p.id} className="act-it" style={{cursor:'pointer'}} onClick={()=>go('pipeline')}><div className="act-dot" style={{background:p.st==='active'?'var(--green)':'var(--pri-l)'}}/><div style={{flex:1}}><div style={{fontSize:'.82rem',fontWeight:600}}>{p.t}</div><div style={{fontSize:'.65rem',color:'var(--t3)',marginTop:'.1rem',fontWeight:500}}>{p.st==='active'?'Työstössä':'Idea'}{p.tasks?.length>0?' \u00b7 '+prog+'%':''}{dl?' \u00b7 '+dl.label:''}</div></div></div>})}</div>
       </div>}
 
       {/* Upcoming publications */}
@@ -1563,58 +1855,281 @@ function Home({go,toast,prj,events,org,t,chStats,setChStats}){
   </div>);}
 
 // ══════ BRIEF ══════
-function Brief({toast,prj,setPrj,go,org,t}){
-  const[text,setText]=useState('');const[budget,setBudget]=useState('');const[deadline,setDL]=useState('');
-  const[rTab,setRTab]=useState('people');const[res,setRes]=useState([]);
-  const[nn,setNN]=useState('');const[ns,setNS]=useState('');const[na,setNA]=useState('');const[nf,setNF]=useState('');
-  const[loading,setLoading]=useState(false);const[resp,setResp]=useState(null);
+// ══════ DEADLINE HELPERS ══════
+const deadlineColor=(dl)=>{if(!dl)return null;const now=new Date();const d=new Date(dl);const diff=d-now;const day=86400000;
+  if(diff<0)return{color:'var(--red,#ef4444)',bg:'rgba(239,68,68,.1)',label:'Myöhässä'};
+  if(diff<7*day)return{color:'var(--red,#ef4444)',bg:'rgba(239,68,68,.1)',label:Math.ceil(diff/day)+' pv jäljellä'};
+  if(diff<30*day)return{color:'var(--yellow)',bg:'rgba(245,197,66,.1)',label:Math.ceil(diff/day)+' pv jäljellä'};
+  return{color:'var(--green)',bg:'rgba(45,212,160,.1)',label:Math.ceil(diff/day)+' pv jäljellä'}};
+const taskProgress=(tasks)=>{if(!tasks||!tasks.length)return 0;return Math.round(tasks.filter(t=>t.done).length/tasks.length*100)};
 
-  const addP=()=>{if(nn.trim()){setRes(p=>[...p,{ty:'person',n:nn,sk:ns||'Yleinen'}]);setNN('');setNS('')}};
-  const addM=()=>{if(na.trim()){setRes(p=>[...p,{ty:'money',am:na+'€',fo:nf||'Ostopalvelut'}]);setNA('');setNF('')}};
+// ══════ NEW PROJECT (simple, no AI) ══════
+function NewProject({toast,prj,setPrj,onDone,t}){
+  const[title,setTitle]=useState('');const[desc,setDesc]=useState('');const[deadline,setDL]=useState('');
+  const[nn,setNN]=useState('');const[nr,setNR]=useState('');
+  const[team,setTeam]=useState([]);
 
-  const analyze=async()=>{if(!text.trim())return;setLoading(true);setResp(null);await wait(2500);setResp(genBrief(text,budget,res,org));setLoading(false)};
-  const self=()=>{setPrj(p=>[...p,{id:Date.now(),t:text.slice(0,30),d:text.slice(0,60),st:'active',b:budget+'\u20ac',g:resp.goals?.[0]||'Tavoittavuus',al:Math.round(60+Math.random()*30),res}]);
-    toast(t('projectAdded'),'success');go('pipeline')};
+  const addMember=()=>{if(!nn.trim())return;setTeam(p=>[...p,{name:nn,role:nr||'Tiimijäsen',avatar:nn[0].toUpperCase()}]);setNN('');setNR('')};
+  const save=()=>{if(!title.trim())return;
+    setPrj(p=>[...p,{id:Date.now(),t:title,d:desc,st:'idea',team,comments:[],deadline:deadline||'',tasks:[],archived:false,createdAt:Date.now()}]);
+    toast('Projekti luotu','success');onDone()};
 
-  return(<div className="brief-wrap page-enter">
-    <div className="bcard"><div className="bcard-h"><h3>{t('describeYourNeed')}</h3><p>{t('briefSub')}</p></div>
+  return(<div className="page-enter" style={{maxWidth:640,margin:'0 auto'}}>
+    <button className="btn btn-ghost" onClick={onDone} style={{marginBottom:'1rem'}}>{'\u2190'} Takaisin</button>
+    <div className="bcard"><div className="bcard-h"><h3>Uusi projekti</h3><p>Luo uusi projekti ja aloita seuranta.</p></div>
     <div className="bcard-b">
-      <textarea className="input textarea textarea-lg" placeholder={t('briefPh')} value={text} onChange={e=>setText(e.target.value)}/>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem',marginTop:'1.25rem'}}>
-        <div className="field" style={{margin:0}}><label>{t('budget')} (€)</label><input className="input" placeholder={t('budgetPh')} value={budget} onChange={e=>setBudget(e.target.value)}/></div>
-        <div className="field" style={{margin:0}}><label>{t('timeline')}</label><input className="input" placeholder={t('timelinePh')} value={deadline} onChange={e=>setDL(e.target.value)}/></div></div>
+      <div className="field"><label>Projektin nimi *</label><input className="input" placeholder="Esim. Kesäkampanja 2026" value={title} onChange={e=>setTitle(e.target.value)}/></div>
+      <div className="field"><label>Kuvaus</label><textarea className="input textarea" placeholder="Mitä projektissa tehdään?" value={desc} onChange={e=>setDesc(e.target.value)} style={{minHeight:80}}/></div>
+      <div className="field"><label>Deadline</label><input className="input" type="date" value={deadline} onChange={e=>setDL(e.target.value)}/></div>
 
-      <div className="res-sec"><h4>{t('resources')}</h4><p>{t('resourcesSub')}</p>
-        <div className="res-tabs"><button className={`res-tab ${rTab==='people'?'act':''}`} onClick={()=>setRTab('people')}>👤 {t('ownPeople')}</button><button className={`res-tab ${rTab==='money'?'act':''}`} onClick={()=>setRTab('money')}>💰 {t('purchasedServices')}</button></div>
-        {res.map((r,i)=><div key={i} className="res-per">{r.ty==='person'?<div className="ava" style={{width:32,height:32,fontSize:'.7rem'}}>{r.n[0]}</div>:<div className="ava" style={{width:32,height:32,fontSize:'.85rem',background:'linear-gradient(135deg,var(--yellow),var(--orange))'}}>€</div>}<div style={{flex:1}}><div className="nm">{r.ty==='person'?r.n:r.am}</div><div className="sk">{r.ty==='person'?r.sk:r.fo}</div></div><button className="res-rm" onClick={()=>setRes(p=>p.filter((_,j)=>j!==i))}>×</button></div>)}
-        {rTab==='people'?<div className="add-row"><input className="input" placeholder={t('name')} value={nn} onChange={e=>setNN(e.target.value)} style={{flex:1}}/><input className="input" placeholder={t('skill')} value={ns} onChange={e=>setNS(e.target.value)} style={{flex:1}}/><button className="btn btn-secondary btn-sm" onClick={addP} disabled={!nn.trim()}>{t('add')}</button></div>
-        :<div className="add-row"><input className="input" placeholder="€" value={na} onChange={e=>setNA(e.target.value)} style={{flex:.5}}/><input className="input" placeholder={t('whatFor')} value={nf} onChange={e=>setNF(e.target.value)} style={{flex:1}}/><button className="btn btn-secondary btn-sm" onClick={addM} disabled={!na.trim()}>{t('add')}</button></div>}
+      {/* Tiimi */}
+      <div style={{marginTop:'1rem',paddingTop:'1rem',borderTop:'1px solid var(--border)'}}>
+        <label style={{display:'block',fontSize:'.75rem',fontWeight:600,color:'var(--t3)',marginBottom:'.5rem',textTransform:'uppercase',letterSpacing:'.04em'}}>Tiimi</label>
+        {team.map((m,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.35rem'}}>
+          <div className="ava" style={{width:26,height:26,fontSize:'.6rem'}}>{m.avatar}</div>
+          <span style={{fontSize:'.82rem',fontWeight:500}}>{m.name}</span>
+          <span style={{fontSize:'.7rem',color:'var(--t3)'}}>{m.role}</span>
+          <button className="res-rm" style={{marginLeft:'auto'}} onClick={()=>setTeam(p=>p.filter((_,j)=>j!==i))}>{'\u00d7'}</button>
+        </div>)}
+        <div style={{display:'flex',gap:'.5rem',marginTop:'.5rem'}}>
+          <input className="input" placeholder="Nimi" value={nn} onChange={e=>setNN(e.target.value)} style={{flex:1}}/>
+          <input className="input" placeholder="Rooli" value={nr} onChange={e=>setNR(e.target.value)} style={{flex:1}}/>
+          <button className="btn btn-secondary btn-sm" onClick={addMember} disabled={!nn.trim()}>+</button>
+        </div>
       </div>
-      <div style={{display:'flex',justifyContent:'flex-end',marginTop:'1.75rem'}}><button className="btn btn-primary btn-lg" onClick={analyze} disabled={!text.trim()||loading}>{loading?t('aiAnalyzing'):t('analyzeAndSuggest')}</button></div>
+
+      <div style={{display:'flex',justifyContent:'flex-end',gap:'.5rem',marginTop:'1.5rem'}}>
+        <button className="btn btn-ghost" onClick={onDone}>Peruuta</button>
+        <button className="btn btn-primary" onClick={save} disabled={!title.trim()}>Luo projekti</button>
+      </div>
     </div></div>
-
-    {loading&&<div className="ai-resp"><div className="ai-resp-h" style={{padding:'1.5rem'}}><div className="ava" style={{width:36,height:36,fontSize:'.8rem'}}>AI</div><div style={{flex:1}}><div style={{fontWeight:600}}>AI analysoi tarpeitanne...</div><div style={{fontSize:'.78rem',color:'var(--t3)',fontWeight:500}}>Strategia · Resurssit · Budjetti</div></div><div className="typing" style={{marginLeft:'auto'}}><span/><span/><span/></div></div></div>}
-
-    {resp&&<div className="ai-resp">
-      <div className="ai-resp-h"><div className="ava" style={{width:36,height:36,fontSize:'.8rem'}}>AI</div><div><h4>Hetki AI</h4><p>Perustuu {org.s||org.name||'organisaation'} strategiaan</p></div>{resp.goals&&<div style={{marginLeft:'auto',display:'flex',gap:'.4rem'}}>{resp.goals.map((g,i)=><span key={i} className="strat-tag">{'\u27e1'} {g}</span>)}</div>}</div>
-      <div className="ai-resp-b">
-        <div className="prelim"><div className="ic">💡</div><div className="tx">{t('preliminary')}</div></div>
-        {resp.warn&&<div className="budget-warn">{resp.warn}</div>}
-        <p>{resp.sum}</p><h4>{t('suggestedPlan')}</h4>
-        {resp.props.map((p,i)=><div key={i} className="proposal"><h5><span>{p.t}</span><span style={{color:'var(--t2)',fontWeight:500}}>~{p.b}</span></h5><p>{p.d}</p><div style={{marginTop:'.5rem'}}>{p.pp?.map((n,j)=><span key={j} className="res-tag" style={{background:'rgba(26,143,196,.1)',color:'var(--pri-l)'}}>👤 {n}</span>)}{p.mo>0&&<span className="res-tag" style={{background:'rgba(245,197,66,.1)',color:'var(--yellow)'}}>💰 {p.mo}€</span>}{p.g&&<span className="strat-tag" style={{marginLeft:'.15rem'}}>⟡ {p.g}</span>}</div></div>)}
-        {(()=>{const pp=res.filter(r=>r.ty==='person').length;const mo=resp.props.reduce((s,p)=>s+(p.mo||0),0);const tot=pp*500+mo;if(!tot)return null;const pPct=Math.round(pp*500/tot*100);return<div className="alloc"><div className="alloc-lbl"><span>{t('resourceAlloc')}</span></div><div className="alloc-track">{pPct>0&&<div className="alloc-seg" style={{width:pPct+'%',background:'linear-gradient(90deg,var(--pri),var(--pri-l))'}}/>}{(100-pPct)>0&&<div className="alloc-seg" style={{width:(100-pPct)+'%',background:'linear-gradient(90deg,var(--yellow),var(--orange))'}}/>}</div><div className="alloc-leg">{pPct>0&&<div className="alloc-leg-it"><div className="alloc-leg-dot" style={{background:'var(--pri-l)'}}/>{t('ownWork')} ({pPct}%)</div>}{(100-pPct)>0&&<div className="alloc-leg-it"><div className="alloc-leg-dot" style={{background:'var(--yellow)'}}/>{t('purchasedServices')} ({100-pPct}%)</div>}</div></div>})()}
-        {resp.time&&<p style={{marginTop:'1rem'}}><strong>Aikataulu:</strong> {resp.time}</p>}
-      </div>
-      <div className="ai-acts"><button className="btn btn-secondary" onClick={self}>{t('workYourself')}</button><button className="btn btn-ghost" onClick={()=>setResp(null)}>{t('editBrief')}</button></div>
-    </div>}
-
   </div>);}
 
 // ══════ PIPELINE ══════
-function Pipeline({prj,setPrj,toast,t}){
-  const cols=[{k:'draft',t:t('pipelineDraft'),c:'var(--t3)'},{k:'proposal',t:t('pipelineProposal'),c:'var(--yellow)'},{k:'active',t:t('pipelineActive'),c:'var(--green)'},{k:'done',t:t('pipelineDone'),c:'var(--purple)'}];
-  const mv=(id,s)=>{setPrj(p=>p.map(x=>x.id===id?{...x,st:s}:x));toast(t('statusUpdated'),'success')};
-  return(<div className="page-enter"><div className="pipe">{cols.map(c=>{const its=prj.filter(p=>p.st===c.k);return<div key={c.k} className="pipe-col"><div className="pipe-col-h"><h3><span style={{width:8,height:8,borderRadius:'50%',background:c.c,display:'inline-block'}}/>{c.t}</h3><span className="pipe-cnt">{its.length}</span></div><div className="pipe-body">{its.map(p=><div key={p.id} className="pipe-c"><h4>{p.t}</h4><p>{p.d}</p><div className="pipe-tags"><span className="pipe-tag" style={{background:'rgba(26,143,196,.1)',color:'var(--pri-l)'}}>{p.b}</span><span className="pipe-tag" style={{background:'rgba(155,124,246,.1)',color:'var(--purple-l)'}}>{p.g}</span></div><div className="pipe-align"><span>Alignment</span><div className="pipe-align-bar"><div className="pipe-align-fill" style={{width:p.al+'%',background:p.al>70?'var(--green)':'var(--yellow)'}}/></div><span style={{color:p.al>70?'var(--green)':'var(--yellow)'}}>{p.al}%</span></div>{c.k!=='done'&&<div style={{marginTop:'.5rem'}}>{c.k==='draft'&&<button className="btn btn-sm btn-secondary" onClick={()=>mv(p.id,'proposal')}>{'\u2192'} {t('toProposal')}</button>}{c.k==='proposal'&&<button className="btn btn-sm btn-secondary" onClick={()=>mv(p.id,'active')}>{'\u2192'} {t('toActive')}</button>}{c.k==='active'&&<button className="btn btn-sm btn-secondary" onClick={()=>mv(p.id,'done')}>{'\u2192'} {t('toDone')}</button>}</div>}</div>)}{its.length===0&&<div style={{textAlign:'center',padding:'2rem',color:'var(--t3)',fontSize:'.8rem',fontWeight:500}}>{t('noProjects')}</div>}</div></div>})}</div></div>);}
+function Pipeline({prj,setPrj,toast,t,org}){
+  const[mode,setMode]=useState('kanban');
+  const[selId,setSelId]=useState(null);
+  const[showArchive,setShowArchive]=useState(false);
+  const[dragId,setDragId]=useState(null);
+
+  const cols=[{k:'idea',t:'Ideat',c:'var(--pri-l)'},{k:'active',t:'Työstössä',c:'var(--green)'},{k:'done',t:'Valmiit',c:'var(--purple)'}];
+  const mv=(id,s,e)=>{if(e)e.stopPropagation();setPrj(p=>p.map(x=>x.id===id?{...x,st:s}:x));toast('Tila päivitetty','success')};
+  const archive=(id,e)=>{if(e)e.stopPropagation();setPrj(p=>p.map(x=>x.id===id?{...x,archived:true}:x));toast('Arkistoitu','info')};
+  const unarchive=(id)=>{setPrj(p=>p.map(x=>x.id===id?{...x,archived:false}:x));toast('Palautettu','success')};
+  const del=(id)=>{setPrj(p=>p.filter(x=>x.id!==id));toast('Poistettu','info')};
+
+  // Drag handlers
+  const onDragStart=(e,id)=>{setDragId(id);e.dataTransfer.effectAllowed='move'};
+  const onDragOver=(e)=>{e.preventDefault();e.dataTransfer.dropEffect='move'};
+  const onDrop=(e,targetSt)=>{e.preventDefault();if(dragId){setPrj(p=>p.map(x=>x.id===dragId?{...x,st:targetSt}:x));setDragId(null);toast('Tila päivitetty','success')}};
+
+  // Detail view
+  if(mode==='detail'&&selId){const proj=prj.find(p=>p.id===selId);if(proj)return<ProjectDetail project={proj} prj={prj} setPrj={setPrj} toast={toast} t={t} onBack={()=>{setMode('kanban');setSelId(null)}}/>}
+  // New project
+  if(mode==='new')return<NewProject toast={toast} prj={prj} setPrj={setPrj} onDone={()=>setMode('kanban')} t={t}/>;
+
+  const activePrj=prj.filter(p=>!p.archived);
+  const archivedPrj=prj.filter(p=>p.archived);
+  const openDetail=(id)=>{setSelId(id);setMode('detail')};
+
+  return(<div className="page-enter">
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.25rem',flexWrap:'wrap',gap:'.5rem'}}>
+      <div style={{display:'flex',alignItems:'center',gap:'1rem'}}>
+        <div style={{fontSize:'.85rem',color:'var(--t2)',fontWeight:500}}>{activePrj.length} projektia</div>
+        {archivedPrj.length>0&&<button className="btn btn-ghost btn-sm" onClick={()=>setShowArchive(!showArchive)} style={{fontSize:'.75rem'}}>
+          {showArchive?'Piilota arkisto':'Arkisto ('+archivedPrj.length+')'}
+        </button>}
+      </div>
+      <button className="btn btn-primary btn-sm" onClick={()=>setMode('new')}>+ Uusi projekti</button>
+    </div>
+
+    {/* Archive section */}
+    {showArchive&&archivedPrj.length>0&&<div className="bcard" style={{marginBottom:'1.25rem'}}><div className="bcard-h"><h3>Arkistoidut projektit</h3></div><div className="bcard-b">
+      {archivedPrj.map(p=><div key={p.id} style={{display:'flex',alignItems:'center',gap:'.75rem',padding:'.6rem .75rem',background:'var(--elev)',border:'1px solid var(--border)',borderRadius:'var(--r)',marginBottom:'.4rem'}}>
+        <div style={{flex:1}}><div style={{fontSize:'.85rem',fontWeight:600}}>{p.t}</div><div style={{fontSize:'.7rem',color:'var(--t3)'}}>{p.d?.slice(0,50)}</div></div>
+        <button className="btn btn-secondary btn-sm" onClick={()=>unarchive(p.id)}>Palauta</button>
+        <button className="btn btn-ghost btn-sm" style={{color:'var(--red,#ef4444)'}} onClick={()=>del(p.id)}>Poista</button>
+      </div>)}
+    </div></div>}
+
+    {/* Kanban */}
+    <div className="pipe">{cols.map(c=>{const its=activePrj.filter(p=>p.st===c.k);return<div key={c.k} className="pipe-col" onDragOver={onDragOver} onDrop={e=>onDrop(e,c.k)}>
+      <div className="pipe-col-h"><h3><span style={{width:8,height:8,borderRadius:'50%',background:c.c,display:'inline-block'}}/>{c.t}</h3><span className="pipe-cnt">{its.length}</span></div>
+      <div className="pipe-body">{its.map(p=>{
+        const dl=deadlineColor(p.deadline);const prog=taskProgress(p.tasks);
+        return<div key={p.id} className="pipe-c" draggable onDragStart={e=>onDragStart(e,p.id)} onClick={()=>openDetail(p.id)} style={{cursor:'pointer'}}>
+          <h4>{p.t}</h4>
+          <p style={{fontSize:'.78rem',color:'var(--t2)',marginBottom:'.4rem'}}>{p.d?.slice(0,60)}</p>
+
+          {/* Deadline badge */}
+          {dl&&<div style={{display:'inline-flex',alignItems:'center',gap:'.3rem',fontSize:'.68rem',fontWeight:600,padding:'.15rem .5rem',borderRadius:4,background:dl.bg,color:dl.color,marginBottom:'.4rem'}}>
+            {'📅'} {p.deadline} {'\u00b7'} {dl.label}
+          </div>}
+
+          {/* Task progress */}
+          {p.tasks?.length>0&&<div style={{marginBottom:'.4rem'}}>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:'.65rem',color:'var(--t3)',marginBottom:'.2rem'}}><span>{p.tasks.filter(x=>x.done).length}/{p.tasks.length} tehtävää</span><span>{prog}%</span></div>
+            <div style={{height:4,background:'var(--bg)',borderRadius:2,overflow:'hidden'}}><div style={{height:'100%',width:prog+'%',background:prog===100?'var(--green)':'var(--pri-l)',borderRadius:2,transition:'width .3s'}}/></div>
+          </div>}
+
+          {/* Team avatars */}
+          {p.team?.length>0&&<div style={{display:'flex',marginTop:'.3rem'}}>{p.team.slice(0,3).map((m,i)=><div key={i} className="ava" style={{width:22,height:22,fontSize:'.55rem',marginLeft:i>0?'-4px':0,border:'2px solid var(--elev)'}}>{m.avatar}</div>)}{p.team.length>3&&<span style={{fontSize:'.6rem',color:'var(--t3)',marginLeft:'.25rem',alignSelf:'center'}}>+{p.team.length-3}</span>}</div>}
+
+          {/* Status move buttons */}
+          <div style={{marginTop:'.5rem',display:'flex',gap:'.3rem',flexWrap:'wrap'}}>
+            {c.k==='idea'&&<button className="btn btn-sm btn-secondary" onClick={e=>mv(p.id,'active',e)}>{'\u2192'} Työstöön</button>}
+            {c.k==='active'&&<><button className="btn btn-sm btn-ghost" onClick={e=>mv(p.id,'idea',e)}>{'\u2190'} Idea</button><button className="btn btn-sm btn-secondary" onClick={e=>mv(p.id,'done',e)}>{'\u2713'} Valmis</button></>}
+            {c.k==='done'&&<><button className="btn btn-sm btn-ghost" onClick={e=>mv(p.id,'active',e)}>{'\u2190'} Takaisin</button><button className="btn btn-sm btn-ghost" style={{color:'var(--t3)'}} onClick={e=>archive(p.id,e)}>Arkistoi</button></>}
+          </div>
+        </div>})}{its.length===0&&<div style={{textAlign:'center',padding:'2rem',color:'var(--t3)',fontSize:'.8rem',fontWeight:500}}>
+          {c.k==='idea'?'Lisää ensimmäinen idea!':c.k==='active'?'Vedä idea tänne aloittaaksesi.':'Ei vielä valmiita projekteja.'}
+        </div>}</div>
+    </div>})}</div>
+  </div>);}
+
+// ══════ PROJECT DETAIL ══════
+function ProjectDetail({project,prj,setPrj,toast,t,onBack}){
+  const[tab,setTab]=useState('overview');
+  const[commentText,setCT]=useState('');
+  const[newName,setNName]=useState('');
+  const[newRole,setNRole]=useState('');
+  const[newTask,setNewTask]=useState('');
+  const[editingDesc,setEditingDesc]=useState(false);
+  const[descDraft,setDescDraft]=useState(project.d||'');
+
+  const update=(u)=>setPrj(ps=>ps.map(p=>p.id===project.id?{...p,...u}:p));
+
+  // Tasks
+  const addTask=()=>{if(!newTask.trim())return;
+    update({tasks:[...(project.tasks||[]),{id:Date.now(),text:newTask,done:false}]});
+    setNewTask('');toast('Tehtävä lisätty','success')};
+  const toggleTask=(id)=>update({tasks:(project.tasks||[]).map(t=>t.id===id?{...t,done:!t.done}:t)});
+  const removeTask=(id)=>update({tasks:(project.tasks||[]).filter(t=>t.id!==id)});
+
+  // Comments
+  const addComment=()=>{if(!commentText.trim())return;
+    update({comments:[...(project.comments||[]),{id:Date.now(),author:'Anton Baer',text:commentText,timestamp:new Date().toISOString()}]});
+    setCT('');toast('Kommentti lisätty','success')};
+
+  // Team
+  const addMember=()=>{if(!newName.trim())return;
+    update({team:[...(project.team||[]),{name:newName,role:newRole||'Tiimijäsen',avatar:newName[0].toUpperCase()}]});
+    setNName('');setNRole('');toast('Tiimijäsen lisätty','success')};
+  const removeMember=(i)=>update({team:(project.team||[]).filter((_,j)=>j!==i)});
+
+  const dl=deadlineColor(project.deadline);
+  const prog=taskProgress(project.tasks);
+  const tasks=project.tasks||[];
+  const tabs=[{id:'overview',label:'Yleiskatsaus',icon:'\u25c9'},{id:'tasks',label:'Tehtävät',icon:'\u2611',count:tasks.length},{id:'team',label:'Tiimi',icon:'\u25c8',count:(project.team||[]).length},{id:'comments',label:'Keskustelu',icon:'\u25a7',count:(project.comments||[]).length}];
+
+  return(<div className="page-enter" style={{maxWidth:920,margin:'0 auto'}}>
+    <button className="btn btn-ghost" onClick={onBack} style={{marginBottom:'1rem'}}>{'\u2190'} Takaisin projekteihin</button>
+
+    {/* Header */}
+    <div className="bcard" style={{marginBottom:'1.5rem'}}><div className="bcard-h" style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'.75rem'}}>
+      <div style={{flex:1}}>
+        <h3>{project.t}</h3>
+        <div style={{display:'flex',gap:'.75rem',marginTop:'.5rem',flexWrap:'wrap',alignItems:'center'}}>
+          {/* Deadline with color */}
+          {project.deadline?<div style={{display:'inline-flex',alignItems:'center',gap:'.3rem',fontSize:'.75rem',fontWeight:600,padding:'.2rem .6rem',borderRadius:6,background:dl?.bg||'var(--elev)',color:dl?.color||'var(--t2)'}}>
+            {'📅'} {project.deadline} {dl&&<span style={{fontSize:'.65rem'}}>{'\u00b7'} {dl.label}</span>}
+          </div>:<span style={{fontSize:'.75rem',color:'var(--t3)'}}>Ei deadlinea</span>}
+          {/* Edit deadline */}
+          <input type="date" className="input" value={project.deadline||''} onChange={e=>update({deadline:e.target.value})} style={{width:'auto',fontSize:'.75rem',padding:'.2rem .5rem'}}/>
+        </div>
+        {/* Progress bar */}
+        {tasks.length>0&&<div style={{marginTop:'.75rem'}}>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:'.72rem',color:'var(--t3)',marginBottom:'.3rem'}}><span>Edistyminen</span><span>{tasks.filter(x=>x.done).length}/{tasks.length} tehtävää ({prog}%)</span></div>
+          <div style={{height:6,background:'var(--bg)',borderRadius:3,overflow:'hidden'}}><div style={{height:'100%',width:prog+'%',background:prog===100?'var(--green)':'var(--pri-l)',borderRadius:3,transition:'width .3s'}}/></div>
+        </div>}
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:'.4rem',alignItems:'flex-end'}}>
+        <select className="input" style={{width:'auto',fontSize:'.8rem'}} value={project.st} onChange={e=>update({st:e.target.value})}>
+          <option value="idea">Idea</option><option value="active">Työstössä</option><option value="done">Valmis</option>
+        </select>
+        {project.st==='done'&&<button className="btn btn-ghost btn-sm" style={{fontSize:'.72rem'}} onClick={()=>{update({archived:true});onBack()}}>Arkistoi</button>}
+      </div>
+    </div></div>
+
+    {/* Tabs */}
+    <div style={{display:'flex',gap:'.35rem',marginBottom:'1.5rem',background:'var(--elev)',borderRadius:'var(--r)',padding:'3px',flexWrap:'wrap'}}>
+      {tabs.map(tb=><button key={tb.id} className={`cal-view-btn ${tab===tb.id?'act':''}`} onClick={()=>setTab(tb.id)}>
+        {tb.icon} {tb.label}{tb.count>0&&<span className="badge badge-n" style={{marginLeft:'.4rem'}}>{tb.count}</span>}
+      </button>)}
+    </div>
+
+    {/* ═══ OVERVIEW ═══ */}
+    {tab==='overview'&&<div className="bcard"><div className="bcard-b">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'.75rem'}}>
+        <h4 style={{fontFamily:'var(--font-display)',fontSize:'.88rem',textTransform:'uppercase',letterSpacing:'.02em'}}>Kuvaus</h4>
+        <button className="btn btn-ghost btn-sm" onClick={()=>{if(editingDesc){update({d:descDraft});toast('Tallennettu','success')}else{setDescDraft(project.d||'')}setEditingDesc(!editingDesc)}}>
+          {editingDesc?'Tallenna':'Muokkaa'}
+        </button>
+      </div>
+      {editingDesc?<textarea className="input textarea" value={descDraft} onChange={e=>setDescDraft(e.target.value)} style={{minHeight:120}}/>
+      :<p style={{color:'var(--t2)',lineHeight:1.7,fontSize:'.9rem',whiteSpace:'pre-wrap'}}>{project.d||'Ei kuvausta.'}</p>}
+    </div></div>}
+
+    {/* ═══ TASKS ═══ */}
+    {tab==='tasks'&&<div className="bcard"><div className="bcard-h"><h3>Tehtävät</h3><span style={{fontSize:'.75rem',color:'var(--t3)'}}>{tasks.filter(x=>x.done).length}/{tasks.length} valmiina</span></div>
+    <div className="bcard-b">
+      {/* Task list */}
+      {tasks.map(tk=><div key={tk.id} style={{display:'flex',alignItems:'center',gap:'.6rem',padding:'.6rem .75rem',background:tk.done?'rgba(45,212,160,.05)':'var(--elev)',border:'1px solid '+(tk.done?'rgba(45,212,160,.2)':'var(--border)'),borderRadius:'var(--r)',marginBottom:'.4rem',cursor:'pointer'}} onClick={()=>toggleTask(tk.id)}>
+        <div style={{width:20,height:20,borderRadius:4,border:'2px solid '+(tk.done?'var(--green)':'var(--border)'),background:tk.done?'var(--green)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .2s'}}>
+          {tk.done&&<span style={{color:'#fff',fontSize:'.7rem',fontWeight:700}}>{'\u2713'}</span>}
+        </div>
+        <span style={{flex:1,fontSize:'.85rem',fontWeight:500,textDecoration:tk.done?'line-through':'none',color:tk.done?'var(--t3)':'var(--t1)',transition:'all .2s'}}>{tk.text}</span>
+        <button className="res-rm" onClick={e=>{e.stopPropagation();removeTask(tk.id)}}>{'\u00d7'}</button>
+      </div>)}
+      {tasks.length===0&&<div style={{textAlign:'center',padding:'2rem',color:'var(--t3)',fontSize:'.85rem'}}>Ei vielä tehtäviä. Lisää ensimmäinen alta.</div>}
+      {/* Add task */}
+      <div style={{display:'flex',gap:'.5rem',marginTop:'.75rem',paddingTop:'.75rem',borderTop:'1px solid var(--border)'}}>
+        <input className="input" placeholder="Uusi tehtävä..." value={newTask} onChange={e=>setNewTask(e.target.value)} style={{flex:1}}
+          onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addTask()}}}/>
+        <button className="btn btn-primary btn-sm" onClick={addTask} disabled={!newTask.trim()}>+ Lisää</button>
+      </div>
+    </div></div>}
+
+    {/* ═══ TEAM ═══ */}
+    {tab==='team'&&<div className="bcard"><div className="bcard-h"><h3>Projektitiimi</h3><span style={{fontSize:'.75rem',color:'var(--t3)'}}>{(project.team||[]).length} jäsentä</span></div>
+    <div className="bcard-b">
+      {(project.team||[]).map((m,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:'.75rem',padding:'.75rem',background:'var(--elev)',border:'1px solid var(--border)',borderRadius:'var(--r)',marginBottom:'.5rem'}}>
+        <div className="ava" style={{width:38,height:38,fontSize:'.8rem',background:'var(--pri)',flexShrink:0}}>{m.avatar}</div>
+        <div style={{flex:1}}><div style={{fontSize:'.85rem',fontWeight:600}}>{m.name}</div><div style={{fontSize:'.72rem',color:'var(--t3)'}}>{m.role}</div></div>
+        <button className="res-rm" onClick={()=>removeMember(i)}>{'\u00d7'}</button>
+      </div>)}
+      {(project.team||[]).length===0&&<div style={{textAlign:'center',padding:'2rem',color:'var(--t3)',fontSize:'.85rem'}}>Ei vielä tiimijäseniä. Lisää ensimmäinen alta.</div>}
+      <div style={{marginTop:'1rem',paddingTop:'1rem',borderTop:'1px solid var(--border)',display:'flex',gap:'.5rem'}}>
+        <input className="input" placeholder="Nimi" value={newName} onChange={e=>setNName(e.target.value)} style={{flex:1}}/>
+        <input className="input" placeholder="Rooli" value={newRole} onChange={e=>setNRole(e.target.value)} style={{flex:1}}/>
+        <button className="btn btn-primary btn-sm" onClick={addMember} disabled={!newName.trim()}>+ Lisää</button>
+      </div>
+    </div></div>}
+
+    {/* ═══ COMMENTS ═══ */}
+    {tab==='comments'&&<div className="bcard"><div className="bcard-h"><h3>Keskustelu</h3><span style={{fontSize:'.75rem',color:'var(--t3)'}}>{(project.comments||[]).length} kommenttia</span></div>
+    <div className="bcard-b">
+      <div style={{maxHeight:400,overflowY:'auto',marginBottom:'1rem',display:'flex',flexDirection:'column',gap:'.75rem'}}>
+        {(project.comments||[]).map(c=><div key={c.id} style={{display:'flex',gap:'.6rem'}}>
+          <div className="ava" style={{width:32,height:32,fontSize:'.7rem',background:'var(--pri)',flexShrink:0}}>{c.author?.[0]||'A'}</div>
+          <div style={{flex:1,background:'var(--elev)',border:'1px solid var(--border)',borderRadius:'var(--rl)',padding:'.75rem 1rem'}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:'.35rem'}}>
+              <span style={{fontSize:'.8rem',fontWeight:600}}>{c.author}</span>
+              <span style={{fontSize:'.65rem',color:'var(--t3)'}}>{new Date(c.timestamp).toLocaleDateString('fi-FI')} {new Date(c.timestamp).toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit'})}</span>
+            </div>
+            <p style={{fontSize:'.85rem',color:'var(--t2)',lineHeight:1.6,margin:0}}>{c.text}</p>
+          </div>
+        </div>)}
+        {(project.comments||[]).length===0&&<div style={{textAlign:'center',padding:'2rem',color:'var(--t3)',fontSize:'.85rem'}}>Ei vielä kommentteja. Aloita keskustelu alta.</div>}
+      </div>
+      <div style={{display:'flex',gap:'.5rem',borderTop:'1px solid var(--border)',paddingTop:'1rem'}}>
+        <textarea className="input textarea" placeholder="Kirjoita kommentti..." value={commentText} onChange={e=>setCT(e.target.value)} style={{flex:1,minHeight:60}}
+          onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addComment()}}}/>
+        <button className="btn btn-primary" onClick={addComment} disabled={!commentText.trim()} style={{alignSelf:'flex-end'}}>Lähetä</button>
+      </div>
+    </div></div>}
+  </div>);
+}
 
 // ══════ CALENDAR ══════
 function Cal({toast,events,setEvents,org,t}){
@@ -1833,7 +2348,7 @@ function Strat({toast,org,setOrg,t,chStats}){
       </div>
       {/* Guided strategy review after upload */}
       {parseResults&&<div style={{marginTop:'1rem',animation:'scaleIn .3s ease'}}>
-        <div style={{background:'linear-gradient(135deg,rgba(26,143,196,.06),rgba(155,124,246,.04))',border:'1px solid rgba(26,143,196,.2)',borderRadius:'var(--rl)',overflow:'hidden'}}>
+        <div style={{background:'rgba(5,107,159,.06)',border:'1px solid rgba(5,107,159,.2)',borderRadius:'var(--rl)',overflow:'hidden'}}>
           <div style={{padding:'1rem 1.25rem',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:'.75rem'}}>
             <div className="ava" style={{width:32,height:32,fontSize:'.7rem'}}>AI</div>
             <div><h4 style={{fontSize:'.88rem',fontWeight:700}}>{t('aiFound')}</h4>
@@ -1938,7 +2453,7 @@ function Strat({toast,org,setOrg,t,chStats}){
       <div className="tone-list" style={{marginBottom:'.5rem'}}>{org.tone.map((t,i)=><span key={i} className="tone" style={{cursor:'pointer'}} onClick={()=>rmTone(i)}>{t} {'\u00d7'}</span>)}</div>
       <div className="add-row"><input className="input" placeholder="esim. Innoittava" value={toneInput} onChange={e=>setTI(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addTone()} style={{flex:1}}/><button className="btn btn-secondary btn-sm" onClick={addTone} disabled={!toneInput.trim()}>+ Lisää</button></div>
     </div>}</div>
-  </div><div><Chat toast={toast} org={org} t={t} chStats={chStats}/></div>
+  </div>
 
   {modal&&modal!=='tone'&&<div className="modal-ov" onClick={()=>setM(null)}><div className="modal" onClick={e=>e.stopPropagation()}>
     <div className="modal-h"><h3>{modalTitle[modal]}</h3><button className="modal-x" onClick={()=>setM(null)}>{'\u2715'}</button></div>
@@ -1958,14 +2473,14 @@ function Strat({toast,org,setOrg,t,chStats}){
   </div></div>);}
 
 // ══════ CHAT ══════
-function Chat({toast,org,t,chStats}){const nm=org.s||org.name||t('organization');
-  const[msgs,setM]=useState([{r:'assistant',c:`Hei! ${org.name?'Tunnen '+nm+':n strategian, kanavat, kampanjat ja avainluvut.':'Strategiaa ei ole vielä syotetty.'}\n\nKysy tavoitteista, kohderyhmista, seuraajista, kampanjoista, tilastoista tai sisältöideoista!`}]);const[inp,setI]=useState('');const[ty,setTy]=useState(false);const ref=useRef(null);
+function Chat({toast,org,t,chStats,orgCtx,events,prj,onClose}){const nm=org.s||org.name||t('organization');
+  const[msgs,setM]=useState([{r:'assistant',c:`Hei! ${org.name?'Tunnen '+nm+':n strategian, kanavat, kampanjat ja viestinnän kontekstin.':'Strategiaa ei ole vielä syotetty.'}\n\nKysy tavoitteista, kohderyhmista, julkaisuista, projekteista, brändista tai sisältöideoista!`}]);const[inp,setI]=useState('');const[ty,setTy]=useState(false);const ref=useRef(null);
   useEffect(()=>{ref.current?.scrollIntoView({behavior:'smooth'})},[msgs]);
-  const send=async()=>{if(!inp.trim())return;const m=inp.trim();setI('');setM(p=>[...p,{r:'user',c:m}]);setTy(true);await wait(700+Math.random()*500);setTy(false);setM(p=>[...p,{r:'assistant',c:genChat(m,org,chStats)}])};
-  return(<div className="ai-chat"><div className="ai-chat-h"><div className="ava" style={{width:34,height:34,fontSize:'.72rem'}}>AI</div><div><h3 style={{fontSize:'.85rem',fontWeight:700}}>AI-kumppani</h3><p style={{fontSize:'.65rem',color:'var(--t3)',fontWeight:500}}>Strategia + AVL-konteksti</p></div></div>
+  const send=async()=>{if(!inp.trim())return;const m=inp.trim();setI('');setM(p=>[...p,{r:'user',c:m}]);setTy(true);await wait(700+Math.random()*500);setTy(false);setM(p=>[...p,{r:'assistant',c:genChat(m,org,chStats,orgCtx,events,prj)}])};
+  return(<div className="ai-chat"><div className="ai-chat-h"><div className="ava" style={{width:34,height:34,fontSize:'.72rem'}}>AI</div><div style={{flex:1}}><h3 style={{fontSize:'.85rem',fontWeight:700}}>AI-kumppani</h3><p style={{fontSize:'.65rem',color:'var(--t3)',fontWeight:500}}>{nm} — viestinnän konteksti</p></div>{onClose&&<button style={{background:'none',border:'none',color:'var(--t3)',fontSize:'1.1rem',cursor:'pointer',padding:'.25rem'}} onClick={onClose}>{'\u2715'}</button>}</div>
   <div className="ai-chat-msgs">{msgs.map((m,i)=><div key={i} className={`ai-bub ${m.r}`}><div className="ai-av">{m.r==='assistant'?'AI':'ME'}</div><div className="ai-bub-c">{m.c.split('\n').map((l,j)=>l?<p key={j}>{l}</p>:<br key={j}/>)}</div></div>)}{ty&&<div className="ai-bub assistant"><div className="ai-av">AI</div><div className="ai-bub-c"><div className="typing"><span/><span/><span/></div></div></div>}<div ref={ref}/></div>
-  <div className="ai-chat-sugs">{['Seuraajat?','Kampanjat?','Tilastot?','Ydinviestit?','Jäsenkysely?','Tiimi?','Ideoita?','Tavoitteet?'].map((s,i)=><button key={i} className="chat-sug" onClick={()=>setI(s)}>{s}</button>)}</div>
-  <div className="ai-chat-in-area"><input className="chat-in" placeholder="Kysy strategiasta, kanavista, kampanjoista..." value={inp} onChange={e=>setI(e.target.value)} onKeyPress={e=>e.key==='Enter'&&send()}/><button className="chat-send" onClick={send} disabled={!inp.trim()}>{'\u2192'}</button></div></div>);}
+  <div className="ai-chat-sugs">{(orgCtx?.program?['Seuraajat?','Ohjelmisto?','Kampanjat?','Kumppanit?','Brändi?','Meta-mainonta?','Tiimi?','Ideoita?']:['Seuraajat?','Julkaisut?','Kampanjat?','Projektit?','Brändi?','Tiimi?','Tavoitteet?','Ideoita?']).map((s,i)=><button key={i} className="chat-sug" onClick={()=>setI(s)}>{s}</button>)}</div>
+  <div className="ai-chat-in-area"><input className="chat-in" placeholder="Kysy strategiasta, julkaisuista, projekteista..." value={inp} onChange={e=>setI(e.target.value)} onKeyPress={e=>e.key==='Enter'&&send()}/><button className="chat-send" onClick={send} disabled={!inp.trim()}>{'\u2192'}</button></div></div>);}
 
 // ══════ MEDIA BANK ══════
 // AI-powered keyword generator (simulated — analyses filename, folder, known patterns)
@@ -1977,6 +2492,19 @@ const generateAIKeywords=(file)=>{
   if(folder==='grafiikat'){kw.add('grafiikka');kw.add('somekuva')}
   if(folder==='logot'){kw.add('logo');kw.add('brandi')}
   if(folder==='videot'){kw.add('video')}
+  // LLFF festival photos
+  if(name.includes('lapinlahden-elokuvajuhlat')||name.includes('llff')){
+    kw.add('LLFF');kw.add('festivaali');kw.add('elokuvajuhlat');kw.add('Lapinlahti');
+    kw.add('elokuva');kw.add('kulttuuri');kw.add('Helsinki');
+    const numMatch2=name.match(/elokuvajuhlat-(\d+)/);
+    if(numMatch2){const n=parseInt(numMatch2[1]);
+      if(n<=20){kw.add('tunnelma');kw.add('yleisö')}
+      else if(n<=40){kw.add('näytös');kw.add('tapahtuma')}
+      else if(n<=60){kw.add('yhteisö');kw.add('piha')}
+      else{kw.add('ilta');kw.add('ulkoilma')}
+    }
+    return[...kw];
+  }
   // VERTU event photos — outdoor group/portrait photos from summer event
   if(name.includes('vertu')){kw.add('VERTU-tapahtuma');kw.add('vertaistuki');kw.add('tapahtuma');kw.add('henkilökuvat');kw.add('kesa 2025')}
   // Photo number ranges might indicate different scenes
@@ -1999,10 +2527,10 @@ const generateAIKeywords=(file)=>{
 };
 
 function MediaBank({toast,t}){
-  // Merge manifest files with persisted metadata
-  const manifestFiles=(window.MEDIA_MANIFEST||[]);
-  const[meta,setMeta]=usePersistedState('media_meta',{});// {id: {tags:[], desc:'', title:''}}
-  const[uploadedFiles,setUploadedFiles]=usePersistedState('media_uploaded',[]);// drag&drop files stored as small dataURLs
+  // Org-aware manifest: AVL uses MEDIA_MANIFEST, LEF uses LLFF_MEDIA_MANIFEST
+  const manifestFiles=_activeOrg==='lef'?(window.LLFF_MEDIA_MANIFEST||[]):(window.MEDIA_MANIFEST||[]);
+  const[meta,setMeta]=useOrgState('media_meta',{});// {id: {tags:[], desc:'', title:''}}
+  const[uploadedFiles,setUploadedFiles]=useOrgState('media_uploaded',[]);// drag&drop files stored as small dataURLs
   const[cat,setCat]=useState('all');
   const[search,setSearch]=useState('');
   const[detailIdx,setDetailIdx]=useState(-1);// index in filtered list
@@ -2334,11 +2862,17 @@ function MediaBank({toast,t}){
   </div>);}
 
 // ══════ SETTINGS ══════
-function Settings({toast,org,setOrg,resetAll,t,lang,setLang}){
+function Settings({toast,org,setOrg,resetAll,t,lang,setLang,activeOrg}){
   const[confirm,setConfirm]=useState(false);
   const[editName,setEN]=useState(org.name);const[editShort,setES]=useState(org.s);const[editSlogan,setESl]=useState(org.slogan);
   const saveBasic=()=>{setOrg(p=>({...p,name:editName,s:editShort,slogan:editSlogan}));toast(t('updated'),'success')};
   return(<div className="page-enter" style={{maxWidth:700}}>
+    <div className="bcard"><div className="bcard-h"><h3>Organisaatio</h3></div><div className="bcard-b">
+      <div style={{display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
+        {Object.values(ORG_REGISTRY).map(o=><button key={o.id} className={`btn ${activeOrg===o.id?'btn-primary':'btn-secondary'}`} onClick={()=>{if(activeOrg!==o.id)switchOrg(o.id)}}>{o.name}</button>)}
+      </div>
+      <p style={{color:'var(--t3)',fontSize:'.75rem',marginTop:'.5rem',fontWeight:500}}>Vaihda organisaatiota — jokaisen data on erillinen.</p>
+    </div></div>
     <div className="bcard"><div className="bcard-h"><h3>{t('language')}</h3></div><div className="bcard-b">
       <div style={{display:'flex',gap:'.5rem'}}>
         <button className={`btn ${lang==='fi'?'btn-primary':'btn-secondary'}`} onClick={()=>setLang('fi')}>Suomi</button>
@@ -2364,24 +2898,28 @@ function Settings({toast,org,setOrg,resetAll,t,lang,setLang}){
 
 // ══════ APP ══════
 function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('onboarded',true);const[v,setV]=useState('home');
-  const[org,setOrg]=usePersistedState('org',defaultOrg);
-  const[prj,setPrj]=usePersistedState('projects',[]);
-  const[events,setEvents]=usePersistedState('events',defaultEvents);
-  const[chStats,setChStats]=usePersistedState('channelStats',AVL_CONTEXT.channelStats);
+  const activeOrg=_activeOrg;
+  const orgCtx=ORG_CONTEXTS[activeOrg]||AVL_CONTEXT;
+  const orgDef=ORG_DEFAULTS[activeOrg]||ORG_DEFAULTS.avl;
+  const[org,setOrg]=useOrgState('org',orgDef.org);
+  const[prj,setPrj]=useOrgState('projects',[]);
+  const[events,setEvents]=useOrgState('events',orgDef.events);
+  const[chStats,setChStats]=useOrgState('channelStats',orgCtx.channelStats);
   const[lang,setLang]=usePersistedState('lang','fi');
   const t=mkT(lang);
 
-  const resetAll=()=>{clearAllData();setOB(false);setOrg(defaultOrg);setPrj([]);setEvents(defaultEvents);setChStats(AVL_CONTEXT.channelStats);setLang('fi');setV('home')};
+  const resetAll=()=>{clearOrgData(activeOrg);setOB(false);setOrg(orgDef.org);setPrj([]);setEvents(orgDef.events);setChStats(orgCtx.channelStats);setLang('fi');setV('home')};
 
+  const[chatOpen,setChatOpen]=useState(false);
   const[mobNav,setMobNav]=useState(false);
   useEffect(()=>{if(mobNav)document.body.classList.add('no-scroll');else document.body.classList.remove('no-scroll');return()=>document.body.classList.remove('no-scroll')},[mobNav]);
   const goTo=(page)=>{setV(page);setMobNav(false)};
   if(!ob)return<><Toasts t={toasts}/><Onboarding onDone={()=>setOB(true)} toast={add} setOrg={setOrg} t={t}/></>;
-  const nav=[{id:'home',l:t('home'),ic:'\u25c9'},{id:'strategy',l:t('strategy'),ic:'\u25c8'},{id:'brief',l:t('newProject'),ic:'+',badge:true},{id:'pipeline',l:t('projects'),ic:'\u2630',cnt:prj.length},{id:'calendar',l:t('calendar'),ic:'\u25a6'},{id:'media',l:'Mediapankki',ic:'\ud83d\uddbc\ufe0f'}];
-  const hdr={home:{t:t('home'),s:(org.s||org.name||'Hetki')},brief:{t:t('newProject'),s:'AI'},pipeline:{t:t('projects'),s:prj.length+' '+t('projects').toLowerCase()},calendar:{t:t('calendar'),s:events.length+' '+t('publications_plural')},strategy:{t:t('strategy'),s:org.slogan||t('strategy')},media:{t:'Mediapankki',s:'Valokuvat, videot ja grafiikat'},settings:{t:t('settings'),s:t('manageOrg')}};
+  const nav=[{id:'home',l:t('home'),ic:'\u25c9'},{id:'strategy',l:t('strategy'),ic:'\u25c8'},{id:'pipeline',l:t('projects'),ic:'\u2630',cnt:prj.length},{id:'calendar',l:t('calendar'),ic:'\u25a6'},{id:'media',l:'Mediapankki',ic:'\ud83d\uddbc\ufe0f'}];
+  const hdr={home:{t:t('home'),s:(org.s||org.name||'Hetki')},pipeline:{t:t('projects'),s:prj.length+' '+t('projects').toLowerCase()},calendar:{t:t('calendar'),s:events.length+' '+t('publications_plural')},strategy:{t:t('strategy'),s:org.slogan||t('strategy')},media:{t:'Mediapankki',s:'Valokuvat, videot ja grafiikat'},settings:{t:t('settings'),s:t('manageOrg')}};
   const h=hdr[v]||hdr.home;
   const navContent=<>
-    <div className="side-hd" style={{position:'relative'}}><div className="logo-text"><img src="media/brand/hetki-logo-white.png" alt="Hetki"/></div></div>
+    <div className="side-hd" style={{position:'relative'}}><div className="logo-text"><img src="media/brand/hetki-logo-white.png" alt="Hetki"/> Momentum</div></div>
     <div className="ws-box" onClick={()=>goTo('settings')}><div className="ws-name">{org.name||'Organisaatio'}</div><div className="ws-plan">Free Plan</div></div>
     <nav style={{flex:1,padding:'.5rem 0',overflowY:'auto'}}>
       <div className="nav-sec">{t('tools')}</div>
@@ -2389,7 +2927,7 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
       <div className="nav-sec">{t('system')}</div>
       <div className={`nav-i ${v==='settings'?'act':''}`} onClick={()=>goTo('settings')}><span className="nav-ic">{'\u2699'}</span><span>{t('settings')}</span></div>
     </nav>
-    <div className="side-ft"><div className="ava">{'AB'}</div><div><div style={{fontSize:'.8rem',fontWeight:600}}>Anton Baer</div><div style={{fontSize:'.62rem',color:'var(--t3)',fontWeight:500}}>Viestintävastaava</div></div></div>
+    <div className="side-ft"><div className="color-band" style={{position:'absolute',top:0,left:0,right:0}}><span style={{background:'var(--hetki-blue)'}}/><span style={{background:'var(--hetki-green)'}}/><span style={{background:'var(--hetki-yellow)'}}/><span style={{background:'var(--hetki-pink)'}}/><span style={{background:'var(--hetki-black)'}}/></div><div className="ava">{'AB'}</div><div><div style={{fontSize:'.8rem',fontWeight:600}}>Anton Baer</div><div style={{fontSize:'.62rem',color:'var(--t3)',fontWeight:500}}>Viestintävastaava</div></div></div>
   </>;
   return(<div className="app"><Toasts t={toasts}/>
     {/* Desktop sidebar */}
@@ -2406,18 +2944,19 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
           <button className="mob-toggle" onClick={()=>setMobNav(true)}>{'\u2630'}</button>
           <div><h1>{h.t}</h1><p>{h.s}</p></div>
         </div>
-        {(v==='home'||v==='pipeline')&&<button className="btn btn-primary btn-sm" onClick={()=>setV('brief')}>+ {t('newProject')}</button>}
       </header>
       <div className="page">
-        {v==='home'&&<Home go={setV} toast={add} prj={prj} events={events} org={org} t={t} chStats={chStats} setChStats={setChStats}/>}
-        {v==='brief'&&<Brief toast={add} prj={prj} setPrj={setPrj} go={setV} org={org} t={t}/>}
-        {v==='pipeline'&&<Pipeline prj={prj} setPrj={setPrj} toast={add} t={t}/>}
+        {v==='home'&&<Home go={setV} toast={add} prj={prj} events={events} org={org} t={t} chStats={chStats} setChStats={setChStats} orgCtx={orgCtx}/>}
+        {v==='pipeline'&&<Pipeline prj={prj} setPrj={setPrj} toast={add} t={t} org={org}/>}
         {v==='calendar'&&<Cal toast={add} events={events} setEvents={setEvents} org={org} t={t}/>}
         {v==='strategy'&&<Strat toast={add} org={org} setOrg={setOrg} t={t} chStats={chStats}/>}
         {v==='media'&&<MediaBank toast={add} t={t}/>}
-        {v==='settings'&&<Settings toast={add} org={org} setOrg={setOrg} resetAll={resetAll} t={t} lang={lang} setLang={setLang}/>}
+        {v==='settings'&&<Settings toast={add} org={org} setOrg={setOrg} resetAll={resetAll} t={t} lang={lang} setLang={setLang} activeOrg={activeOrg}/>}
       </div>
     </main>
+    {/* Global AI Chat */}
+    {!chatOpen&&<button className="chat-fab" onClick={()=>setChatOpen(true)}>AI</button>}
+    {chatOpen&&<><div className="chat-panel-ov" onClick={()=>setChatOpen(false)}/><div className="chat-panel"><Chat toast={add} org={org} t={t} chStats={chStats} orgCtx={orgCtx} events={events} prj={prj} onClose={()=>setChatOpen(false)}/></div></>}
   </div>);}
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
