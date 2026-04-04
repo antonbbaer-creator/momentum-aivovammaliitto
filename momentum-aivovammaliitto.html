@@ -595,18 +595,18 @@ const defaultOrg={name:'Aivovammaliitto',s:'AVL',slogan:'Aivovauriotietouden lev
   ],
   tone:['Asiallinen','Empaattinen','Rohkaiseva','Selkea','Luotettava','Lämmin'],
   channels:[
-    {name:'Facebook',color:'#1877F2',ic:'\ud83d\udcd8'},
-    {name:'Instagram',color:'#E1306C',ic:'\ud83d\udcf7'},
-    {name:'LinkedIn',color:'#0A66C2',ic:'\ud83d\udcbc'},
-    {name:'TikTok',color:'#00f2ea',ic:'\ud83c\udfb5'},
-    {name:'YouTube',color:'#FF0000',ic:'\ud83d\udcfa'},
-    {name:'Nettisivut',color:'#34d399',ic:'\ud83c\udf10'},
-    {name:'Uutiskirje',color:'#fb923c',ic:'\ud83d\udce7'},
-    {name:'Jäsenkirje',color:'#f5c542',ic:'\u2709\ufe0f'},
-    {name:'Aivoitus-lehti',color:'#9b7cf6',ic:'\ud83d\udcf0'},
-    {name:'Messut ja tapahtumat',color:'#e879a8',ic:'\ud83c\udfaa'},
-    {name:'Lehdistötiedotteet',color:'#4ad8d8',ic:'\ud83d\udce3'},
-    {name:'Esitteet',color:'#ef6b6b',ic:'\ud83d\udccb'}
+    {name:'Facebook',color:'#1877F2',ic:'FB'},
+    {name:'Instagram',color:'#E1306C',ic:'IG'},
+    {name:'LinkedIn',color:'#0A66C2',ic:'LI'},
+    {name:'TikTok',color:'#00f2ea',ic:'TT'},
+    {name:'YouTube',color:'#FF0000',ic:'YT'},
+    {name:'Nettisivut',color:'#34d399',ic:'WW'},
+    {name:'Uutiskirje',color:'#fb923c',ic:'UK'},
+    {name:'Jäsenkirje',color:'#f5c542',ic:'JK'},
+    {name:'Aivoitus-lehti',color:'#9b7cf6',ic:'AL'},
+    {name:'Messut ja tapahtumat',color:'#e879a8',ic:'MT'},
+    {name:'Lehdistötiedotteet',color:'#4ad8d8',ic:'LT'},
+    {name:'Esitteet',color:'#ef6b6b',ic:'ES'}
   ],
   team:[
     {name:'Anton Baer',role:'Viestintävastaava',desc:'Facebook, Instagram, TikTok, YouTube, LinkedIn, nettisivut, uutiskirje, lehdistötiedotteet, esitteet, messut ja tapahtumat. Sisällöntuottaja ja viestinnän koordinointi.'},
@@ -1691,7 +1691,7 @@ function Home({go,toast,prj,events,org,t,chStats,setChStats,orgCtx}){
   const ms=t('months');const msShort=t('monthsShort');
 
   // Channel icon lookup
-  const chIcon=(name)=>{const ch=org.channels.find(c=>c.name===name);return ch?ch.ic:'\ud83d\udce1'};
+  const chIcon=(name)=>{const ch=org.channels.find(c=>c.name===name);return ch?ch.ic:'--'};
   const chColor=(name)=>{const ch=org.channels.find(c=>c.name===name);return ch?ch.color:'#8b95a8'};
 
   // Start editing follower counts
@@ -2358,13 +2358,13 @@ function Strat({toast,org,setOrg,t,chStats}){
 
             {/* Each category: show what was found + excerpts + add button */}
             {[
-              {key:'goals',items:parseResults.goals,label:t('goals'),color:'var(--green)',icon:'\ud83c\udfaf',
+              {key:'goals',items:parseResults.goals,label:t('goals'),color:'var(--green)',icon:'\u25ce',
                 render:g=><span>{g.m!=='\u2014'&&<strong>{g.m}</strong>}{g.m!=='\u2014'?' \u2014 ':''}{g.t}</span>},
-              {key:'auds',items:parseResults.auds,label:t('audiences'),color:'var(--pri-l)',icon:'\ud83d\udc65',
+              {key:'auds',items:parseResults.auds,label:t('audiences'),color:'var(--pri-l)',icon:'\u2261',
                 render:a=><span><strong>{a.n}</strong>{a.d?' \u2014 '+a.d.slice(0,50):''}</span>},
-              {key:'vals',items:parseResults.vals,label:t('brandValues'),color:'var(--hetki-pink)',icon:'\u2b50',
+              {key:'vals',items:parseResults.vals,label:t('brandValues'),color:'var(--hetki-pink)',icon:'\u25c7',
                 render:v=><span><strong>{v.t}</strong>{v.d?' \u2014 '+v.d.slice(0,40):''}</span>},
-              {key:'tone',items:parseResults.tone,label:t('tones'),color:'var(--yellow)',icon:'\ud83c\udfa8',
+              {key:'tone',items:parseResults.tone,label:t('tones'),color:'var(--yellow)',icon:'\u25c6',
                 render:tn=><span>{tn}</span>}
             ].map(cat=><div key={cat.key} style={{marginBottom:'1.25rem',background:'var(--card)',borderRadius:'var(--r)',border:'1px solid var(--border)',overflow:'hidden'}}>
               <div style={{padding:'.75rem 1rem',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:'.5rem'}}>
@@ -2542,12 +2542,12 @@ function MediaBank({toast,t}){
   const fileRef=useRef(null);
 
   const categories=[
-    {id:'all',label:'Kaikki',icon:'\ud83d\udcc1'},
-    {id:'valokuvat',label:'Valokuvat',icon:'\ud83d\udcf7'},
-    {id:'grafiikat',label:'Grafiikat',icon:'\ud83c\udfa8'},
-    {id:'logot',label:'Logot',icon:'\u2b50'},
-    {id:'videot',label:'Videot',icon:'\ud83c\udfac'},
-    {id:'uploaded',label:'Ladatut',icon:'\ud83d\udce5'}
+    {id:'all',label:'Kaikki',icon:'\u2588'},
+    {id:'valokuvat',label:'Valokuvat',icon:'\u25a3'},
+    {id:'grafiikat',label:'Grafiikat',icon:'\u25c6'},
+    {id:'logot',label:'Logot',icon:'\u25c7'},
+    {id:'videot',label:'Videot',icon:'\u25b7'},
+    {id:'uploaded',label:'Ladatut',icon:'\u2191'}
   ];
 
   const formatSize=(bytes)=>{
@@ -2694,7 +2694,31 @@ function MediaBank({toast,t}){
   // Collect all unique tags for tag cloud
   const allTags=[...new Set(allFiles.flatMap(f=>(getMeta(f.id).tags||[])))].sort();
 
-  return(<div className="page-enter">
+  // Delete uploaded file
+  const deleteUploaded=(id)=>{
+    setUploadedFiles(p=>p.filter(f=>f.id!==id));
+    setMeta(p=>{const n={...p};delete n[id];return n});
+    if(detail&&detail.id===id)closeDetail();
+    toast('Tiedosto poistettu','success');
+  };
+
+  // Drag & drop handlers
+  const onDragEnter=(e)=>{e.preventDefault();e.stopPropagation();dragCounter.current++;if(dragCounter.current===1)setDragging(true)};
+  const onDragLeave=(e)=>{e.preventDefault();e.stopPropagation();dragCounter.current--;if(dragCounter.current===0)setDragging(false)};
+  const onDragOver=(e)=>{e.preventDefault();e.stopPropagation()};
+  const onDrop=(e)=>{e.preventDefault();e.stopPropagation();setDragging(false);dragCounter.current=0;
+    if(e.dataTransfer.files&&e.dataTransfer.files.length>0){handleUpload(Array.from(e.dataTransfer.files));e.dataTransfer.clearData()}};
+
+  return(<div className="page-enter" onDragEnter={onDragEnter} onDragLeave={onDragLeave} onDragOver={onDragOver} onDrop={onDrop}>
+    {/* Drag overlay */}
+    {dragging&&<div style={{position:'fixed',inset:0,zIndex:9999,background:'rgba(26,143,196,.12)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
+      <div style={{background:'var(--card)',border:'3px dashed var(--pri)',borderRadius:20,padding:'3rem 4rem',textAlign:'center',boxShadow:'0 20px 60px rgba(0,0,0,.15)'}}>
+        <div style={{fontSize:'2rem',marginBottom:'1rem',fontFamily:'var(--font-display)',opacity:.5}}>{'\u2191'}</div>
+        <h3 style={{fontSize:'1.2rem',fontWeight:800,color:'var(--t1)',marginBottom:'.5rem'}}>Pudota tiedostot tähän</h3>
+        <p style={{fontSize:'.85rem',color:'var(--t2)',fontWeight:500}}>Kuvat, videot ja grafiikat</p>
+      </div>
+    </div>}
+
     {/* Header */}
     <div style={{marginBottom:'1.5rem',display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:'1rem'}}>
       <div>
@@ -2705,11 +2729,20 @@ function MediaBank({toast,t}){
         <div style={{position:'relative'}}>
           <input className="input" placeholder="Hae nimellä tai avainsanalla..." value={search} onChange={e=>setSearch(e.target.value)}
             style={{width:280,paddingLeft:'2rem',fontSize:'.82rem'}}/>
-          <span style={{position:'absolute',left:'.65rem',top:'50%',transform:'translateY(-50%)',color:'var(--t3)',fontSize:'.85rem'}}>{'\ud83d\udd0d'}</span>
+          <span style={{position:'absolute',left:'.65rem',top:'50%',transform:'translateY(-50%)',color:'var(--t3)',fontSize:'.85rem'}}>{'\u2315'}</span>
         </div>
         <button className="btn btn-primary btn-sm" onClick={()=>fileRef.current?.click()}>+ Lisää</button>
-        <input ref={fileRef} type="file" multiple accept="image/*,video/*,.svg" style={{display:'none'}} onChange={e=>{if(e.target.files.length)handleUpload(Array.from(e.target.files));e.target.value=''}}/>
+        <input ref={fileRef} type="file" multiple accept="image/*,video/*,.svg,.pdf,.doc,.docx" style={{display:'none'}} onChange={e=>{if(e.target.files.length)handleUpload(Array.from(e.target.files));e.target.value=''}}/>
       </div>
+    </div>
+
+    {/* Upload drop zone */}
+    <div onClick={()=>fileRef.current?.click()} style={{marginBottom:'1.5rem',border:'2px dashed var(--border)',borderRadius:'var(--r)',padding:'1.5rem',textAlign:'center',cursor:'pointer',transition:'all .2s',background:'var(--elev)'}}
+      onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--pri)';e.currentTarget.style.background='rgba(26,143,196,.04)'}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.background='var(--elev)'}}>
+      <div style={{fontSize:'1.5rem',marginBottom:'.5rem',opacity:.5,fontFamily:'var(--font-display)'}}>{'\u2191'}</div>
+      <p style={{fontSize:'.85rem',fontWeight:600,color:'var(--t2)',marginBottom:'.25rem'}}>Vedä ja pudota tiedostoja tähän</p>
+      <p style={{fontSize:'.75rem',color:'var(--t3)',fontWeight:500}}>tai klikkaa valitaksesi · kuvat, videot, grafiikat, PDF</p>
     </div>
 
     {/* Categories */}
@@ -2736,8 +2769,8 @@ function MediaBank({toast,t}){
         return<div key={f.id} className="mb-item" style={{animationDelay:Math.min(i*.02,.5)+'s'}} onClick={()=>openDetail(i)}>
           <div className="mb-thumb">
             {f.type==='image'&&thumbSrc?<img src={thumbSrc} alt={m.title||f.name} loading="lazy"/>
-            :f.type==='video'?<div className="mb-thumb-icon">{'\ud83c\udfac'}</div>
-            :<div className="mb-thumb-icon">{'\ud83d\udcc4'}</div>}
+            :f.type==='video'?<div className="mb-thumb-icon">{'\u25b7'}</div>
+            :<div className="mb-thumb-icon">{'\u25a1'}</div>}
             <span className="mb-badge">{f.ext}</span>
             {f.folder==='grafiikat'&&<span className="mb-badge" style={{left:'.5rem',right:'auto',background:'rgba(155,124,246,.8)'}}>Grafiikka</span>}
           </div>
@@ -2753,7 +2786,7 @@ function MediaBank({toast,t}){
     </div>
 
     {filtered.length===0&&!search&&<div className="mb-empty">
-      <div style={{fontSize:'3rem',marginBottom:'1rem',opacity:.3}}>{'\ud83d\uddbc\ufe0f'}</div>
+      <div style={{fontSize:'2rem',marginBottom:'1rem',opacity:.3,fontFamily:'var(--font-display)'}}>{'\u25a3'}</div>
       <h3 style={{fontWeight:700,marginBottom:'.5rem'}}>Ei tiedostoja tässä kategoriassa</h3>
     </div>}
 
@@ -2840,6 +2873,9 @@ function MediaBank({toast,t}){
                 <div><strong>Kansio:</strong> {detail.folder}</div>
                 {detail.added&&<div><strong>Lisätty:</strong> {detail.added}</div>}
               </div>
+              {detail.source==='uploaded'&&<button className="btn btn-sm" onClick={()=>deleteUploaded(detail.id)}
+                style={{marginTop:'.75rem',color:'var(--red,#ef4444)',border:'1px solid rgba(239,68,68,.3)',background:'rgba(239,68,68,.05)',width:'100%',fontSize:'.75rem',fontWeight:600}}>
+                Poista tiedosto</button>}
             </div>
 
             {/* Thumbnail strip for quick navigation */}
@@ -2916,7 +2952,7 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
   useEffect(()=>{if(mobNav)document.body.classList.add('no-scroll');else document.body.classList.remove('no-scroll');return()=>document.body.classList.remove('no-scroll')},[mobNav]);
   const goTo=(page)=>{setV(page);setMobNav(false)};
   if(!ob)return<><Toasts t={toasts}/><Onboarding onDone={()=>setOB(true)} toast={add} setOrg={setOrg} t={t}/></>;
-  const nav=[{id:'home',l:t('home'),ic:'\u25c9'},{id:'strategy',l:t('strategy'),ic:'\u25c8'},{id:'pipeline',l:t('projects'),ic:'\u2630',cnt:prj.length},{id:'calendar',l:t('calendar'),ic:'\u25a6'},{id:'media',l:'Mediapankki',ic:'\ud83d\uddbc\ufe0f'}];
+  const nav=[{id:'home',l:t('home'),ic:'\u25c9'},{id:'strategy',l:t('strategy'),ic:'\u25c8'},{id:'pipeline',l:t('projects'),ic:'\u2630',cnt:prj.length},{id:'calendar',l:t('calendar'),ic:'\u25a6'},{id:'media',l:'Mediapankki',ic:'\u25a3'}];
   const hdr={home:{t:t('home'),s:(org.s||org.name||'Hetki')},pipeline:{t:t('projects'),s:prj.length+' '+t('projects').toLowerCase()},calendar:{t:t('calendar'),s:events.length+' '+t('publications_plural')},strategy:{t:t('strategy'),s:org.slogan||t('strategy')},media:{t:'Mediapankki',s:'Valokuvat, videot ja grafiikat'},settings:{t:t('settings'),s:t('manageOrg')}};
   const h=hdr[v]||hdr.home;
   const navContent=<>
