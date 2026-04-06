@@ -2641,11 +2641,16 @@ const generateAIKeywords=(file)=>{
   return[...kw];
 };
 
+const WORKER_URL='https://momentum-worker.anton-4f9.workers.dev';
+
 function MediaBank({toast,t}){
   // Org-aware manifest: AVL uses MEDIA_MANIFEST, LEF uses LLFF_MEDIA_MANIFEST
   const manifestFiles=_activeOrg==='lef'?(window.LLFF_MEDIA_MANIFEST||[]):(window.MEDIA_MANIFEST||[]);
   const[meta,setMeta]=useOrgState('media_meta',{});// {id: {tags:[], desc:'', title:''}}
-  const[uploadedFiles,setUploadedFiles]=useOrgState('media_uploaded',[]);// drag&drop files stored as small dataURLs
+  const[uploadedFiles,setUploadedFiles]=useOrgState('media_uploaded',[]);// metadata only, files in R2
+  const[r2Files,setR2Files]=useState([]);// files from R2 cloud
+  const[uploading,setUploading]=useState(false);
+  const[uploadProgress,setUploadProgress]=useState('');
   const[collections,setCollections]=useOrgState('media_collections',[]);// [{id,name,fileIds:[],color}]
   const[dragging,setDragging]=useState(false);const dragCounter=useRef(0);
   const[cat,setCat]=useState('all');
@@ -2677,6 +2682,20 @@ function MediaBank({toast,t}){
     {id:'uploaded',label:'Ladatut',icon:'\u2191'}
   ];
 
+  // Fetch R2 files on mount
+  useEffect(()=>{
+    fetch(WORKER_URL+'/media/list?limit=500',{headers:{'X-Momentum-Org':_activeOrg}})
+      .then(r=>r.json()).then(d=>{
+        if(d.files)setR2Files(d.files.map(f=>{
+          const ext=(f.name||'').split('.').pop().toLowerCase();
+          const isImg=['jpg','jpeg','png','gif','webp','svg'].includes(ext);
+          return{id:'r2_'+f.key,name:f.name,size:f.size,type:isImg?'image':'other',ext,
+            path:f.publicUrl,thumb:isImg?f.publicUrl:null,folder:'uploaded',source:'r2',
+            r2Key:f.key,added:(f.uploaded||'').slice(0,10)};
+        }));
+      }).catch(()=>{/* offline, use local only */});
+  },[]);
+
   const formatSize=(bytes)=>{
     if(!bytes)return'';
     if(bytes<1024)return bytes+' B';
@@ -2695,10 +2714,11 @@ function MediaBank({toast,t}){
 
   const saveMeta=(id,newMeta)=>{setMeta(p=>({...p,[id]:newMeta}))};
 
-  // Combine manifest + uploaded into unified list
+  // Combine manifest + local uploads + R2 cloud into unified list
   const allFiles=[
     ...manifestFiles.map(f=>({...f,source:'manifest'})),
-    ...uploadedFiles.map(f=>({...f,source:'uploaded',folder:'uploaded'}))
+    ...uploadedFiles.map(f=>({...f,source:'uploaded',folder:'uploaded'})),
+    ...r2Files
   ];
 
   // Filter by collection or category
@@ -2731,42 +2751,64 @@ function MediaBank({toast,t}){
 
   const totalSize=allFiles.reduce((s,f)=>s+(f.size||0),0);
 
-  // Upload handler (creates thumbnail dataURL for display)
+  // Upload handler — sends to R2 cloud, stores metadata locally
   const handleUpload=async(fileList)=>{
-    const newFiles=[];
-    for(const file of fileList){
+    setUploading(true);
+    const newLocal=[];const newR2=[];
+    for(let i=0;i<fileList.length;i++){
+      const file=fileList[i];
+      setUploadProgress((i+1)+'/'+fileList.length+': '+file.name);
       const ext=file.name.split('.').pop().toLowerCase();
       const isImg=['jpg','jpeg','png','gif','webp','svg'].includes(ext);
       const isVid=['mp4','webm','mov'].includes(ext);
-      // Create small thumbnail
-      let thumbUrl=null;
-      if(isImg){
-        thumbUrl=await new Promise(res=>{
-          const reader=new FileReader();
-          reader.onload=e=>{
-            const img=new Image();img.onload=()=>{
-              const canvas=document.createElement('canvas');
-              const maxW=300;const scale=Math.min(maxW/img.width,1);
-              canvas.width=img.width*scale;canvas.height=img.height*scale;
-              const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);
-              res(canvas.toDataURL('image/jpeg',0.7));
-            };img.src=e.target.result;
-          };reader.readAsDataURL(file);
-        });
+
+      // Try R2 upload
+      let r2Entry=null;
+      try{
+        const form=new FormData();form.append('file',file);form.append('folder','uploaded');
+        const res=await fetch(WORKER_URL+'/media/upload',{method:'POST',body:form,headers:{'X-Momentum-Org':_activeOrg}});
+        if(res.ok){
+          const data=await res.json();
+          r2Entry={id:data.id,name:data.name,size:data.size,type:isImg?'image':isVid?'video':'other',
+            ext,path:data.publicUrl,thumb:isImg?data.publicUrl:null,folder:'uploaded',source:'r2',
+            r2Key:data.key,added:data.uploaded||new Date().toISOString().slice(0,10)};
+          newR2.push(r2Entry);
+        }
+      }catch(e){/* R2 failed, fall back to local */}
+
+      // Fallback: store thumbnail locally if R2 failed
+      if(!r2Entry){
+        let thumbUrl=null;
+        if(isImg){
+          thumbUrl=await new Promise(res=>{
+            const reader=new FileReader();
+            reader.onload=e=>{
+              const img=new Image();img.onload=()=>{
+                const canvas=document.createElement('canvas');
+                const maxW=300;const scale=Math.min(maxW/img.width,1);
+                canvas.width=img.width*scale;canvas.height=img.height*scale;
+                const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);
+                res(canvas.toDataURL('image/jpeg',0.7));
+              };img.src=e.target.result;
+            };reader.readAsDataURL(file);
+          });
+        }
+        r2Entry={id:'local_'+Date.now()+'_'+Math.random().toString(36).slice(2),
+          name:file.name,size:file.size,type:isImg?'image':isVid?'video':'other',
+          ext,thumb:thumbUrl,path:null,folder:'uploaded',source:'uploaded',
+          added:new Date().toISOString().slice(0,10)};
+        newLocal.push(r2Entry);
       }
-      const entry={
-        id:'uploaded_'+Date.now()+'_'+Math.random().toString(36).slice(2),
-        name:file.name,size:file.size,type:isImg?'image':isVid?'video':'other',
-        ext,thumb:thumbUrl,path:null,folder:'uploaded',
-        added:new Date().toISOString().slice(0,10)
-      };
-      newFiles.push(entry);
+
       // Auto-generate AI tags
-      const aiTags=generateAIKeywords(entry);
-      saveMeta(entry.id,{tags:aiTags,desc:'',title:''});
+      const aiTags=generateAIKeywords(r2Entry);
+      saveMeta(r2Entry.id,{tags:aiTags,desc:'',title:''});
     }
-    setUploadedFiles(p=>[...newFiles,...p]);
-    toast(newFiles.length+' tiedostoa lisätty','success');
+    if(newLocal.length>0)setUploadedFiles(p=>[...newLocal,...p]);
+    if(newR2.length>0)setR2Files(p=>[...newR2,...p]);
+    setUploading(false);setUploadProgress('');
+    const cloudCount=newR2.length;const localCount=newLocal.length;
+    toast((cloudCount+localCount)+' tiedostoa lisatty'+(cloudCount>0?' (pilvi)':''),'success');
   };
 
   // Detail navigation
@@ -2836,9 +2878,15 @@ function MediaBank({toast,t}){
   // Collect all unique tags for tag cloud
   const allTags=[...new Set(allFiles.flatMap(f=>(getMeta(f.id).tags||[])))].sort();
 
-  // Delete uploaded file
-  const deleteUploaded=(id)=>{
-    setUploadedFiles(p=>p.filter(f=>f.id!==id));
+  // Delete uploaded file (local or R2)
+  const deleteUploaded=async(id)=>{
+    const r2File=r2Files.find(f=>f.id===id);
+    if(r2File&&r2File.r2Key){
+      try{await fetch(WORKER_URL+'/media/delete/'+r2File.r2Key,{method:'DELETE',headers:{'X-Momentum-Org':_activeOrg}})}catch(e){}
+      setR2Files(p=>p.filter(f=>f.id!==id));
+    }else{
+      setUploadedFiles(p=>p.filter(f=>f.id!==id));
+    }
     setMeta(p=>{const n={...p};delete n[id];return n});
     if(detail&&detail.id===id)closeDetail();
     toast('Tiedosto poistettu','success');
@@ -2877,12 +2925,16 @@ function MediaBank({toast,t}){
     selected.forEach(id=>{const m=getMeta(id);if(!m.tags.includes(tag))saveMeta(id,{...m,tags:[...m.tags,tag]})});
     setBulkTagInput('');toast(selected.size+' tiedostoon lisatty tagi "'+tag+'"','success');
   };
-  const bulkDelete=()=>{
-    const uploadIds=[...selected].filter(id=>uploadedFiles.some(f=>f.id===id));
-    if(uploadIds.length===0){toast('Vain ladattuja tiedostoja voi poistaa','error');return}
+  const bulkDelete=async()=>{
+    const localIds=[...selected].filter(id=>uploadedFiles.some(f=>f.id===id));
+    const r2Ids=[...selected].filter(id=>r2Files.some(f=>f.id===id));
+    if(localIds.length===0&&r2Ids.length===0){toast('Vain ladattuja tiedostoja voi poistaa','error');return}
+    // Delete R2 files
+    for(const id of r2Ids){const f=r2Files.find(x=>x.id===id);if(f?.r2Key)try{await fetch(WORKER_URL+'/media/delete/'+f.r2Key,{method:'DELETE',headers:{'X-Momentum-Org':_activeOrg}})}catch(e){}}
+    setR2Files(p=>p.filter(f=>!selected.has(f.id)));
     setUploadedFiles(p=>p.filter(f=>!selected.has(f.id)));
-    setMeta(p=>{const n={...p};uploadIds.forEach(id=>delete n[id]);return n});
-    setSelected(new Set());toast(uploadIds.length+' tiedostoa poistettu','success');
+    setMeta(p=>{const n={...p};[...localIds,...r2Ids].forEach(id=>delete n[id]);return n});
+    setSelected(new Set());toast((localIds.length+r2Ids.length)+' tiedostoa poistettu','success');
   };
 
   // ── Sorting ──
@@ -2922,6 +2974,12 @@ function MediaBank({toast,t}){
         <input ref={fileRef} type="file" multiple accept="image/*,video/*,.svg,.pdf,.doc,.docx" style={{display:'none'}} onChange={e=>{if(e.target.files.length)handleUpload(Array.from(e.target.files));e.target.value=''}}/>
       </div>
     </div>
+
+    {/* Upload progress */}
+    {uploading&&<div style={{marginBottom:'1rem',padding:'.75rem 1rem',background:'rgba(26,143,196,.08)',border:'1px solid rgba(26,143,196,.2)',borderRadius:'var(--r)',display:'flex',alignItems:'center',gap:'.75rem'}}>
+      <div style={{width:20,height:20,border:'2px solid var(--pri)',borderTopColor:'transparent',borderRadius:'50%',animation:'spin .8s linear infinite'}}/>
+      <span style={{fontSize:'.82rem',fontWeight:600,color:'var(--pri-l)'}}>Ladataan pilveen... {uploadProgress}</span>
+    </div>}
 
     {/* Upload drop zone */}
     <div onClick={()=>fileRef.current?.click()} style={{marginBottom:'1.5rem',border:'2px dashed var(--border)',borderRadius:'var(--r)',padding:'1.5rem',textAlign:'center',cursor:'pointer',transition:'all .2s',background:'var(--elev)'}}
@@ -3039,6 +3097,7 @@ function MediaBank({toast,t}){
             :<div className="mb-thumb-icon">{'\u25a1'}</div>}
             <span className="mb-badge">{f.ext}</span>
             {f.folder==='grafiikat'&&<span className="mb-badge" style={{left:'.5rem',right:'auto',background:'rgba(155,124,246,.8)'}}>Grafiikka</span>}
+            {f.source==='r2'&&<span className="mb-badge" style={{left:'.5rem',right:'auto',bottom:'.5rem',top:'auto',background:'rgba(26,143,196,.85)',fontSize:'.55rem'}}>Pilvi</span>}
             {bulkMode&&<div style={{position:'absolute',top:6,left:6,width:22,height:22,borderRadius:4,
               background:isSel?'var(--pri)':'rgba(0,0,0,.5)',border:'2px solid '+(isSel?'var(--pri)':'rgba(255,255,255,.3)'),
               display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:'.7rem',fontWeight:700,
@@ -3180,7 +3239,7 @@ function MediaBank({toast,t}){
                 navigator.clipboard.writeText(url).then(()=>toast('Linkki kopioitu','success')).catch(()=>toast('Kopiointi epaonnistui','error'))}}
                 style={{marginTop:'.4rem',width:'100%',fontSize:'.75rem',fontWeight:600}}>
                 Kopioi linkki</button>
-              {detail.source==='uploaded'&&<button className="btn btn-sm" onClick={()=>deleteUploaded(detail.id)}
+              {(detail.source==='uploaded'||detail.source==='r2')&&<button className="btn btn-sm" onClick={()=>deleteUploaded(detail.id)}
                 style={{marginTop:'.4rem',color:'var(--red,#ef4444)',border:'1px solid rgba(239,68,68,.3)',background:'rgba(239,68,68,.05)',width:'100%',fontSize:'.75rem',fontWeight:600}}>
                 Poista tiedosto</button>}
             </div>

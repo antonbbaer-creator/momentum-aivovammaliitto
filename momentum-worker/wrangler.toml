@@ -1,0 +1,14 @@
+name = "momentum-worker"
+main = "src/index.js"
+compatibility_date = "2024-12-01"
+
+[[kv_namespaces]]
+binding = "META_TOKENS"
+id = "f3e194adebdc4f1185cc428771cd9afd"
+
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "momentum-media"
+
+[vars]
+ALLOWED_ORIGINS = "https://elegant-melba-ad4bcf.netlify.app,http://localhost:8080"
