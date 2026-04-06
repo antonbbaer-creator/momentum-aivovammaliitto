@@ -3224,6 +3224,183 @@ function Publications({toast,t,org}){
   </div>);
 }
 
+// ══════ KANAVAT (Meta Business Suite mockup) ══════
+function Channels({toast,t,org,chStats,setChStats}){
+  const _ao=(()=>{try{return JSON.parse(localStorage.getItem('momentum_activeOrg'))||'avl'}catch{return 'avl'}})();
+  const channels=_ao==='lef'
+    ?[{id:'ig',name:'Instagram',handle:'@lapinlahtifilmfestival',icon:'\u25cf',color:'#E1306C',followers:1240,growth:'+8.2%',reach:'12.4K',engagement:'4.7%',posts:34},
+      {id:'fb',name:'Facebook',handle:'Kino Lapinlahti ry',icon:'\u25cf',color:'#1877F2',followers:890,growth:'+3.1%',reach:'8.2K',engagement:'2.1%',posts:28},
+      {id:'li',name:'LinkedIn',handle:'Kino Lapinlahti',icon:'\u25cf',color:'#0A66C2',followers:320,growth:'+5.4%',reach:'3.1K',engagement:'3.2%',posts:12},
+      {id:'tt',name:'TikTok',handle:'@llff_festival',icon:'\u25cf',color:'#000000',followers:580,growth:'+15.3%',reach:'22.1K',engagement:'8.9%',posts:18},
+      {id:'web',name:'Verkkosivut',handle:'lapinlahdenelokuvajuhlat.fi',icon:'\u25a3',color:'#056b9f',followers:null,growth:null,reach:'5.2K',engagement:null,posts:null,visitors:'5,200/kk'}]
+    :[{id:'ig',name:'Instagram',handle:'@aivovammaliitto',icon:'\u25cf',color:'#E1306C',followers:2847,growth:'+4.5%',reach:'18.3K',engagement:'3.8%',posts:52},
+      {id:'fb',name:'Facebook',handle:'Aivovammaliitto',icon:'\u25cf',color:'#1877F2',followers:4120,growth:'+1.2%',reach:'15.7K',engagement:'1.9%',posts:48},
+      {id:'li',name:'LinkedIn',handle:'Aivovammaliitto ry',icon:'\u25cf',color:'#0A66C2',followers:1560,growth:'+6.8%',reach:'7.4K',engagement:'2.8%',posts:20},
+      {id:'yt',name:'YouTube',handle:'Aivovammaliitto',icon:'\u25cf',color:'#FF0000',followers:890,growth:'+2.1%',reach:'4.5K',engagement:'5.2%',posts:8},
+      {id:'web',name:'Verkkosivut',handle:'aivovammaliitto.fi',icon:'\u25a3',color:'#056b9f',followers:null,growth:null,reach:'12.8K',engagement:null,posts:null,visitors:'12,800/kk'}];
+
+  const[selected,setSelected]=useState(null);
+  const[tab,setTab]=useState('overview');
+
+  const totalFollowers=channels.reduce((s,c)=>s+(c.followers||0),0);
+  const totalReach=channels.reduce((s,c)=>s+parseFloat((c.reach||'0').replace('K',''))*1000,0);
+
+  const platformLinks={
+    ig:'https://business.facebook.com/latest/home',
+    fb:'https://business.facebook.com/latest/home',
+    li:'https://www.linkedin.com/company/',
+    tt:'https://www.tiktok.com/creator#/portal',
+    yt:'https://studio.youtube.com/',
+    web:null
+  };
+
+  if(selected){
+    const ch=channels.find(c=>c.id===selected);
+    if(!ch)return null;
+    const weeks=['Vko 1','Vko 2','Vko 3','Vko 4'];
+    const mockData=[65,82,71,94];
+    return(<div className="page-enter" style={{maxWidth:920,margin:'0 auto'}}>
+      <button className="btn btn-ghost" onClick={()=>setSelected(null)} style={{marginBottom:'1rem'}}>{'\u2190'} Takaisin kanaviin</button>
+      <div className="bcard" style={{marginBottom:'1.5rem'}}>
+        <div className="bcard-h" style={{display:'flex',alignItems:'center',gap:'1rem'}}>
+          <div style={{width:48,height:48,borderRadius:'var(--r)',background:ch.color,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:'1.4rem',fontWeight:700}}>{ch.name[0]}</div>
+          <div style={{flex:1}}>
+            <h3 style={{margin:0}}>{ch.name}</h3>
+            <p style={{margin:0,fontSize:'.8rem',color:'var(--t3)'}}>{ch.handle}</p>
+          </div>
+          {platformLinks[ch.id]&&<a href={platformLinks[ch.id]} target="_blank" rel="noopener" className="btn btn-primary btn-sm">Avaa hallintapaneeli {'\u2197'}</a>}
+        </div>
+      </div>
+
+      <div style={{display:'flex',gap:'.35rem',marginBottom:'1.5rem',background:'var(--elev)',borderRadius:'var(--r)',padding:'3px'}}>
+        {[{id:'overview',l:'Yleiskatsaus'},{id:'content',l:'Sisallot'},{id:'schedule',l:'Aikataulu'}].map(tb=>(
+          <button key={tb.id} className={`cal-view-btn ${tab===tb.id?'act':''}`} onClick={()=>setTab(tb.id)}>{tb.l}</button>
+        ))}
+      </div>
+
+      {tab==='overview'&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:'1rem',marginBottom:'1.5rem'}}>
+        {ch.followers&&<div className="bcard"><div className="bcard-b" style={{textAlign:'center',padding:'1.25rem'}}>
+          <div style={{fontSize:'.7rem',color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:'.5rem'}}>Seuraajat</div>
+          <div style={{fontSize:'1.8rem',fontWeight:700,fontFamily:'var(--font-display)'}}>{ch.followers.toLocaleString()}</div>
+          <div style={{fontSize:'.75rem',color:'var(--green)',fontWeight:600,marginTop:'.25rem'}}>{ch.growth}</div>
+        </div></div>}
+        <div className="bcard"><div className="bcard-b" style={{textAlign:'center',padding:'1.25rem'}}>
+          <div style={{fontSize:'.7rem',color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:'.5rem'}}>Tavoittavuus</div>
+          <div style={{fontSize:'1.8rem',fontWeight:700,fontFamily:'var(--font-display)'}}>{ch.reach||ch.visitors}</div>
+        </div></div>
+        {ch.engagement&&<div className="bcard"><div className="bcard-b" style={{textAlign:'center',padding:'1.25rem'}}>
+          <div style={{fontSize:'.7rem',color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:'.5rem'}}>Sitoutuminen</div>
+          <div style={{fontSize:'1.8rem',fontWeight:700,fontFamily:'var(--font-display)'}}>{ch.engagement}</div>
+        </div></div>}
+        {ch.posts&&<div className="bcard"><div className="bcard-b" style={{textAlign:'center',padding:'1.25rem'}}>
+          <div style={{fontSize:'.7rem',color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:'.5rem'}}>Julkaisut (30pv)</div>
+          <div style={{fontSize:'1.8rem',fontWeight:700,fontFamily:'var(--font-display)'}}>{ch.posts}</div>
+        </div></div>}
+      </div>}
+
+      {tab==='overview'&&<div className="bcard"><div className="bcard-h"><h3>Tavoittavuus viikkotasolla</h3></div><div className="bcard-b">
+        <div style={{display:'flex',alignItems:'flex-end',gap:'.75rem',height:160,padding:'1rem 0'}}>
+          {weeks.map((w,i)=><div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:'.5rem'}}>
+            <div style={{fontSize:'.7rem',fontWeight:600,color:'var(--t2)'}}>{mockData[i]}%</div>
+            <div style={{width:'100%',background:'var(--bg)',borderRadius:4,overflow:'hidden',height:120}}>
+              <div style={{height:mockData[i]+'%',background:`linear-gradient(180deg,${ch.color},${ch.color}88)`,borderRadius:4,marginTop:(100-mockData[i])+'%'}}/>
+            </div>
+            <div style={{fontSize:'.65rem',color:'var(--t3)'}}>{w}</div>
+          </div>)}
+        </div>
+      </div></div>}
+
+      {tab==='content'&&<div className="bcard"><div className="bcard-h"><h3>Viimeisimmat julkaisut</h3></div><div className="bcard-b">
+        <div style={{textAlign:'center',padding:'3rem',color:'var(--t3)'}}>
+          <p style={{fontSize:'.9rem',marginBottom:'1rem'}}>Meta Business Suite -yhteys ei ole viela aktiivinen.</p>
+          <p style={{fontSize:'.8rem'}}>Kun yhteys on luotu, taalta nakyvat kaikki julkaisut ja niiden analytiikka.</p>
+          {platformLinks[ch.id]&&<a href={platformLinks[ch.id]} target="_blank" rel="noopener" className="btn btn-primary" style={{marginTop:'1rem'}}>Hallitse sisaltoja {ch.name}-alustalla {'\u2197'}</a>}
+        </div>
+      </div></div>}
+
+      {tab==='schedule'&&<div className="bcard"><div className="bcard-h"><h3>Ajastetut julkaisut</h3></div><div className="bcard-b">
+        <div style={{textAlign:'center',padding:'3rem',color:'var(--t3)'}}>
+          <p style={{fontSize:'.9rem',marginBottom:'1rem'}}>Julkaisujen ajastus tulee kayttoon Meta-yhteyden myota.</p>
+          <p style={{fontSize:'.8rem'}}>Silla valiaikaa voit ajastaa julkaisuja suoraan alustoilla.</p>
+          {platformLinks[ch.id]&&<a href={platformLinks[ch.id]} target="_blank" rel="noopener" className="btn btn-primary" style={{marginTop:'1rem'}}>Avaa {ch.name} {'\u2197'}</a>}
+        </div>
+      </div></div>}
+    </div>);
+  }
+
+  return(<div className="page-enter" style={{maxWidth:920,margin:'0 auto'}}>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:'1rem',marginBottom:'1.5rem'}}>
+      <div className="bcard"><div className="bcard-b" style={{textAlign:'center',padding:'1.25rem'}}>
+        <div style={{fontSize:'.7rem',color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:'.5rem'}}>Seuraajat yhteensa</div>
+        <div style={{fontSize:'1.8rem',fontWeight:700,fontFamily:'var(--font-display)'}}>{totalFollowers.toLocaleString()}</div>
+      </div></div>
+      <div className="bcard"><div className="bcard-b" style={{textAlign:'center',padding:'1.25rem'}}>
+        <div style={{fontSize:'.7rem',color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:'.5rem'}}>Kokonaistavoittavuus</div>
+        <div style={{fontSize:'1.8rem',fontWeight:700,fontFamily:'var(--font-display)'}}>{(totalReach/1000).toFixed(1)}K</div>
+      </div></div>
+      <div className="bcard"><div className="bcard-b" style={{textAlign:'center',padding:'1.25rem'}}>
+        <div style={{fontSize:'.7rem',color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:'.5rem'}}>Kanavat</div>
+        <div style={{fontSize:'1.8rem',fontWeight:700,fontFamily:'var(--font-display)'}}>{channels.length}</div>
+      </div></div>
+    </div>
+
+    <div className="bcard" style={{marginBottom:'1.5rem'}}>
+      <div className="bcard-h" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <h3>Kanavat</h3>
+        <span style={{fontSize:'.75rem',color:'var(--t3)',background:'rgba(245,197,66,.15)',padding:'.2rem .6rem',borderRadius:'var(--r)',color:'var(--yellow)'}}>Mockup — Meta-yhteys tulossa</span>
+      </div>
+      <div className="bcard-b" style={{display:'flex',flexDirection:'column',gap:'.5rem'}}>
+        {channels.map(ch=><div key={ch.id} onClick={()=>setSelected(ch.id)} style={{
+          display:'flex',alignItems:'center',gap:'1rem',padding:'.85rem 1rem',
+          background:'var(--elev)',border:'1px solid var(--border)',borderRadius:'var(--r)',
+          cursor:'pointer',transition:'border-color .15s'
+        }} onMouseEnter={e=>e.currentTarget.style.borderColor='var(--border-l)'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--border)'}>
+          <div style={{width:40,height:40,borderRadius:'var(--r)',background:ch.color,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:'1.1rem',fontWeight:700,flexShrink:0}}>{ch.name[0]}</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:'.85rem',fontWeight:600}}>{ch.name}</div>
+            <div style={{fontSize:'.72rem',color:'var(--t3)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ch.handle}</div>
+          </div>
+          {ch.followers&&<div style={{textAlign:'right',flexShrink:0}}>
+            <div style={{fontSize:'.85rem',fontWeight:700}}>{ch.followers.toLocaleString()}</div>
+            <div style={{fontSize:'.65rem',color:'var(--green)',fontWeight:600}}>{ch.growth}</div>
+          </div>}
+          {ch.visitors&&!ch.followers&&<div style={{textAlign:'right',flexShrink:0}}>
+            <div style={{fontSize:'.8rem',fontWeight:600}}>{ch.visitors}</div>
+            <div style={{fontSize:'.65rem',color:'var(--t3)'}}>kavijaa</div>
+          </div>}
+          <div style={{textAlign:'right',flexShrink:0,minWidth:60}}>
+            <div style={{fontSize:'.8rem',fontWeight:600}}>{ch.reach||ch.visitors}</div>
+            <div style={{fontSize:'.65rem',color:'var(--t3)'}}>tavoittavuus</div>
+          </div>
+          <span style={{color:'var(--t3)',fontSize:'.9rem'}}>{'\u203a'}</span>
+        </div>)}
+      </div>
+    </div>
+
+    <div className="bcard">
+      <div className="bcard-h"><h3>Pikayhteydet</h3></div>
+      <div className="bcard-b" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'.75rem'}}>
+        <a href="https://business.facebook.com/latest/home" target="_blank" rel="noopener" className="btn btn-ghost" style={{textAlign:'center',padding:'1rem',display:'flex',flexDirection:'column',gap:'.5rem',textDecoration:'none'}}>
+          <span style={{fontSize:'1.2rem'}}>f</span>
+          <span style={{fontSize:'.8rem'}}>Meta Business Suite</span>
+        </a>
+        <a href="https://www.linkedin.com/company/" target="_blank" rel="noopener" className="btn btn-ghost" style={{textAlign:'center',padding:'1rem',display:'flex',flexDirection:'column',gap:'.5rem',textDecoration:'none'}}>
+          <span style={{fontSize:'1.2rem'}}>in</span>
+          <span style={{fontSize:'.8rem'}}>LinkedIn</span>
+        </a>
+        <a href="https://www.tiktok.com/creator#/portal" target="_blank" rel="noopener" className="btn btn-ghost" style={{textAlign:'center',padding:'1rem',display:'flex',flexDirection:'column',gap:'.5rem',textDecoration:'none'}}>
+          <span style={{fontSize:'1.2rem'}}>TT</span>
+          <span style={{fontSize:'.8rem'}}>TikTok Creator</span>
+        </a>
+        <a href="https://studio.youtube.com/" target="_blank" rel="noopener" className="btn btn-ghost" style={{textAlign:'center',padding:'1rem',display:'flex',flexDirection:'column',gap:'.5rem',textDecoration:'none'}}>
+          <span style={{fontSize:'1.2rem'}}>YT</span>
+          <span style={{fontSize:'.8rem'}}>YouTube Studio</span>
+        </a>
+      </div>
+    </div>
+  </div>);
+}
+
 // ══════ SETTINGS ══════
 function Settings({toast,org,setOrg,resetAll,t,lang,setLang,activeOrg,fbStatus}){
   const[confirm,setConfirm]=useState(false);
@@ -3298,8 +3475,8 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
   useEffect(()=>{if(mobNav)document.body.classList.add('no-scroll');else document.body.classList.remove('no-scroll');return()=>document.body.classList.remove('no-scroll')},[mobNav]);
   const goTo=(page)=>{setV(page);setMobNav(false)};
   if(!ob)return<><Toasts t={toasts}/><Onboarding onDone={()=>setOB(true)} toast={add} setOrg={setOrg} t={t}/></>;
-  const nav=[{id:'home',l:t('home'),ic:'\u25c9'},{id:'strategy',l:t('strategy'),ic:'\u25c8'},{id:'pipeline',l:t('projects'),ic:'\u2630',cnt:prj.length},{id:'publications',l:'Julkaisut',ic:'\u25b6',cnt:pubs.filter(p=>p.status==='ready').length},{id:'calendar',l:t('calendar'),ic:'\u25a6'},{id:'media',l:'Mediapankki',ic:'\u25a3'}];
-  const hdr={home:{t:t('home'),s:(org.s||org.name||'Hetki')},pipeline:{t:t('projects'),s:prj.length+' '+t('projects').toLowerCase()},publications:{t:'Julkaisut',s:pubs.length+' julkaisua'},calendar:{t:t('calendar'),s:events.length+' '+t('publications_plural')},strategy:{t:t('strategy'),s:org.slogan||t('strategy')},media:{t:'Mediapankki',s:'Valokuvat, videot ja grafiikat'},settings:{t:t('settings'),s:t('manageOrg')}};
+  const nav=[{id:'home',l:t('home'),ic:'\u25c9'},{id:'strategy',l:t('strategy'),ic:'\u25c8'},{id:'pipeline',l:t('projects'),ic:'\u2630',cnt:prj.length},{id:'publications',l:'Julkaisut',ic:'\u25b6',cnt:pubs.filter(p=>p.status==='ready').length},{id:'calendar',l:t('calendar'),ic:'\u25a6'},{id:'channels',l:'Kanavat',ic:'\u25c7'},{id:'media',l:'Mediapankki',ic:'\u25a3'}];
+  const hdr={home:{t:t('home'),s:(org.s||org.name||'Hetki')},pipeline:{t:t('projects'),s:prj.length+' '+t('projects').toLowerCase()},publications:{t:'Julkaisut',s:pubs.length+' julkaisua'},calendar:{t:t('calendar'),s:events.length+' '+t('publications_plural')},strategy:{t:t('strategy'),s:org.slogan||t('strategy')},channels:{t:'Kanavat',s:'Somekanavien hallinta ja analytiikka'},media:{t:'Mediapankki',s:'Valokuvat, videot ja grafiikat'},settings:{t:t('settings'),s:t('manageOrg')}};
   const h=hdr[v]||hdr.home;
   const navContent=<>
     <div className="side-hd" style={{position:'relative'}}><div className="logo-text"><img src="media/brand/hetki-logo-white.png" alt="Hetki"/> Momentum</div></div>
@@ -3337,6 +3514,7 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
         {v==='pipeline'&&<Pipeline prj={prj} setPrj={setPrj} toast={add} t={t} org={org}/>}
         {v==='calendar'&&<Cal toast={add} events={events} setEvents={setEvents} org={org} t={t}/>}
         {v==='strategy'&&<Strat toast={add} org={org} setOrg={setOrg} t={t} chStats={chStats}/>}
+        {v==='channels'&&<Channels toast={add} t={t} org={org} chStats={chStats} setChStats={setChStats}/>}
         {v==='media'&&<MediaBank toast={add} t={t}/>}
         {v==='publications'&&<Publications toast={add} t={t} org={org}/>}
         {v==='settings'&&<Settings toast={add} org={org} setOrg={setOrg} resetAll={resetAll} t={t} lang={lang} setLang={setLang} activeOrg={activeOrg} fbStatus={fbStatus}/>}
