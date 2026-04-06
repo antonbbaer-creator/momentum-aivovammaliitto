@@ -9,6 +9,26 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <!-- Firebase SDK (compat for CDN usage) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig={
+      apiKey:"AIzaSyB6MGUyOveOl1zaV_1c0TdBVldZM09Sm8E",
+      authDomain:"momentum-69262.firebaseapp.com",
+      projectId:"momentum-69262",
+      storageBucket:"momentum-69262.firebasestorage.app",
+      messagingSenderId:"465706849550",
+      appId:"1:465706849550:web:9103dc22e7088e53c5335f",
+      measurementId:"G-VFPZLZ3HB1"
+    };
+    const fbApp=firebase.initializeApp(firebaseConfig);
+    const fbAuth=firebase.auth();
+    const fbDb=firebase.firestore();
+    // Sign in anonymously
+    fbAuth.signInAnonymously().catch(e=>console.warn('Firebase auth failed:',e));
+  </script>
   <script src="media/manifest.js"></script>
   <script src="media/llff-manifest.js"></script>
   <style>
@@ -539,12 +559,60 @@
 const{useState,useEffect,useRef,useCallback}=React;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
-// ══════ PERSISTENCE ══════
+// ══════ PERSISTENCE (localStorage + Firebase sync) ══════
+const _fbWriteTimers={};
+const _fbSyncToFirestore=(key,value)=>{
+  // Debounced write to Firestore (500ms)
+  clearTimeout(_fbWriteTimers[key]);
+  _fbWriteTimers[key]=setTimeout(()=>{
+    const user=fbAuth.currentUser;
+    if(!user||!fbDb)return;
+    try{
+      fbDb.collection('users').doc(user.uid).collection('data').doc(key).set({value:JSON.stringify(value),updatedAt:firebase.firestore.FieldValue.serverTimestamp()})
+        .catch(e=>console.warn('Firestore write error:',e));
+    }catch(e){console.warn('Firestore sync error:',e)}
+  },500);
+};
+
 const usePersistedState=(key,defaultValue)=>{
-  const[state,setState]=useState(()=>{try{const s=localStorage.getItem('momentum_'+key);return s?JSON.parse(s):defaultValue}catch{return defaultValue}});
-  useEffect(()=>{try{localStorage.setItem('momentum_'+key,JSON.stringify(state))}catch{}},[key,state]);
+  const fullKey='momentum_'+key;
+  const[state,setState]=useState(()=>{try{const s=localStorage.getItem(fullKey);return s?JSON.parse(s):defaultValue}catch{return defaultValue}});
+  useEffect(()=>{
+    try{localStorage.setItem(fullKey,JSON.stringify(state));localStorage.setItem(fullKey+'__ts',String(Date.now()))}catch{}
+    _fbSyncToFirestore(fullKey,state);
+  },[key,state]);
   return[state,setState];
 };
+
+// Firebase → localStorage hydration (runs once on auth)
+const _fbHydrated={done:false};
+const _fbHydrateFromFirestore=()=>{
+  if(_fbHydrated.done)return;
+  _fbHydrated.done=true;
+  const unsub=fbAuth.onAuthStateChanged(user=>{
+    if(!user)return;
+    fbDb.collection('users').doc(user.uid).collection('data').get().then(snap=>{
+      let changed=false;
+      snap.forEach(doc=>{
+        const key=doc.id;
+        const remote=doc.data();
+        if(!remote||!remote.value)return;
+        const local=localStorage.getItem(key);
+        const remoteTime=remote.updatedAt?.toMillis?.()||0;
+        const localTime=parseInt(localStorage.getItem(key+'__ts')||'0',10);
+        // Remote wins if newer or local is empty
+        if(!local||remoteTime>localTime){
+          localStorage.setItem(key,remote.value);
+          if(remoteTime)localStorage.setItem(key+'__ts',String(remoteTime));
+          changed=true;
+        }
+      });
+      if(changed){console.log('Firebase: synced remote data → reloading');window.location.reload()}
+    }).catch(e=>console.warn('Firestore hydrate error:',e));
+    unsub();
+  });
+};
+_fbHydrateFromFirestore();
 
 // ══════ MULTI-ORG ══════
 const ORG_REGISTRY={avl:{id:'avl',name:'Aivovammaliitto',shortName:'AVL'},lef:{id:'lef',name:'Lapinlahden Elokuvajuhlat',shortName:'LLFF'}};
@@ -2916,6 +2984,215 @@ function MediaBank({toast,t}){
     </div>}
   </div>);}
 
+// ══════ PUBLICATIONS ══════
+function Publications({toast,t,org}){
+  const[pubs,setPubs]=useOrgState('publications',[]);
+  const[mode,setMode]=useState('list');// list | new | detail
+  const[detailId,setDetailId]=useState(null);
+  const[filter,setFilter]=useState('all');// all | draft | ready | published
+
+  // Platform links for direct publishing
+  const platformLinks={
+    'Facebook':{url:'https://business.facebook.com/latest/home',post:'https://business.facebook.com/latest/composer',color:'#1877F2',ic:'FB'},
+    'Instagram':{url:'https://business.facebook.com/latest/home',post:'https://business.facebook.com/latest/composer',color:'#E1306C',ic:'IG'},
+    'LinkedIn':{url:'https://www.linkedin.com/feed/',post:'https://www.linkedin.com/post/new',color:'#0A66C2',ic:'LI'},
+    'TikTok':{url:'https://www.tiktok.com/creator#/upload',post:'https://www.tiktok.com/creator#/upload',color:'#00f2ea',ic:'TT'},
+    'YouTube':{url:'https://studio.youtube.com/',post:'https://studio.youtube.com/channel/UC/videos/upload',color:'#FF0000',ic:'YT'},
+    'Nettisivut':{url:'#',post:'#',color:'#34d399',ic:'WW'},
+    'Verkkosivut':{url:'#',post:'#',color:'#5A639C',ic:'WW'},
+    'Fienta':{url:'https://fienta.com/dashboard',post:'https://fienta.com/dashboard',color:'#ff6b35',ic:'FI'},
+    'FilmFreeway':{url:'https://filmfreeway.com/dashboard',post:'https://filmfreeway.com/dashboard',color:'#20c997',ic:'FF'},
+    'Uutiskirje':{url:'#',post:'#',color:'#fb923c',ic:'UK'},
+  };
+
+  // New publication form state
+  const[title,setTitle]=useState('');
+  const[body,setBody]=useState('');
+  const[channels,setChannels]=useState([]);
+  const[pubDate,setPubDate]=useState('');
+  const[imgUrl,setImgUrl]=useState('');
+
+  const toggleCh=(name)=>setChannels(p=>p.includes(name)?p.filter(c=>c!==name):[...p,name]);
+
+  const createPub=()=>{
+    if(!title.trim())return toast('Anna julkaisulle otsikko','error');
+    if(!channels.length)return toast('Valitse vähintään yksi kanava','error');
+    const pub={id:'pub_'+Date.now(),title:title.trim(),body:body.trim(),channels,date:pubDate||null,image:imgUrl||null,
+      status:'draft',created:new Date().toISOString().slice(0,10),publishedChannels:[]};
+    setPubs(p=>[pub,...p]);
+    setTitle('');setBody('');setChannels([]);setPubDate('');setImgUrl('');
+    setMode('list');toast('Julkaisu luotu','success');
+  };
+
+  const updatePub=(id,updates)=>setPubs(p=>p.map(x=>x.id===id?{...x,...updates}:x));
+  const deletePub=(id)=>{setPubs(p=>p.filter(x=>x.id!==id));setMode('list');setDetailId(null);toast('Julkaisu poistettu','success')};
+  const markPublished=(id,channel)=>{
+    setPubs(p=>p.map(x=>{
+      if(x.id!==id)return x;
+      const pc=[...(x.publishedChannels||[])];
+      if(!pc.includes(channel))pc.push(channel);
+      const allDone=x.channels.every(c=>pc.includes(c));
+      return{...x,publishedChannels:pc,status:allDone?'published':'ready'};
+    }));
+  };
+
+  const detail=pubs.find(p=>p.id===detailId);
+
+  const statusLabel=(s)=>s==='draft'?'Luonnos':s==='ready'?'Valmis julkaistavaksi':'Julkaistu';
+  const statusColor=(s)=>s==='draft'?'var(--t3)':s==='ready'?'var(--pri)':'var(--green)';
+  const statusBg=(s)=>s==='draft'?'rgba(139,149,168,.1)':s==='ready'?'rgba(26,143,196,.1)':'rgba(45,212,160,.1)';
+
+  const filtered=filter==='all'?pubs:pubs.filter(p=>p.status===filter);
+
+  // ── NEW PUBLICATION FORM ──
+  if(mode==='new')return(<div className="page-enter" style={{maxWidth:700}}>
+    <div style={{display:'flex',alignItems:'center',gap:'.75rem',marginBottom:'1.5rem'}}>
+      <button className="btn btn-ghost btn-sm" onClick={()=>setMode('list')}>{'\u2190'} Takaisin</button>
+      <h2 style={{fontSize:'1.2rem',fontWeight:800,letterSpacing:'-.02em'}}>Uusi julkaisu</h2>
+    </div>
+    <div className="bcard"><div className="bcard-b" style={{display:'flex',flexDirection:'column',gap:'1rem'}}>
+      <div><label style={{fontSize:'.75rem',fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.04em',display:'block',marginBottom:'.4rem'}}>Otsikko</label>
+        <input className="input" value={title} onChange={e=>setTitle(e.target.value)} placeholder="Julkaisun otsikko tai aihe..."/></div>
+      <div><label style={{fontSize:'.75rem',fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.04em',display:'block',marginBottom:'.4rem'}}>Sisalto</label>
+        <textarea className="input textarea" value={body} onChange={e=>setBody(e.target.value)} placeholder="Julkaisun teksti... Voit kopioida taman suoraan alustalle." style={{minHeight:150,lineHeight:1.7}}/></div>
+      <div><label style={{fontSize:'.75rem',fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.04em',display:'block',marginBottom:'.4rem'}}>Kuvan URL (valinnainen)</label>
+        <input className="input" value={imgUrl} onChange={e=>setImgUrl(e.target.value)} placeholder="https://... tai mediapankin kuva"/></div>
+      <div><label style={{fontSize:'.75rem',fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.04em',display:'block',marginBottom:'.4rem'}}>Julkaisupaiva</label>
+        <input className="input" type="date" value={pubDate} onChange={e=>setPubDate(e.target.value)} style={{maxWidth:220}}/></div>
+      <div><label style={{fontSize:'.75rem',fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.04em',display:'block',marginBottom:'.6rem'}}>Kanavat</label>
+        <div style={{display:'flex',flexWrap:'wrap',gap:'.4rem'}}>
+          {(org.channels||[]).map(ch=>{const sel=channels.includes(ch.name);
+            return<button key={ch.name} className={`btn btn-sm ${sel?'btn-primary':'btn-secondary'}`}
+              style={sel?{background:ch.color,borderColor:ch.color}:{}} onClick={()=>toggleCh(ch.name)}>
+              <span style={{fontWeight:700,marginRight:'.3rem'}}>{ch.ic}</span>{ch.name}</button>})}
+        </div>
+      </div>
+      <div style={{display:'flex',gap:'.5rem',marginTop:'.5rem'}}>
+        <button className="btn btn-primary" onClick={createPub}>Luo julkaisu</button>
+        <button className="btn btn-ghost" onClick={()=>setMode('list')}>Peruuta</button>
+      </div>
+    </div></div>
+  </div>);
+
+  // ── DETAIL VIEW ──
+  if(mode==='detail'&&detail)return(<div className="page-enter" style={{maxWidth:800}}>
+    <div style={{display:'flex',alignItems:'center',gap:'.75rem',marginBottom:'1.5rem'}}>
+      <button className="btn btn-ghost btn-sm" onClick={()=>{setMode('list');setDetailId(null)}}>{'\u2190'} Takaisin</button>
+      <div style={{flex:1}}>
+        <h2 style={{fontSize:'1.2rem',fontWeight:800,letterSpacing:'-.02em'}}>{detail.title}</h2>
+        <p style={{fontSize:'.78rem',color:'var(--t3)',fontWeight:500}}>{detail.date||detail.created}</p>
+      </div>
+      <span style={{fontSize:'.72rem',fontWeight:700,padding:'.3rem .7rem',borderRadius:9999,color:statusColor(detail.status),background:statusBg(detail.status)}}>{statusLabel(detail.status)}</span>
+    </div>
+
+    <div style={{display:'grid',gridTemplateColumns:'1fr 320px',gap:'1.25rem',alignItems:'start'}}>
+      {/* Left: content */}
+      <div className="bcard"><div className="bcard-b">
+        {detail.image&&<div style={{marginBottom:'1rem',borderRadius:'var(--r)',overflow:'hidden',border:'1px solid var(--border)'}}>
+          <img src={detail.image} style={{width:'100%',display:'block'}} alt=""/></div>}
+
+        <div style={{marginBottom:'1rem'}}>
+          <label style={{fontSize:'.7rem',fontWeight:700,color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.04em',display:'block',marginBottom:'.4rem'}}>Julkaisuteksti</label>
+          <div style={{background:'var(--elev)',borderRadius:'var(--r)',padding:'1rem',fontSize:'.88rem',lineHeight:1.8,color:'var(--t1)',fontWeight:500,whiteSpace:'pre-wrap',border:'1px solid var(--border)',position:'relative'}}>
+            {detail.body||<span style={{color:'var(--t3)',fontStyle:'italic'}}>Ei tekstia</span>}
+            {detail.body&&<button className="btn btn-ghost btn-sm" style={{position:'absolute',top:'.5rem',right:'.5rem',fontSize:'.68rem'}}
+              onClick={()=>{navigator.clipboard.writeText(detail.body);toast('Kopioitu leikepoydale','success')}}>Kopioi</button>}
+          </div>
+        </div>
+
+        {/* Status controls */}
+        <div style={{display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
+          {detail.status==='draft'&&<button className="btn btn-primary btn-sm" onClick={()=>updatePub(detail.id,{status:'ready'})}>Merkitse valmiiksi</button>}
+          {detail.status==='ready'&&<button className="btn btn-secondary btn-sm" onClick={()=>updatePub(detail.id,{status:'draft'})}>Palauta luonnokseksi</button>}
+          {detail.status==='published'&&<button className="btn btn-secondary btn-sm" onClick={()=>updatePub(detail.id,{status:'ready'})}>Avaa uudelleen</button>}
+          <button className="btn btn-ghost btn-sm" style={{color:'var(--red,#ef4444)',marginLeft:'auto'}} onClick={()=>deletePub(detail.id)}>Poista</button>
+        </div>
+      </div></div>
+
+      {/* Right: channels panel */}
+      <div className="bcard"><div className="bcard-h"><h3>Julkaisukanavat</h3></div><div className="bcard-b" style={{display:'flex',flexDirection:'column',gap:'.6rem'}}>
+        {detail.channels.map(chName=>{
+          const pl=platformLinks[chName]||{url:'#',post:'#',color:'#8b95a8',ic:'--'};
+          const published=(detail.publishedChannels||[]).includes(chName);
+          return<div key={chName} style={{display:'flex',alignItems:'center',gap:'.6rem',padding:'.6rem .75rem',borderRadius:'var(--r)',border:'1px solid var(--border)',background:published?'rgba(45,212,160,.06)':'var(--elev)'}}>
+            <div style={{width:32,height:32,borderRadius:8,background:pl.color,color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'.7rem',fontWeight:800,flexShrink:0}}>{pl.ic}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:'.82rem',fontWeight:700}}>{chName}</div>
+              <div style={{fontSize:'.65rem',color:published?'var(--green)':'var(--t3)',fontWeight:600}}>{published?'Julkaistu':'Odottaa julkaisua'}</div>
+            </div>
+            <div style={{display:'flex',gap:'.3rem',flexShrink:0}}>
+              {pl.post!=='#'&&<a href={pl.post} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{fontSize:'.68rem',textDecoration:'none',background:pl.color,borderColor:pl.color}}
+                onClick={()=>navigator.clipboard.writeText(detail.body||'')}>Julkaise</a>}
+              {!published&&<button className="btn btn-ghost btn-sm" style={{fontSize:'.68rem'}} onClick={()=>markPublished(detail.id,chName)}>{'\u2713'}</button>}
+            </div>
+          </div>})}
+        <p style={{fontSize:'.68rem',color:'var(--t3)',fontWeight:500,lineHeight:1.5,marginTop:'.3rem'}}>"Julkaise" kopioi tekstin ja avaa alustan. Merkitse julkaistuksi kun olet julkaissut sisallon.</p>
+      </div></div>
+    </div>
+  </div>);
+
+  // ── LIST VIEW ──
+  return(<div className="page-enter">
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:'1rem',marginBottom:'1.5rem'}}>
+      <div>
+        <h2 style={{fontSize:'1.3rem',fontWeight:800,letterSpacing:'-.02em',marginBottom:'.3rem'}}>Julkaisut</h2>
+        <p style={{fontSize:'.85rem',color:'var(--t2)',fontWeight:500}}>{pubs.length} julkaisua {'\u00b7'} {pubs.filter(p=>p.status==='ready').length} valmiina</p>
+      </div>
+      <button className="btn btn-primary" onClick={()=>setMode('new')}>+ Uusi julkaisu</button>
+    </div>
+
+    {/* Filter tabs */}
+    <div style={{display:'flex',gap:'.3rem',marginBottom:'1.25rem',flexWrap:'wrap'}}>
+      {[{k:'all',l:'Kaikki',n:pubs.length},{k:'draft',l:'Luonnokset',n:pubs.filter(p=>p.status==='draft').length},{k:'ready',l:'Valmiit',n:pubs.filter(p=>p.status==='ready').length},{k:'published',l:'Julkaistut',n:pubs.filter(p=>p.status==='published').length}].map(f=>
+        <button key={f.k} className={`btn btn-sm ${filter===f.k?'btn-primary':'btn-secondary'}`} onClick={()=>setFilter(f.k)}>
+          {f.l} <span style={{opacity:.6,marginLeft:'.2rem'}}>({f.n})</span></button>)}
+    </div>
+
+    {/* Publications list */}
+    {filtered.length===0&&<div style={{textAlign:'center',padding:'3rem 1rem',color:'var(--t3)'}}>
+      <div style={{fontSize:'2rem',opacity:.3,marginBottom:'1rem'}}>{'\u25a1'}</div>
+      <h3 style={{fontWeight:700,marginBottom:'.5rem'}}>{filter==='all'?'Ei julkaisuja viela':'Ei julkaisuja tassa kategoriassa'}</h3>
+      <p style={{fontSize:'.82rem',fontWeight:500}}>Luo uusi julkaisu aloittaaksesi.</p>
+    </div>}
+
+    <div style={{display:'flex',flexDirection:'column',gap:'.6rem'}}>
+      {filtered.map(pub=>{
+        const readyCount=(pub.publishedChannels||[]).length;
+        const totalCh=pub.channels.length;
+        return<div key={pub.id} className="bcard" style={{cursor:'pointer',transition:'all .15s'}} onClick={()=>{setDetailId(pub.id);setMode('detail')}}>
+          <div style={{padding:'1rem 1.25rem',display:'flex',alignItems:'center',gap:'1rem'}}>
+            {/* Status dot */}
+            <div style={{width:10,height:10,borderRadius:'50%',background:statusColor(pub.status),flexShrink:0}}/>
+
+            {/* Content preview */}
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:'flex',alignItems:'baseline',gap:'.5rem',marginBottom:'.25rem'}}>
+                <h4 style={{fontSize:'.92rem',fontWeight:700,letterSpacing:'-.01em'}}>{pub.title}</h4>
+                <span style={{fontSize:'.68rem',fontWeight:600,padding:'.15rem .5rem',borderRadius:9999,color:statusColor(pub.status),background:statusBg(pub.status),flexShrink:0}}>{statusLabel(pub.status)}</span>
+              </div>
+              {pub.body&&<p style={{fontSize:'.78rem',color:'var(--t2)',fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:500}}>{pub.body}</p>}
+              <div style={{display:'flex',gap:'.5rem',alignItems:'center',marginTop:'.4rem',flexWrap:'wrap'}}>
+                {pub.date&&<span style={{fontSize:'.7rem',color:'var(--t3)',fontWeight:600}}>{pub.date}</span>}
+                {pub.channels.map(ch=>{
+                  const pl=platformLinks[ch]||{color:'#8b95a8',ic:'--'};
+                  const done=(pub.publishedChannels||[]).includes(ch);
+                  return<span key={ch} style={{fontSize:'.6rem',fontWeight:800,padding:'.15rem .4rem',borderRadius:4,color:'#fff',background:done?'var(--green)':pl.color,opacity:done?1:.8}}>{pl.ic}</span>})}
+              </div>
+            </div>
+
+            {/* Progress */}
+            {totalCh>0&&<div style={{textAlign:'right',flexShrink:0}}>
+              <div style={{fontSize:'.75rem',fontWeight:700,color:readyCount===totalCh?'var(--green)':'var(--t2)'}}>{readyCount}/{totalCh}</div>
+              <div style={{fontSize:'.62rem',color:'var(--t3)',fontWeight:500}}>julkaistu</div>
+            </div>}
+
+            <span style={{color:'var(--t3)',fontSize:'.9rem'}}>{'\u203a'}</span>
+          </div>
+        </div>})}
+    </div>
+  </div>);
+}
+
 // ══════ SETTINGS ══════
 function Settings({toast,org,setOrg,resetAll,t,lang,setLang,activeOrg}){
   const[confirm,setConfirm]=useState(false);
@@ -2960,18 +3237,28 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
   const[prj,setPrj]=useOrgState('projects',[]);
   const[events,setEvents]=useOrgState('events',orgDef.events);
   const[chStats,setChStats]=useOrgState('channelStats',orgCtx.channelStats);
+  const[pubs,setPubs]=useOrgState('publications',[]);
   const[lang,setLang]=usePersistedState('lang','fi');
   const t=mkT(lang);
 
-  const resetAll=()=>{clearOrgData(activeOrg);setOB(false);setOrg(orgDef.org);setPrj([]);setEvents(orgDef.events);setChStats(orgCtx.channelStats);setLang('fi');setV('home')};
+  const resetAll=()=>{clearOrgData(activeOrg);setOB(false);setOrg(orgDef.org);setPrj([]);setPubs([]);setEvents(orgDef.events);setChStats(orgCtx.channelStats);setLang('fi');setV('home')};
+
+  // Firebase sync status
+  const[fbStatus,setFbStatus]=useState('connecting');// connecting | synced | offline
+  useEffect(()=>{
+    const unsub=fbAuth.onAuthStateChanged(u=>{
+      if(u){setFbStatus('synced')}else{setFbStatus('offline')}
+    });
+    return()=>unsub();
+  },[]);
 
   const[chatOpen,setChatOpen]=useState(false);
   const[mobNav,setMobNav]=useState(false);
   useEffect(()=>{if(mobNav)document.body.classList.add('no-scroll');else document.body.classList.remove('no-scroll');return()=>document.body.classList.remove('no-scroll')},[mobNav]);
   const goTo=(page)=>{setV(page);setMobNav(false)};
   if(!ob)return<><Toasts t={toasts}/><Onboarding onDone={()=>setOB(true)} toast={add} setOrg={setOrg} t={t}/></>;
-  const nav=[{id:'home',l:t('home'),ic:'\u25c9'},{id:'strategy',l:t('strategy'),ic:'\u25c8'},{id:'pipeline',l:t('projects'),ic:'\u2630',cnt:prj.length},{id:'calendar',l:t('calendar'),ic:'\u25a6'},{id:'media',l:'Mediapankki',ic:'\u25a3'}];
-  const hdr={home:{t:t('home'),s:(org.s||org.name||'Hetki')},pipeline:{t:t('projects'),s:prj.length+' '+t('projects').toLowerCase()},calendar:{t:t('calendar'),s:events.length+' '+t('publications_plural')},strategy:{t:t('strategy'),s:org.slogan||t('strategy')},media:{t:'Mediapankki',s:'Valokuvat, videot ja grafiikat'},settings:{t:t('settings'),s:t('manageOrg')}};
+  const nav=[{id:'home',l:t('home'),ic:'\u25c9'},{id:'strategy',l:t('strategy'),ic:'\u25c8'},{id:'pipeline',l:t('projects'),ic:'\u2630',cnt:prj.length},{id:'publications',l:'Julkaisut',ic:'\u25b6',cnt:pubs.filter(p=>p.status==='ready').length},{id:'calendar',l:t('calendar'),ic:'\u25a6'},{id:'media',l:'Mediapankki',ic:'\u25a3'}];
+  const hdr={home:{t:t('home'),s:(org.s||org.name||'Hetki')},pipeline:{t:t('projects'),s:prj.length+' '+t('projects').toLowerCase()},publications:{t:'Julkaisut',s:pubs.length+' julkaisua'},calendar:{t:t('calendar'),s:events.length+' '+t('publications_plural')},strategy:{t:t('strategy'),s:org.slogan||t('strategy')},media:{t:'Mediapankki',s:'Valokuvat, videot ja grafiikat'},settings:{t:t('settings'),s:t('manageOrg')}};
   const h=hdr[v]||hdr.home;
   const navContent=<>
     <div className="side-hd" style={{position:'relative'}}><div className="logo-text"><img src="media/brand/hetki-logo-white.png" alt="Hetki"/> Momentum</div></div>
@@ -2999,6 +3286,10 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
           <button className="mob-toggle" onClick={()=>setMobNav(true)}>{'\u2630'}</button>
           <div><h1>{h.t}</h1><p>{h.s}</p></div>
         </div>
+        <div style={{display:'flex',alignItems:'center',gap:'.4rem',fontSize:'.68rem',fontWeight:600,color:fbStatus==='synced'?'var(--green-l)':fbStatus==='connecting'?'var(--yellow)':'var(--t3)'}}>
+          <div style={{width:6,height:6,borderRadius:'50%',background:fbStatus==='synced'?'var(--green-l)':fbStatus==='connecting'?'var(--yellow)':'var(--t3)'}}/>
+          {fbStatus==='synced'?'Synkronoitu':fbStatus==='connecting'?'Yhdistetaan...':'Offline'}
+        </div>
       </header>
       <div className="page">
         {v==='home'&&<Home go={setV} toast={add} prj={prj} events={events} org={org} t={t} chStats={chStats} setChStats={setChStats} orgCtx={orgCtx}/>}
@@ -3006,6 +3297,7 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
         {v==='calendar'&&<Cal toast={add} events={events} setEvents={setEvents} org={org} t={t}/>}
         {v==='strategy'&&<Strat toast={add} org={org} setOrg={setOrg} t={t} chStats={chStats}/>}
         {v==='media'&&<MediaBank toast={add} t={t}/>}
+        {v==='publications'&&<Publications toast={add} t={t} org={org}/>}
         {v==='settings'&&<Settings toast={add} org={org} setOrg={setOrg} resetAll={resetAll} t={t} lang={lang} setLang={setLang} activeOrg={activeOrg}/>}
       </div>
     </main>
