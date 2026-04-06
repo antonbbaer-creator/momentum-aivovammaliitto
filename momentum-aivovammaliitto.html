@@ -559,73 +559,76 @@
 const{useState,useEffect,useRef,useCallback}=React;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
-// ══════ PERSISTENCE (localStorage + Firebase realtime sync) ══════
+// ══════ PERSISTENCE (localStorage + Firebase sync) ══════
+// Strategy: Firestore is ALWAYS the source of truth.
+// On page load: pull ALL from Firestore → overwrite localStorage → reload if changed.
+// Writes blocked until pull is done so defaults don't overwrite real data.
 
-// Firebase state: hydrated=false blocks ALL writes until remote data is loaded
-const _fb={ready:false,hydrated:false,user:null};
+const _fb={hydrated:false};
 const _fbCol=()=>fbDb?fbDb.collection('momentum').doc('shared').collection('data'):null;
 
-// Wait for auth, then hydrate from Firestore
+// Step 1: Auth → pull ALL remote data → overwrite localStorage → reload
 fbAuth.onAuthStateChanged(user=>{
-  if(!user){_fb.user=null;console.warn('Firebase: no user');return}
-  _fb.user=user;
-  console.log('Firebase: authenticated as',user.uid);
+  if(!user){console.warn('Firebase: waiting for auth...');return}
+  console.log('Firebase: auth OK',user.uid);
   const col=_fbCol();
-  if(!col){_fb.ready=true;_fb.hydrated=true;return}
+  if(!col){_fb.hydrated=true;return}
   col.get().then(snap=>{
+    if(snap.empty){
+      // No remote data yet — this is the first device, allow writes immediately
+      _fb.hydrated=true;
+      console.log('Firebase: no remote data, writes enabled (first device)');
+      return;
+    }
     let changed=false;
     snap.forEach(doc=>{
       const key=doc.id;
       const remote=doc.data();
       if(!remote||!remote.v)return;
-      const local=localStorage.getItem(key);
-      const remoteTime=remote.ts||0;
-      const localTime=parseInt(localStorage.getItem(key+'__ts')||'0',10);
-      // Remote wins if local is empty OR remote is newer
-      if(!local||remoteTime>localTime){
+      const localVal=localStorage.getItem(key);
+      // ALWAYS overwrite localStorage with Firestore data on load
+      if(localVal!==remote.v){
         localStorage.setItem(key,remote.v);
-        localStorage.setItem(key+'__ts',String(remoteTime));
         changed=true;
-        console.log('Firebase: pulled',key,'(remote:'+remoteTime+' > local:'+localTime+')');
+        console.log('Firebase: pulled',key);
       }
     });
-    _fb.ready=true;
-    console.log('Firebase: ready, pulled',snap.size,'docs, changed:',changed);
-    if(changed){
-      // Reload to pick up remote data — DON'T mark hydrated yet (prevents writes before reload)
+    if(changed&&!sessionStorage.getItem('fb_reloaded')){
       console.log('Firebase: reloading with remote data...');
-      localStorage.setItem('momentum_fb_reload','1');
+      sessionStorage.setItem('fb_reloaded','1');
       window.location.reload();
-    }else{
-      // No changes needed — safe to allow writes now
-      _fb.hydrated=true;
-      console.log('Firebase: writes enabled');
+      return;
     }
+    // Either no changes or already reloaded — enable writes
+    sessionStorage.removeItem('fb_reloaded');
+    _fb.hydrated=true;
+    console.log('Firebase: synced, writes enabled');
   }).catch(e=>{
-    console.error('Firebase hydrate error:',e);
-    _fb.ready=true;_fb.hydrated=true;
+    console.error('Firebase error:',e);
+    _fb.hydrated=true;
   });
 });
 
-// Mark hydrated after reload (localStorage already has remote data)
-if(localStorage.getItem('momentum_fb_reload')){
-  localStorage.removeItem('momentum_fb_reload');
-  // Small delay to let React render with correct data before enabling writes
-  setTimeout(()=>{_fb.hydrated=true;console.log('Firebase: writes enabled after reload')},2000);
+// If we already reloaded, enable writes after short delay
+if(sessionStorage.getItem('fb_reloaded')){
+  setTimeout(()=>{
+    sessionStorage.removeItem('fb_reloaded');
+    _fb.hydrated=true;
+    console.log('Firebase: writes enabled after reload');
+  },3000);
 }
 
-// Write to Firestore — ONLY after hydration is complete
+// Write to Firestore — blocked until hydrated
 const _fbWriteTimers={};
 const _fbWrite=(key,value)=>{
-  if(!_fb.hydrated)return; // Block writes until hydrated
+  if(!_fb.hydrated)return;
   clearTimeout(_fbWriteTimers[key]);
   _fbWriteTimers[key]=setTimeout(()=>{
     const col=_fbCol();
-    if(!col||!_fb.ready)return;
-    const data={v:JSON.stringify(value),ts:Date.now()};
-    col.doc(key).set(data).then(()=>{
+    if(!col)return;
+    col.doc(key).set({v:JSON.stringify(value),ts:Date.now()}).then(()=>{
       console.log('Firebase: saved',key);
-    }).catch(e=>console.error('Firebase write FAILED:',key,e));
+    }).catch(e=>console.error('Firebase WRITE ERROR:',key,e));
   },500);
 };
 
@@ -633,7 +636,7 @@ const usePersistedState=(key,defaultValue)=>{
   const fullKey='momentum_'+key;
   const[state,setState]=useState(()=>{try{const s=localStorage.getItem(fullKey);return s?JSON.parse(s):defaultValue}catch{return defaultValue}});
   useEffect(()=>{
-    try{localStorage.setItem(fullKey,JSON.stringify(state));localStorage.setItem(fullKey+'__ts',String(Date.now()))}catch{}
+    try{localStorage.setItem(fullKey,JSON.stringify(state))}catch{}
     _fbWrite(fullKey,state);
   },[key,state]);
   return[state,setState];
@@ -3279,12 +3282,11 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
   const resetAll=()=>{clearOrgData(activeOrg);setOB(false);setOrg(orgDef.org);setPrj([]);setPubs([]);setEvents(orgDef.events);setChStats(orgCtx.channelStats);setLang('fi');setV('home')};
 
   // Firebase sync status
-  const[fbStatus,setFbStatus]=useState('connecting');// connecting | synced | offline
+  const[fbStatus,setFbStatus]=useState('connecting');
   useEffect(()=>{
-    const check=()=>{setFbStatus(_fb.ready&&_fb.user?'synced':_fb.user?'connecting':'offline')};
-    const unsub=fbAuth.onAuthStateChanged(()=>{setTimeout(check,500)});
+    const check=()=>{setFbStatus(_fb.hydrated?'synced':'connecting')};
+    const unsub=fbAuth.onAuthStateChanged(()=>{setTimeout(check,1000)});
     const interval=setInterval(check,2000);
-    check();
     return()=>{unsub();clearInterval(interval)};
   },[]);
 
