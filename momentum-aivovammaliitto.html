@@ -2987,8 +2987,11 @@ function MediaBank({toast,t}){
                 <div><strong>Kansio:</strong> {detail.folder}</div>
                 {detail.added&&<div><strong>Lisätty:</strong> {detail.added}</div>}
               </div>
+              <a href={detail.path||detail.thumb} download={detail.name} className="btn btn-sm btn-primary"
+                style={{marginTop:'.75rem',width:'100%',fontSize:'.75rem',fontWeight:600,textDecoration:'none',textAlign:'center',display:'block'}}>
+                Lataa tiedosto</a>
               {detail.source==='uploaded'&&<button className="btn btn-sm" onClick={()=>deleteUploaded(detail.id)}
-                style={{marginTop:'.75rem',color:'var(--red,#ef4444)',border:'1px solid rgba(239,68,68,.3)',background:'rgba(239,68,68,.05)',width:'100%',fontSize:'.75rem',fontWeight:600}}>
+                style={{marginTop:'.4rem',color:'var(--red,#ef4444)',border:'1px solid rgba(239,68,68,.3)',background:'rgba(239,68,68,.05)',width:'100%',fontSize:'.75rem',fontWeight:600}}>
                 Poista tiedosto</button>}
             </div>
 
