@@ -559,19 +559,64 @@
 const{useState,useEffect,useRef,useCallback}=React;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
-// ══════ PERSISTENCE (localStorage + Firebase sync) ══════
+// ══════ PERSISTENCE (localStorage + Firebase realtime sync) ══════
+
+// Firebase ready state — wait for auth before any Firestore operations
+const _fb={ready:false,user:null,listeners:[],onReady:[]};
+const _fbCol=()=>fbDb?fbDb.collection('momentum').doc('shared').collection('data'):null;
+
+// Wait for auth, then hydrate from Firestore, then mark ready
+fbAuth.onAuthStateChanged(user=>{
+  if(!user){_fb.ready=false;_fb.user=null;console.warn('Firebase: no user');return}
+  _fb.user=user;
+  console.log('Firebase: authenticated as',user.uid);
+  // Hydrate: pull all remote data into localStorage
+  const col=_fbCol();
+  if(!col){_fb.ready=true;return}
+  col.get().then(snap=>{
+    let changed=false;
+    snap.forEach(doc=>{
+      const key=doc.id;
+      const remote=doc.data();
+      if(!remote||!remote.v)return;
+      const local=localStorage.getItem(key);
+      const remoteTime=remote.ts||0;
+      const localTime=parseInt(localStorage.getItem(key+'__ts')||'0',10);
+      if(!local||remoteTime>localTime){
+        localStorage.setItem(key,remote.v);
+        localStorage.setItem(key+'__ts',String(remoteTime));
+        changed=true;
+        console.log('Firebase: pulled',key);
+      }
+    });
+    _fb.ready=true;
+    console.log('Firebase: ready, pulled',snap.size,'docs, changed:',changed);
+    // Notify waiting writers
+    _fb.onReady.forEach(fn=>fn());
+    _fb.onReady=[];
+    if(changed)window.location.reload();
+  }).catch(e=>{
+    console.error('Firebase hydrate error:',e);
+    _fb.ready=true;
+  });
+});
+
+// Write to Firestore (waits for ready)
 const _fbWriteTimers={};
-const _fbSyncToFirestore=(key,value)=>{
-  // Debounced write to Firestore (500ms)
+const _fbWrite=(key,value)=>{
   clearTimeout(_fbWriteTimers[key]);
   _fbWriteTimers[key]=setTimeout(()=>{
-    const user=fbAuth.currentUser;
-    if(!user||!fbDb)return;
-    try{
-      fbDb.collection('users').doc(user.uid).collection('data').doc(key).set({value:JSON.stringify(value),updatedAt:firebase.firestore.FieldValue.serverTimestamp()})
-        .catch(e=>console.warn('Firestore write error:',e));
-    }catch(e){console.warn('Firestore sync error:',e)}
-  },500);
+    const doWrite=()=>{
+      const col=_fbCol();
+      if(!col)return;
+      const data={v:JSON.stringify(value),ts:Date.now()};
+      col.doc(key).set(data).then(()=>{
+        console.log('Firebase: saved',key);
+      }).catch(e=>console.error('Firebase write FAILED:',key,e));
+    };
+    if(_fb.ready)doWrite();
+    else _fb.onReady.push(doWrite);
+  },300);
 };
 
 const usePersistedState=(key,defaultValue)=>{
@@ -579,40 +624,10 @@ const usePersistedState=(key,defaultValue)=>{
   const[state,setState]=useState(()=>{try{const s=localStorage.getItem(fullKey);return s?JSON.parse(s):defaultValue}catch{return defaultValue}});
   useEffect(()=>{
     try{localStorage.setItem(fullKey,JSON.stringify(state));localStorage.setItem(fullKey+'__ts',String(Date.now()))}catch{}
-    _fbSyncToFirestore(fullKey,state);
+    _fbWrite(fullKey,state);
   },[key,state]);
   return[state,setState];
 };
-
-// Firebase → localStorage hydration (runs once on auth)
-const _fbHydrated={done:false};
-const _fbHydrateFromFirestore=()=>{
-  if(_fbHydrated.done)return;
-  _fbHydrated.done=true;
-  const unsub=fbAuth.onAuthStateChanged(user=>{
-    if(!user)return;
-    fbDb.collection('users').doc(user.uid).collection('data').get().then(snap=>{
-      let changed=false;
-      snap.forEach(doc=>{
-        const key=doc.id;
-        const remote=doc.data();
-        if(!remote||!remote.value)return;
-        const local=localStorage.getItem(key);
-        const remoteTime=remote.updatedAt?.toMillis?.()||0;
-        const localTime=parseInt(localStorage.getItem(key+'__ts')||'0',10);
-        // Remote wins if newer or local is empty
-        if(!local||remoteTime>localTime){
-          localStorage.setItem(key,remote.value);
-          if(remoteTime)localStorage.setItem(key+'__ts',String(remoteTime));
-          changed=true;
-        }
-      });
-      if(changed){console.log('Firebase: synced remote data → reloading');window.location.reload()}
-    }).catch(e=>console.warn('Firestore hydrate error:',e));
-    unsub();
-  });
-};
-_fbHydrateFromFirestore();
 
 // ══════ MULTI-ORG ══════
 const ORG_REGISTRY={avl:{id:'avl',name:'Aivovammaliitto',shortName:'AVL'},lef:{id:'lef',name:'Lapinlahden Elokuvajuhlat',shortName:'LLFF'}};
@@ -3194,11 +3209,21 @@ function Publications({toast,t,org}){
 }
 
 // ══════ SETTINGS ══════
-function Settings({toast,org,setOrg,resetAll,t,lang,setLang,activeOrg}){
+function Settings({toast,org,setOrg,resetAll,t,lang,setLang,activeOrg,fbStatus}){
   const[confirm,setConfirm]=useState(false);
   const[editName,setEN]=useState(org.name);const[editShort,setES]=useState(org.s);const[editSlogan,setESl]=useState(org.slogan);
   const saveBasic=()=>{setOrg(p=>({...p,name:editName,s:editShort,slogan:editSlogan}));toast(t('updated'),'success')};
   return(<div className="page-enter" style={{maxWidth:700}}>
+    {/* Firebase Sync Status */}
+    <div className="bcard" style={{borderColor:fbStatus==='synced'?'rgba(45,212,160,.3)':'rgba(245,180,52,.3)'}}><div className="bcard-h"><h3>Pilvisynkronointi</h3></div><div className="bcard-b">
+      <div style={{display:'flex',alignItems:'center',gap:'.5rem'}}>
+        <div style={{width:8,height:8,borderRadius:'50%',background:fbStatus==='synced'?'var(--green-l)':'var(--yellow)'}}/>
+        <span style={{fontSize:'.85rem',fontWeight:600,color:fbStatus==='synced'?'var(--green-l)':'var(--yellow)'}}>
+          {fbStatus==='synced'?'Synkronoitu pilveen — data tallentuu automaattisesti kaikille laitteille':'Yhdistetaan...'}
+        </span>
+      </div>
+    </div></div>
+
     <div className="bcard"><div className="bcard-h"><h3>Organisaatio</h3></div><div className="bcard-b">
       <div style={{display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
         {Object.values(ORG_REGISTRY).map(o=><button key={o.id} className={`btn ${activeOrg===o.id?'btn-primary':'btn-secondary'}`} onClick={()=>{if(activeOrg!==o.id)switchOrg(o.id)}}>{o.name}</button>)}
@@ -3246,10 +3271,11 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
   // Firebase sync status
   const[fbStatus,setFbStatus]=useState('connecting');// connecting | synced | offline
   useEffect(()=>{
-    const unsub=fbAuth.onAuthStateChanged(u=>{
-      if(u){setFbStatus('synced')}else{setFbStatus('offline')}
-    });
-    return()=>unsub();
+    const check=()=>{setFbStatus(_fb.ready&&_fb.user?'synced':_fb.user?'connecting':'offline')};
+    const unsub=fbAuth.onAuthStateChanged(()=>{setTimeout(check,500)});
+    const interval=setInterval(check,2000);
+    check();
+    return()=>{unsub();clearInterval(interval)};
   },[]);
 
   const[chatOpen,setChatOpen]=useState(false);
@@ -3298,7 +3324,7 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
         {v==='strategy'&&<Strat toast={add} org={org} setOrg={setOrg} t={t} chStats={chStats}/>}
         {v==='media'&&<MediaBank toast={add} t={t}/>}
         {v==='publications'&&<Publications toast={add} t={t} org={org}/>}
-        {v==='settings'&&<Settings toast={add} org={org} setOrg={setOrg} resetAll={resetAll} t={t} lang={lang} setLang={setLang} activeOrg={activeOrg}/>}
+        {v==='settings'&&<Settings toast={add} org={org} setOrg={setOrg} resetAll={resetAll} t={t} lang={lang} setLang={setLang} activeOrg={activeOrg} fbStatus={fbStatus}/>}
       </div>
     </main>
     {/* Global AI Chat */}
