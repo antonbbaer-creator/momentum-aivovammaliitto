@@ -423,6 +423,7 @@
     .mb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem}
     .mb-item{background:var(--card);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;cursor:pointer;transition:all .4s cubic-bezier(.16,1,.3,1);animation:fadeUp .8s cubic-bezier(.16,1,.3,1) backwards}
     .mb-item:hover{border-color:var(--pri);transform:translateY(-3px);box-shadow:0 8px 32px rgba(0,0,0,.35)}
+    .mb-item:hover .mb-coll-btn{opacity:1!important}
     .mb-thumb{height:160px;display:flex;align-items:center;justify-content:center;background:var(--elev);position:relative;overflow:hidden}
     .mb-thumb img{width:100%;height:100%;object-fit:cover}
     .mb-thumb video{width:100%;height:100%;object-fit:cover}
@@ -2645,6 +2646,7 @@ function MediaBank({toast,t}){
   const manifestFiles=_activeOrg==='lef'?(window.LLFF_MEDIA_MANIFEST||[]):(window.MEDIA_MANIFEST||[]);
   const[meta,setMeta]=useOrgState('media_meta',{});// {id: {tags:[], desc:'', title:''}}
   const[uploadedFiles,setUploadedFiles]=useOrgState('media_uploaded',[]);// drag&drop files stored as small dataURLs
+  const[collections,setCollections]=useOrgState('media_collections',[]);// [{id,name,fileIds:[],color}]
   const[dragging,setDragging]=useState(false);const dragCounter=useRef(0);
   const[cat,setCat]=useState('all');
   const[search,setSearch]=useState('');
@@ -2653,6 +2655,17 @@ function MediaBank({toast,t}){
   const[tagInput,setTagInput]=useState('');
   const[titleInput,setTitleInput]=useState('');
   const[descInput,setDescInput]=useState('');
+  const[sortBy,setSortBy]=useState('name');// name | size | date | type
+  const[sortDir,setSortDir]=useState('asc');
+  const[bulkMode,setBulkMode]=useState(false);
+  const[selected,setSelected]=useState(new Set());
+  const[bulkTagInput,setBulkTagInput]=useState('');
+  const[showTagCloud,setShowTagCloud]=useState(false);
+  const[activeTagFilter,setActiveTagFilter]=useState(null);
+  const[showCollectionForm,setShowCollectionForm]=useState(false);
+  const[newCollName,setNewCollName]=useState('');
+  const[activeCollection,setActiveCollection]=useState(null);// collection id or null
+  const[addToCollMenu,setAddToCollMenu]=useState(null);// file id for "add to collection" menu
   const fileRef=useRef(null);
 
   const categories=[
@@ -2688,18 +2701,33 @@ function MediaBank({toast,t}){
     ...uploadedFiles.map(f=>({...f,source:'uploaded',folder:'uploaded'}))
   ];
 
-  // Filter by category
-  const catFiltered=cat==='all'?allFiles:allFiles.filter(f=>f.folder===cat);
+  // Filter by collection or category
+  const collFiltered=activeCollection
+    ?allFiles.filter(f=>{const c=collections.find(c=>c.id===activeCollection);return c&&c.fileIds.includes(f.id)})
+    :cat==='all'?allFiles:allFiles.filter(f=>f.folder===cat);
+
+  // Filter by tag cloud
+  const tagFiltered=activeTagFilter?collFiltered.filter(f=>(getMeta(f.id).tags||[]).includes(activeTagFilter)):collFiltered;
 
   // Filter by search (matches filename, tags, title, desc)
-  const filtered=search.trim()?catFiltered.filter(f=>{
+  const searchFiltered=search.trim()?tagFiltered.filter(f=>{
     const q=search.toLowerCase();
     const m=getMeta(f.id);
     return f.name.toLowerCase().includes(q)
       ||(m.title||'').toLowerCase().includes(q)
       ||(m.desc||'').toLowerCase().includes(q)
       ||(m.tags||[]).some(t=>t.toLowerCase().includes(q));
-  }):catFiltered;
+  }):tagFiltered;
+
+  // Sort
+  const filtered=[...searchFiltered].sort((a,b)=>{
+    let cmp=0;
+    if(sortBy==='name')cmp=(a.name||'').localeCompare(b.name||'');
+    else if(sortBy==='size')cmp=(a.size||0)-(b.size||0);
+    else if(sortBy==='date')cmp=(a.added||'').localeCompare(b.added||'');
+    else if(sortBy==='type')cmp=(a.ext||'').localeCompare(b.ext||'');
+    return sortDir==='desc'?-cmp:cmp;
+  });
 
   const totalSize=allFiles.reduce((s,f)=>s+(f.size||0),0);
 
@@ -2816,6 +2844,51 @@ function MediaBank({toast,t}){
     toast('Tiedosto poistettu','success');
   };
 
+  // ── Collections ──
+  const createCollection=()=>{
+    if(!newCollName.trim())return;
+    const coll={id:'coll_'+Date.now(),name:newCollName.trim(),fileIds:[...selected],color:['#056b9f','#185e5b','#e45c81','#f09a52','#9b7cf6'][collections.length%5]};
+    setCollections(p=>[...p,coll]);setNewCollName('');setShowCollectionForm(false);
+    if(selected.size>0){setSelected(new Set());setBulkMode(false)}
+    toast('Kokoelma "'+coll.name+'" luotu','success');
+  };
+  const addToCollection=(collId,fileIds)=>{
+    setCollections(p=>p.map(c=>c.id===collId?{...c,fileIds:[...new Set([...c.fileIds,...fileIds])]}:c));
+    toast('Lisatty kokoelmaan','success');setAddToCollMenu(null);
+  };
+  const removeFromCollection=(collId,fileId)=>{
+    setCollections(p=>p.map(c=>c.id===collId?{...c,fileIds:c.fileIds.filter(id=>id!==fileId)}:c));
+  };
+  const deleteCollection=(collId)=>{
+    setCollections(p=>p.filter(c=>c.id!==collId));
+    if(activeCollection===collId)setActiveCollection(null);
+    toast('Kokoelma poistettu','success');
+  };
+
+  // ── Bulk operations ──
+  const toggleSelect=(fileId)=>{
+    setSelected(prev=>{const n=new Set(prev);if(n.has(fileId))n.delete(fileId);else n.add(fileId);return n});
+  };
+  const selectAll=()=>{setSelected(new Set(filtered.map(f=>f.id)))};
+  const deselectAll=()=>{setSelected(new Set())};
+  const bulkAddTag=()=>{
+    if(!bulkTagInput.trim()||selected.size===0)return;
+    const tag=bulkTagInput.trim();
+    selected.forEach(id=>{const m=getMeta(id);if(!m.tags.includes(tag))saveMeta(id,{...m,tags:[...m.tags,tag]})});
+    setBulkTagInput('');toast(selected.size+' tiedostoon lisatty tagi "'+tag+'"','success');
+  };
+  const bulkDelete=()=>{
+    const uploadIds=[...selected].filter(id=>uploadedFiles.some(f=>f.id===id));
+    if(uploadIds.length===0){toast('Vain ladattuja tiedostoja voi poistaa','error');return}
+    setUploadedFiles(p=>p.filter(f=>!selected.has(f.id)));
+    setMeta(p=>{const n={...p};uploadIds.forEach(id=>delete n[id]);return n});
+    setSelected(new Set());toast(uploadIds.length+' tiedostoa poistettu','success');
+  };
+
+  // ── Sorting ──
+  const toggleSort=(field)=>{if(sortBy===field)setSortDir(d=>d==='asc'?'desc':'asc');else{setSortBy(field);setSortDir('asc')}};
+  const sortIcon=(field)=>sortBy===field?(sortDir==='asc'?'\u2191':'\u2193'):'';
+
   // Drag & drop handlers
   const onDragEnter=(e)=>{e.preventDefault();e.stopPropagation();dragCounter.current++;if(dragCounter.current===1)setDragging(true)};
   const onDragLeave=(e)=>{e.preventDefault();e.stopPropagation();dragCounter.current--;if(dragCounter.current===0)setDragging(false)};
@@ -2856,8 +2929,85 @@ function MediaBank({toast,t}){
       onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.background='var(--elev)'}}>
       <div style={{fontSize:'1.5rem',marginBottom:'.5rem',opacity:.5,fontFamily:'var(--font-display)'}}>{'\u2191'}</div>
       <p style={{fontSize:'.85rem',fontWeight:600,color:'var(--t2)',marginBottom:'.25rem'}}>Vedä ja pudota tiedostoja tähän</p>
-      <p style={{fontSize:'.75rem',color:'var(--t3)',fontWeight:500}}>tai klikkaa valitaksesi · kuvat, videot, grafiikat, PDF</p>
+      <p style={{fontSize:'.75rem',color:'var(--t3)',fontWeight:500}}>tai klikkaa valitaksesi {'\u00b7'} kuvat, videot, grafiikat, PDF</p>
     </div>
+
+    {/* Collections */}
+    {collections.length>0&&<div style={{marginBottom:'1rem',display:'flex',gap:'.35rem',flexWrap:'wrap',alignItems:'center'}}>
+      <span style={{fontSize:'.72rem',fontWeight:700,color:'var(--t3)',textTransform:'uppercase',marginRight:'.25rem'}}>Kokoelmat:</span>
+      <button className={`mb-cat ${!activeCollection?'act':''}`} onClick={()=>setActiveCollection(null)} style={{fontSize:'.72rem',padding:'.25rem .6rem'}}>Kaikki</button>
+      {collections.map(c=><button key={c.id} className={`mb-cat ${activeCollection===c.id?'act':''}`}
+        onClick={()=>{setActiveCollection(activeCollection===c.id?null:c.id);setCat('all')}}
+        style={{fontSize:'.72rem',padding:'.25rem .6rem',borderLeft:`3px solid ${c.color}`}}>
+        {c.name} <span style={{opacity:.5}}>({c.fileIds.length})</span>
+        <span onClick={e=>{e.stopPropagation();deleteCollection(c.id)}} style={{marginLeft:'.3rem',opacity:.4,cursor:'pointer'}}>{'\u00d7'}</span>
+      </button>)}
+      <button className="mb-cat" onClick={()=>setShowCollectionForm(true)} style={{fontSize:'.72rem',padding:'.25rem .6rem',opacity:.6}}>+ Uusi</button>
+    </div>}
+    {showCollectionForm&&<div style={{marginBottom:'1rem',display:'flex',gap:'.5rem',alignItems:'center'}}>
+      <input className="input" placeholder="Kokoelman nimi..." value={newCollName} onChange={e=>setNewCollName(e.target.value)}
+        onKeyPress={e=>{if(e.key==='Enter')createCollection()}} style={{flex:1,maxWidth:250,fontSize:'.82rem'}} autoFocus/>
+      <button className="btn btn-primary btn-sm" onClick={createCollection} disabled={!newCollName.trim()}>Luo</button>
+      <button className="btn btn-ghost btn-sm" onClick={()=>setShowCollectionForm(false)}>Peruuta</button>
+      {selected.size>0&&<span style={{fontSize:'.72rem',color:'var(--t3)'}}>{selected.size} valittua lisataan automaattisesti</span>}
+    </div>}
+
+    {/* Bulk mode toolbar */}
+    {bulkMode&&<div style={{marginBottom:'1rem',display:'flex',gap:'.5rem',alignItems:'center',flexWrap:'wrap',padding:'.75rem 1rem',background:'var(--elev)',border:'1px solid var(--border)',borderRadius:'var(--r)'}}>
+      <span style={{fontSize:'.78rem',fontWeight:600,color:'var(--pri-l)'}}>{selected.size} valittu</span>
+      <button className="btn btn-ghost btn-sm" onClick={selectAll}>Valitse kaikki</button>
+      <button className="btn btn-ghost btn-sm" onClick={deselectAll}>Poista valinnat</button>
+      <div style={{height:20,width:1,background:'var(--border)'}}/>
+      <input className="input" placeholder="Lisaa tagi..." value={bulkTagInput} onChange={e=>setBulkTagInput(e.target.value)}
+        onKeyPress={e=>{if(e.key==='Enter')bulkAddTag()}} style={{width:150,fontSize:'.78rem',padding:'.3rem .5rem'}}/>
+      <button className="btn btn-secondary btn-sm" onClick={bulkAddTag} disabled={!bulkTagInput.trim()||selected.size===0}>Tagaa</button>
+      {collections.length>0&&<select className="input" style={{width:160,fontSize:'.78rem',padding:'.3rem .5rem'}}
+        onChange={e=>{if(e.target.value)addToCollection(e.target.value,[...selected]);e.target.value=''}} defaultValue="">
+        <option value="" disabled>Lisaa kokoelmaan...</option>
+        {collections.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>}
+      <button className="btn btn-ghost btn-sm" onClick={()=>setShowCollectionForm(true)}>+ Uusi kokoelma</button>
+      <div style={{height:20,width:1,background:'var(--border)'}}/>
+      <button className="btn btn-sm" onClick={bulkDelete} style={{color:'var(--red)',border:'1px solid rgba(239,68,68,.3)'}}>Poista valitut</button>
+      <div style={{flex:1}}/>
+      <button className="btn btn-ghost btn-sm" onClick={()=>{setBulkMode(false);setSelected(new Set())}}>Valmis</button>
+    </div>}
+
+    {/* Sorting + bulk toggle */}
+    <div style={{marginBottom:'.75rem',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'.5rem'}}>
+      <div style={{display:'flex',gap:'.3rem',alignItems:'center'}}>
+        <span style={{fontSize:'.7rem',fontWeight:600,color:'var(--t3)',marginRight:'.25rem'}}>Jarjesta:</span>
+        {[{k:'name',l:'Nimi'},{k:'size',l:'Koko'},{k:'date',l:'Pvm'},{k:'type',l:'Tyyppi'}].map(s=>
+          <button key={s.k} className="btn btn-ghost btn-sm" onClick={()=>toggleSort(s.k)}
+            style={{fontSize:'.7rem',padding:'.2rem .5rem',fontWeight:sortBy===s.k?700:500,color:sortBy===s.k?'var(--pri-l)':'var(--t3)'}}>
+            {s.l} {sortIcon(s.k)}
+          </button>
+        )}
+      </div>
+      <div style={{display:'flex',gap:'.3rem',alignItems:'center'}}>
+        <button className={`btn btn-ghost btn-sm`} onClick={()=>setShowTagCloud(!showTagCloud)}
+          style={{fontSize:'.7rem',padding:'.2rem .5rem',color:showTagCloud||activeTagFilter?'var(--pri-l)':'var(--t3)'}}>
+          {'\u2606'} Tagit {activeTagFilter&&`(${activeTagFilter})`}
+        </button>
+        <button className={`btn btn-ghost btn-sm`} onClick={()=>{setBulkMode(!bulkMode);if(bulkMode)setSelected(new Set())}}
+          style={{fontSize:'.7rem',padding:'.2rem .5rem',color:bulkMode?'var(--pri-l)':'var(--t3)'}}>
+          {'\u2610'} Valitse
+        </button>
+      </div>
+    </div>
+
+    {/* Tag cloud */}
+    {showTagCloud&&<div style={{marginBottom:'1rem',display:'flex',flexWrap:'wrap',gap:'.3rem',padding:'.75rem',background:'var(--elev)',border:'1px solid var(--border)',borderRadius:'var(--r)'}}>
+      <button className={`mb-cat ${!activeTagFilter?'act':''}`} onClick={()=>setActiveTagFilter(null)} style={{fontSize:'.68rem',padding:'.2rem .5rem'}}>Kaikki tagit</button>
+      {allTags.slice(0,40).map(tag=>{
+        const cnt=allFiles.filter(f=>(getMeta(f.id).tags||[]).includes(tag)).length;
+        return<button key={tag} className={`mb-cat ${activeTagFilter===tag?'act':''}`}
+          onClick={()=>setActiveTagFilter(activeTagFilter===tag?null:tag)}
+          style={{fontSize:'.68rem',padding:'.2rem .5rem'}}>
+          {tag} <span style={{opacity:.5}}>({cnt})</span>
+        </button>
+      })}
+    </div>}
 
     {/* Categories */}
     <div className="mb-cats">
@@ -2880,13 +3030,35 @@ function MediaBank({toast,t}){
       {filtered.map((f,i)=>{
         const m=getMeta(f.id);
         const thumbSrc=f.thumb||(f.source==='uploaded'?null:f.path);
-        return<div key={f.id} className="mb-item" style={{animationDelay:Math.min(i*.02,.5)+'s'}} onClick={()=>openDetail(i)}>
-          <div className="mb-thumb">
+        const isSel=selected.has(f.id);
+        return<div key={f.id} className="mb-item" style={{animationDelay:Math.min(i*.02,.5)+'s',outline:isSel?'2px solid var(--pri)':'none',outlineOffset:-2}}
+          onClick={()=>{if(bulkMode)toggleSelect(f.id);else openDetail(i)}}>
+          <div className="mb-thumb" style={{position:'relative'}}>
             {f.type==='image'&&thumbSrc?<img src={thumbSrc} alt={m.title||f.name} loading="lazy"/>
             :f.type==='video'?<div className="mb-thumb-icon">{'\u25b7'}</div>
             :<div className="mb-thumb-icon">{'\u25a1'}</div>}
             <span className="mb-badge">{f.ext}</span>
             {f.folder==='grafiikat'&&<span className="mb-badge" style={{left:'.5rem',right:'auto',background:'rgba(155,124,246,.8)'}}>Grafiikka</span>}
+            {bulkMode&&<div style={{position:'absolute',top:6,left:6,width:22,height:22,borderRadius:4,
+              background:isSel?'var(--pri)':'rgba(0,0,0,.5)',border:'2px solid '+(isSel?'var(--pri)':'rgba(255,255,255,.3)'),
+              display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:'.7rem',fontWeight:700,
+              cursor:'pointer',transition:'all .15s'}} onClick={e=>{e.stopPropagation();toggleSelect(f.id)}}>
+              {isSel&&'\u2713'}
+            </div>}
+            {!bulkMode&&collections.length>0&&<div style={{position:'absolute',top:6,right:6,opacity:0,transition:'opacity .2s'}}
+              className="mb-coll-btn" onClick={e=>{e.stopPropagation();setAddToCollMenu(addToCollMenu===f.id?null:f.id)}}>
+              <div style={{width:24,height:24,borderRadius:4,background:'rgba(0,0,0,.6)',backdropFilter:'blur(4px)',
+                display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:'.65rem',cursor:'pointer'}}>+</div>
+            </div>}
+            {addToCollMenu===f.id&&<div style={{position:'absolute',top:34,right:6,background:'var(--card)',border:'1px solid var(--border)',
+              borderRadius:'var(--r)',padding:'.25rem',zIndex:10,minWidth:140,boxShadow:'var(--shadow)'}} onClick={e=>e.stopPropagation()}>
+              {collections.map(c=><div key={c.id} onClick={()=>addToCollection(c.id,[f.id])}
+                style={{padding:'.4rem .6rem',fontSize:'.75rem',cursor:'pointer',borderRadius:4,display:'flex',alignItems:'center',gap:'.4rem'}}
+                onMouseEnter={e=>e.currentTarget.style.background='var(--elev)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                <span style={{width:8,height:8,borderRadius:2,background:c.color,flexShrink:0}}/>{c.name}
+                {c.fileIds.includes(f.id)&&<span style={{marginLeft:'auto',fontSize:'.6rem',color:'var(--green)'}}>{'\u2713'}</span>}
+              </div>)}
+            </div>}
           </div>
           <div className="mb-meta">
             <h4>{m.title||f.name}</h4>
@@ -2987,9 +3159,27 @@ function MediaBank({toast,t}){
                 <div><strong>Kansio:</strong> {detail.folder}</div>
                 {detail.added&&<div><strong>Lisätty:</strong> {detail.added}</div>}
               </div>
+              {/* Collection membership */}
+              {collections.length>0&&<div style={{marginTop:'.5rem'}}>
+                <div style={{fontSize:'.68rem',fontWeight:600,color:'var(--t3)',marginBottom:'.3rem'}}>Kokoelmat:</div>
+                <div style={{display:'flex',flexWrap:'wrap',gap:'.25rem'}}>
+                  {collections.map(c=>{const inColl=c.fileIds.includes(detail.id);
+                    return<button key={c.id} className="btn btn-ghost btn-sm" onClick={()=>{
+                      if(inColl)removeFromCollection(c.id,detail.id);else addToCollection(c.id,[detail.id])}}
+                      style={{fontSize:'.65rem',padding:'.15rem .4rem',borderLeft:`2px solid ${c.color}`,
+                        background:inColl?'rgba(26,143,196,.1)':'transparent',fontWeight:inColl?600:400}}>
+                      {inColl?'\u2713 ':''}{c.name}
+                    </button>})}
+                </div>
+              </div>}
               <a href={detail.path||detail.thumb} download={detail.name} className="btn btn-sm btn-primary"
                 style={{marginTop:'.75rem',width:'100%',fontSize:'.75rem',fontWeight:600,textDecoration:'none',textAlign:'center',display:'block'}}>
                 Lataa tiedosto</a>
+              <button className="btn btn-sm btn-secondary" onClick={()=>{
+                const url=window.location.origin+'/'+(detail.path||detail.thumb);
+                navigator.clipboard.writeText(url).then(()=>toast('Linkki kopioitu','success')).catch(()=>toast('Kopiointi epaonnistui','error'))}}
+                style={{marginTop:'.4rem',width:'100%',fontSize:'.75rem',fontWeight:600}}>
+                Kopioi linkki</button>
               {detail.source==='uploaded'&&<button className="btn btn-sm" onClick={()=>deleteUploaded(detail.id)}
                 style={{marginTop:'.4rem',color:'var(--red,#ef4444)',border:'1px solid rgba(239,68,68,.3)',background:'rgba(239,68,68,.05)',width:'100%',fontSize:'.75rem',fontWeight:600}}>
                 Poista tiedosto</button>}
