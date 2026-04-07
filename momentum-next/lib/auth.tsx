@@ -67,8 +67,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
+    let unsub: () => void;
+    // Set session persistence BEFORE listening to auth state
+    import('firebase/auth').then(({ setPersistence, browserSessionPersistence }) => {
+      setPersistence(auth, browserSessionPersistence).then(() => {
+        unsub = onAuthStateChanged(auth, async (u) => {
+          setUser(u);
       if (u) {
         // Update user profile in Firestore
         await setDoc(doc(db, 'users', u.uid), {
@@ -95,8 +99,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setActiveOrgState(null);
       }
       setLoading(false);
+        });
+      });
     });
-    return () => unsub();
+    return () => { if (unsub) unsub(); };
   }, []);
 
   const setActiveOrg = (orgId: string) => {
