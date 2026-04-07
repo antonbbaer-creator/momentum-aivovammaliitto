@@ -1,0 +1,7 @@
+[build]
+  base = "momentum-next"
+  command = "npm run build"
+  publish = "momentum-next/.next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
