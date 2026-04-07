@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/auth';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useParams } from 'next/navigation';
 
 const nav = [
   { id: 'dashboard', path: '/dashboard', label: 'Koti', icon: '\u25c9' },
@@ -17,8 +17,10 @@ export default function Sidebar() {
   const { user, orgs, activeOrg, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const params = useParams();
+  const orgSlug = (params.orgSlug as string) || activeOrg || '';
 
-  const currentOrg = orgs.find(o => o.orgId === activeOrg);
+  const currentOrg = orgs.find(o => o.orgId === orgSlug);
 
   return (
     <div className="side">
@@ -26,7 +28,7 @@ export default function Sidebar() {
         <div className="logo-text"><img src="/brand/hetki-logo-white.png" alt="Hetki" /> Momentum</div>
       </div>
 
-      <div className="ws-box" onClick={() => router.push('/settings')}>
+      <div className="ws-box" onClick={() => router.push(`/${orgSlug}/settings`)}>
         <div className="ws-name">{currentOrg?.name || 'Organisaatio'}</div>
         <div className="ws-plan">Free Plan</div>
       </div>
@@ -36,8 +38,8 @@ export default function Sidebar() {
         {nav.map(n => (
           <div
             key={n.id}
-            className={`nav-i ${pathname.startsWith(n.path) ? 'act' : ''}`}
-            onClick={() => router.push(n.path)}
+            className={`nav-i ${pathname === `/${orgSlug}${n.path}` || pathname.startsWith(`/${orgSlug}${n.path}/`) ? 'act' : ''}`}
+            onClick={() => router.push(`/${orgSlug}${n.path}`)}
           >
             <span className="nav-ic">{n.icon}</span>
             <span>{n.label}</span>

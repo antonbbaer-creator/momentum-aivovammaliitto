@@ -5,18 +5,19 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 export default function LoginPage() {
-  const { user, loading, loginWithGoogle, orgs } = useAuth();
+  const { user, loading, loginWithGoogle, orgs, activeOrg } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (!loading && user) {
       if (orgs.length > 0) {
-        router.push('/dashboard');
+        const org = activeOrg || orgs[0].orgId;
+        router.push(`/${org}/dashboard`);
       } else {
         router.push('/onboarding');
       }
     }
-  }, [user, loading, orgs, router]);
+  }, [user, loading, orgs, activeOrg, router]);
 
   if (loading) {
     return (

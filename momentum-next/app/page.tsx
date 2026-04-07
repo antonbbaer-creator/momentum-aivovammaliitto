@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 export default function RootPage() {
-  const { user, loading, orgs } = useAuth();
+  const { user, loading, orgs, activeOrg } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -15,9 +15,10 @@ export default function RootPage() {
     } else if (orgs.length === 0) {
       router.push('/onboarding');
     } else {
-      router.push('/dashboard');
+      const org = activeOrg || orgs[0].orgId;
+      router.push(`/${org}/dashboard`);
     }
-  }, [user, loading, orgs, router]);
+  }, [user, loading, orgs, activeOrg, router]);
 
   return (
     <div className="onb">

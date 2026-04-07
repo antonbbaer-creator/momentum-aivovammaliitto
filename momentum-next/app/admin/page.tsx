@@ -34,7 +34,7 @@ interface OrgData {
 const SUPER_ADMINS = ['anton@hetkicompany.com', 'anton.baer@gmail.com'];
 
 export default function AdminPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, orgs: userOrgs } = useAuth();
   const router = useRouter();
   const [orgs, setOrgs] = useState<OrgData[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
@@ -155,7 +155,8 @@ export default function AdminPage() {
   // Redirect if not super admin
   useEffect(() => {
     if (!loading && (!user || !isSuperAdmin)) {
-      router.push('/dashboard');
+      const org = userOrgs?.[0]?.orgId || 'avl';
+      router.push(`/${org}/dashboard`);
     }
   }, [user, loading, isSuperAdmin, router]);
 

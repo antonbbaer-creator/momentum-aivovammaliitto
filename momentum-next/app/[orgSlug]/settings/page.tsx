@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { useAuth } from '@/lib/auth';
 import { useOrgData } from '@/lib/firestore';
@@ -11,6 +12,7 @@ interface Member { uid: string; displayName: string; email: string; photoURL: st
 
 export default function SettingsPage() {
   const { user, orgs, activeOrg, activeOrgRole, setActiveOrg, logout, refreshOrgs } = useAuth();
+  const router = useRouter();
   const [org, setOrg] = useOrgData<any>('org', { name: '', s: '', slogan: '', channels: [], team: [], goals: [], auds: [], vals: [], tone: [] });
   const [members, setMembers] = useState<Member[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -81,7 +83,7 @@ export default function SettingsPage() {
         <div style={{ padding: '1.25rem 1.5rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
             {orgs.map(o => (
-              <div key={o.orgId} onClick={() => { setActiveOrg(o.orgId); window.location.reload(); }}
+              <div key={o.orgId} onClick={() => router.push(`/${o.orgId}/settings`)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '.75rem', padding: '.85rem 1rem',
                   background: o.orgId === activeOrg ? 'rgba(5,107,159,.08)' : 'var(--elev)',

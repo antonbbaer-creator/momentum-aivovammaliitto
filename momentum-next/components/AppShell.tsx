@@ -1,8 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/auth';
-import { useRouter } from 'next/navigation';
-import { useEffect, ReactNode } from 'react';
+import { ReactNode } from 'react';
 import Sidebar from './Sidebar';
 
 interface Props {
@@ -12,15 +11,7 @@ interface Props {
 }
 
 export default function AppShell({ children, title, subtitle }: Props) {
-  const { user, loading, orgs, activeOrg } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (loading) return;
-    if (!user) router.push('/login');
-    else if (orgs.length === 0) router.push('/onboarding');
-    else if (!activeOrg) router.push('/onboarding');
-  }, [user, loading, orgs, activeOrg, router]);
+  const { loading, user, activeOrg } = useAuth();
 
   if (loading || !user || !activeOrg) {
     return (

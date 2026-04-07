@@ -108,7 +108,7 @@ export default function OnboardingPage() {
       setActiveOrg(joinOrgId);
       await refreshOrgs();
       toast('Tervetuloa yhteisöön ' + joinOrgName + '!', 'success');
-      router.push('/dashboard');
+      router.push(`/${joinOrgId}/dashboard`);
     } catch (e) {
       console.error('Join error:', e);
       toast('Virhe yhteisöön liittymisessä', 'error');
