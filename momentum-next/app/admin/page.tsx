@@ -8,6 +8,7 @@ import { db } from '@/lib/firebase';
 import AppShell from '@/components/AppShell';
 import { useToast } from '@/lib/toast';
 import { AVL_ORG, AVL_EVENTS, AVL_CHANNEL_STATS, LLFF_ORG, LLFF_EVENTS, LLFF_CHANNEL_STATS } from '@/lib/seed-data';
+import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES } from '@/lib/modules';
 
 interface OrgMember {
   uid: string;
@@ -41,6 +42,9 @@ export default function AdminPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
   const [tab, setTab] = useState<'orgs' | 'users'>('orgs');
+
+  // Module configs per org
+  const [orgModules, setOrgModules] = useState<Record<string, Record<string, boolean>>>({});
 
   // Invite form
   const [inviteEmail, setInviteEmail] = useState('');
@@ -138,6 +142,21 @@ export default function AdminPage() {
           });
         }
         setOrgs(orgsList);
+
+        // Fetch module configs per org
+        const modulesMap: Record<string, Record<string, boolean>> = {};
+        for (const orgDoc of orgsSnap.docs) {
+          try {
+            const modSnap = await getDocs(collection(db, 'organizations', orgDoc.id, 'data'));
+            const modDoc = modSnap.docs.find(d => d.id === 'modules');
+            if (modDoc) {
+              modulesMap[orgDoc.id] = JSON.parse(modDoc.data().v || '{}');
+            } else {
+              modulesMap[orgDoc.id] = { ...DEFAULT_MODULES };
+            }
+          } catch { modulesMap[orgDoc.id] = { ...DEFAULT_MODULES }; }
+        }
+        setOrgModules(modulesMap);
 
         // Fetch all users
         const usersSnap = await getDocs(collection(db, 'users'));
@@ -360,6 +379,50 @@ export default function AdminPage() {
                     style={{ color: 'var(--red)', border: '1px solid rgba(239,68,68,.3)', background: 'rgba(239,68,68,.05)' }}>
                     Poista organisaatio
                   </button>
+                </div>
+
+                {/* Modules */}
+                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+                  <h4 style={{ fontSize: '.82rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '1rem' }}>
+                    Moduulit
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '.5rem' }}>
+                    {MODULE_ORDER.map(modId => {
+                      const mod = MODULE_REGISTRY[modId];
+                      const enabled = orgModules[selectedOrgData.id]?.[modId] ?? DEFAULT_MODULES[modId] ?? false;
+                      const isAlwaysOn = mod.alwaysOn;
+                      return (
+                        <div key={modId} onClick={async () => {
+                          if (isAlwaysOn) return;
+                          const updated = { ...(orgModules[selectedOrgData.id] || DEFAULT_MODULES), [modId]: !enabled };
+                          setOrgModules(prev => ({ ...prev, [selectedOrgData.id]: updated }));
+                          await setDoc(doc(db, 'organizations', selectedOrgData.id, 'data', 'modules'), { v: JSON.stringify(updated), ts: Date.now(), updatedBy: user!.uid });
+                          toast(`${mod.label} ${!enabled ? 'aktivoitu' : 'deaktivoitu'}`, 'success');
+                        }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.6rem .75rem',
+                            background: enabled ? 'rgba(5,107,159,.08)' : 'var(--elev)',
+                            border: `1px solid ${enabled ? 'var(--pri)' : 'var(--border)'}`,
+                            borderRadius: 'var(--r)', cursor: isAlwaysOn ? 'default' : 'pointer',
+                            opacity: isAlwaysOn ? 0.6 : 1, transition: 'all .15s',
+                          }}>
+                          <span style={{ fontSize: '.9rem' }}>{mod.icon}</span>
+                          <span style={{ fontSize: '.78rem', fontWeight: 600, flex: 1 }}>{mod.label}</span>
+                          <div style={{
+                            width: 32, height: 18, borderRadius: 9, padding: 2,
+                            background: enabled ? 'var(--pri)' : 'var(--border)',
+                            transition: 'background .2s', display: 'flex', alignItems: 'center',
+                          }}>
+                            <div style={{
+                              width: 14, height: 14, borderRadius: '50%', background: '#fff',
+                              transform: enabled ? 'translateX(14px)' : 'translateX(0)',
+                              transition: 'transform .2s',
+                            }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Members */}

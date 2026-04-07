@@ -1,20 +1,12 @@
 'use client';
 
 import { useAuth } from '@/lib/auth';
+import { useModules } from '@/lib/modules';
 import { usePathname, useRouter, useParams } from 'next/navigation';
-
-const nav = [
-  { id: 'dashboard', path: '/dashboard', label: 'Koti', icon: '\u25c9' },
-  { id: 'strategy', path: '/strategy', label: 'Strategia', icon: '\u25c8' },
-  { id: 'projects', path: '/projects', label: 'Projektit', icon: '\u2630' },
-  { id: 'publications', path: '/publications', label: 'Julkaisut', icon: '\u25b6' },
-  { id: 'calendar', path: '/calendar', label: 'Kalenteri', icon: '\u25a6' },
-  { id: 'channels', path: '/channels', label: 'Kanavat', icon: '\u25c7' },
-  { id: 'media', path: '/media', label: 'Mediapankki', icon: '\u25a3' },
-];
 
 export default function Sidebar() {
   const { user, orgs, activeOrg, logout } = useAuth();
+  const { enabledModules } = useModules();
   const pathname = usePathname();
   const router = useRouter();
   const params = useParams();
@@ -35,14 +27,14 @@ export default function Sidebar() {
 
       <nav style={{ flex: 1, padding: '.5rem 0', overflowY: 'auto' }}>
         <div className="nav-sec">Työkalut</div>
-        {nav.map(n => (
+        {enabledModules.map(m => (
           <div
-            key={n.id}
-            className={`nav-i ${pathname === `/${orgSlug}${n.path}` || pathname.startsWith(`/${orgSlug}${n.path}/`) ? 'act' : ''}`}
-            onClick={() => router.push(`/${orgSlug}${n.path}`)}
+            key={m.id}
+            className={`nav-i ${pathname === `/${orgSlug}${m.path}` || pathname.startsWith(`/${orgSlug}${m.path}/`) ? 'act' : ''}`}
+            onClick={() => router.push(`/${orgSlug}${m.path}`)}
           >
-            <span className="nav-ic">{n.icon}</span>
-            <span>{n.label}</span>
+            <span className="nav-ic">{m.icon}</span>
+            <span>{m.label}</span>
           </div>
         ))}
         {user?.email && ['anton@hetkicompany.com', 'anton.baer@gmail.com'].includes(user.email) && (
