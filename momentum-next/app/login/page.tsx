@@ -96,7 +96,7 @@ export default function LoginPage() {
           fontSize: '2rem', fontWeight: 800, lineHeight: 1.2, letterSpacing: '-.02em',
           marginBottom: '1rem', maxWidth: 360,
         }}>
-          Strateginen viestinnän hallinnan työkalu
+          Viestinnän suunnittelun strateginen kumppani
         </h1>
         <p style={{ color: 'var(--t2)', fontSize: '.92rem', lineHeight: 1.7, marginBottom: '2rem', maxWidth: 360 }}>
           Suunnittele, toteuta ja seuraa organisaatiosi viestintää yhdessä tiimisi kanssa.
