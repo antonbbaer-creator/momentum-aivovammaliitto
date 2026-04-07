@@ -23,15 +23,12 @@ export default function LoginPage() {
     }
   }, [user, loading, orgs, activeOrg, router]);
 
-  // Alternate videos when one ends
   useEffect(() => {
     const v1 = video1Ref.current;
     const v2 = video2Ref.current;
     if (!v1 || !v2) return;
-
     const onEnd1 = () => { setActiveVideo(1); v2.currentTime = 0; v2.play(); };
     const onEnd2 = () => { setActiveVideo(0); v1.currentTime = 0; v1.play(); };
-
     v1.addEventListener('ended', onEnd1);
     v2.addEventListener('ended', onEnd2);
     return () => { v1.removeEventListener('ended', onEnd1); v2.removeEventListener('ended', onEnd2); };
@@ -50,50 +47,26 @@ export default function LoginPage() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
 
-      {/* ═══ LEFT: All content ═══ */}
+      {/* ═══ LEFT ═══ */}
       <div style={{
-        width: 520, flexShrink: 0, display: 'flex', flexDirection: 'column',
-        justifyContent: 'center', padding: '3rem 3.5rem', position: 'relative', zIndex: 2,
+        width: 480, flexShrink: 0, display: 'flex', flexDirection: 'column',
+        justifyContent: 'center', padding: '3rem 3.5rem',
       }}>
-        {/* Logo */}
-        <div style={{ marginBottom: '3rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.5rem' }}>
-            <img src="/brand/hetki-logo-white.png" alt="Hetki" style={{ height: 28 }} />
-            <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 500, letterSpacing: '.03em', textTransform: 'uppercase' }}>Momentum</span>
-          </div>
-          <p style={{ color: 'var(--t3)', fontSize: '.85rem' }}>Viestinnän suunnittelu- ja strategiatyökalu</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '2.5rem' }}>
+          <img src="/brand/hetki-logo-white.png" alt="Hetki" style={{ height: 28 }} />
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 500, letterSpacing: '.03em', textTransform: 'uppercase' }}>Momentum</span>
         </div>
 
-        {/* Headline */}
         <h1 style={{
-          fontSize: '2.2rem', fontWeight: 800, lineHeight: 1.15, letterSpacing: '-.03em',
-          marginBottom: '1rem', maxWidth: 380,
+          fontSize: '2rem', fontWeight: 800, lineHeight: 1.2, letterSpacing: '-.02em',
+          marginBottom: '1rem', maxWidth: 360,
         }}>
-          Hallitse viestintääsi yhdestä paikasta
+          Strateginen viestinnän hallinnan työkalu
         </h1>
-        <p style={{ color: 'var(--t2)', fontSize: '.95rem', lineHeight: 1.7, marginBottom: '2.5rem', maxWidth: 380 }}>
-          Strategiasta toteutukseen — suunnittele, seuraa ja raportoi organisaatiosi viestintää tiimisi kanssa.
+        <p style={{ color: 'var(--t2)', fontSize: '.92rem', lineHeight: 1.7, marginBottom: '2.5rem', maxWidth: 360 }}>
+          Suunnittele, toteuta ja seuraa organisaatiosi viestintää yhdessä tiimisi kanssa.
         </p>
 
-        {/* Features */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2.5rem' }}>
-          {[
-            { icon: '\u25c8', title: 'Strategia', desc: 'Tavoitteet ja kohderyhmät' },
-            { icon: '\u2630', title: 'Projektit', desc: 'Kanban ja tehtävät' },
-            { icon: '\u25a6', title: 'Kalenteri', desc: 'Vuosikello ja julkaisut' },
-            { icon: '\u25c7', title: 'AI-avustaja', desc: 'Kontekstitietoinen sparraus' },
-          ].map(f => (
-            <div key={f.title} style={{ display: 'flex', gap: '.6rem', alignItems: 'flex-start' }}>
-              <span style={{ fontSize: '1.1rem', color: 'var(--pri-l)', marginTop: '.1rem' }}>{f.icon}</span>
-              <div>
-                <div style={{ fontSize: '.82rem', fontWeight: 700 }}>{f.title}</div>
-                <div style={{ fontSize: '.72rem', color: 'var(--t3)' }}>{f.desc}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Login button */}
         <button
           onClick={loginWithGoogle}
           style={{
@@ -115,13 +88,8 @@ export default function LoginPage() {
           Kirjaudu Googlella
         </button>
 
-        {/* Footer */}
         <div style={{ marginTop: '3rem', fontSize: '.72rem', color: 'var(--t3)' }}>
-          <span>Hetki Company Oy</span>
-          <span style={{ margin: '0 .5rem' }}>{'\u00b7'}</span>
-          <span>Tietosuoja</span>
-          <span style={{ margin: '0 .5rem' }}>{'\u00b7'}</span>
-          <span>Käyttöehdot</span>
+          Hetki Company Oy
         </div>
       </div>
 
@@ -140,7 +108,6 @@ export default function LoginPage() {
         >
           <source src="/brand/hero-video.mp4" type="video/mp4" />
         </video>
-
         <video
           ref={video2Ref}
           muted playsInline
@@ -153,8 +120,6 @@ export default function LoginPage() {
         >
           <source src="/brand/hero-video-2.mp4" type="video/mp4" />
         </video>
-
-        {/* Placeholder before video loads */}
         {!videoLoaded && (
           <div style={{
             position: 'absolute', inset: 0,
