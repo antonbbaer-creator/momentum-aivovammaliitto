@@ -27,8 +27,8 @@ export default function LoginPage() {
     const v1 = video1Ref.current;
     const v2 = video2Ref.current;
     if (!v1 || !v2) return;
-    const onEnd1 = () => { setActiveVideo(1); v2.currentTime = 0; v2.play(); };
-    const onEnd2 = () => { setActiveVideo(0); v1.currentTime = 0; v1.play(); };
+    const onEnd1 = () => { setActiveVideo(1); v2.currentTime = 0; v2.play().catch(() => { v1.currentTime = 0; v1.play(); setActiveVideo(0); }); };
+    const onEnd2 = () => { setActiveVideo(0); v1.currentTime = 0; v1.play().catch(() => { v2.currentTime = 0; v2.play(); setActiveVideo(1); }); };
     v1.addEventListener('ended', onEnd1);
     v2.addEventListener('ended', onEnd2);
     return () => { v1.removeEventListener('ended', onEnd1); v2.removeEventListener('ended', onEnd2); };
