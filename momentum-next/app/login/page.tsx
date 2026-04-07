@@ -2,16 +2,15 @@
 
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useRef, useCallback } from 'react';
-
-const videos = ['/brand/hero-video.mp4', '/brand/hero-video-2.mp4'];
+import { useEffect, useState, useRef } from 'react';
 
 export default function LoginPage() {
   const { user, loading, loginWithGoogle, orgs, activeOrg } = useAuth();
   const router = useRouter();
   const [videoLoaded, setVideoLoaded] = useState(false);
-  const [videoIdx, setVideoIdx] = useState(0);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [showFirst, setShowFirst] = useState(true);
+  const v1 = useRef<HTMLVideoElement>(null);
+  const v2 = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     if (!loading && user) {
@@ -24,16 +23,27 @@ export default function LoginPage() {
     }
   }, [user, loading, orgs, activeOrg, router]);
 
-  const onVideoEnded = useCallback(() => {
-    const next = (videoIdx + 1) % videos.length;
-    setVideoIdx(next);
-    const v = videoRef.current;
-    if (v) {
-      v.src = videos[next];
-      v.load();
-      v.play().catch(() => {});
-    }
-  }, [videoIdx]);
+  // Both videos preloaded. When one ends, start the other and crossfade.
+  useEffect(() => {
+    const a = v1.current;
+    const b = v2.current;
+    if (!a || !b) return;
+
+    const endA = () => {
+      b.currentTime = 0;
+      b.play().catch(() => {});
+      setShowFirst(false);
+    };
+    const endB = () => {
+      a.currentTime = 0;
+      a.play().catch(() => {});
+      setShowFirst(true);
+    };
+
+    a.addEventListener('ended', endA);
+    b.addEventListener('ended', endB);
+    return () => { a.removeEventListener('ended', endA); b.removeEventListener('ended', endB); };
+  }, []);
 
   if (loading) {
     return (
@@ -97,20 +107,30 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* ═══ RIGHT: Single video element, alternating src ═══ */}
+      {/* ═══ RIGHT: Two preloaded videos, crossfade ═══ */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         <video
-          ref={videoRef}
-          autoPlay muted playsInline
-          onLoadedData={() => setVideoLoaded(true)}
-          onEnded={onVideoEnded}
+          ref={v1}
+          autoPlay muted playsInline preload="auto"
+          onCanPlay={() => setVideoLoaded(true)}
+          src="/brand/hero-video.mp4"
           style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%',
             objectFit: 'cover',
-            opacity: videoLoaded ? 1 : 0,
-            transition: 'opacity .5s',
+            opacity: showFirst ? 1 : 0,
+            transition: 'opacity 1s ease-in-out',
           }}
-          src={videos[0]}
+        />
+        <video
+          ref={v2}
+          muted playsInline preload="auto"
+          src="/brand/hero-video-2.mp4"
+          style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%',
+            objectFit: 'cover',
+            opacity: showFirst ? 0 : 1,
+            transition: 'opacity 1s ease-in-out',
+          }}
         />
         {!videoLoaded && (
           <div style={{
