@@ -6,7 +6,7 @@ import { ToastProvider } from "@/lib/toast";
 export const metadata: Metadata = {
   title: "Hetki \u2014 Momentum",
   description: "Viestinn\u00e4n suunnittelu- ja strategiaty\u00f6kalu",
-  icons: { icon: '/brand/hetki-logo-black.png' },
+  icons: { icon: '/favicon.png', apple: '/favicon.png' },
 };
 
 export default function RootLayout({
