@@ -35,11 +35,21 @@ export default function LoginPage() {
     const a = v1.current;
     const b = v2.current;
     if (!a || !b) return;
-    const endA = () => { b.currentTime = 0; b.play().catch(() => {}); setShowFirst(false); };
-    const endB = () => { a.currentTime = 0; a.play().catch(() => {}); setShowFirst(true); };
-    a.addEventListener('ended', endA);
-    b.addEventListener('ended', endB);
-    return () => { a.removeEventListener('ended', endA); b.removeEventListener('ended', endB); };
+    const switchToB = () => { if (b.paused) { b.currentTime = 0; b.play().catch(() => {}); } setShowFirst(false); };
+    const switchToA = () => { if (a.paused) { a.currentTime = 0; a.play().catch(() => {}); } setShowFirst(true); };
+    // Switch on ended
+    a.addEventListener('ended', switchToB);
+    b.addEventListener('ended', switchToA);
+    // Fallback: if video stalls near end, force switch
+    const checkA = () => { if (a.duration && a.currentTime >= a.duration - 0.3) switchToB(); };
+    const checkB = () => { if (b.duration && b.currentTime >= b.duration - 0.3) switchToA(); };
+    a.addEventListener('timeupdate', checkA);
+    b.addEventListener('timeupdate', checkB);
+    // Fallback: if both paused, restart
+    const watchdog = setInterval(() => {
+      if (a.paused && b.paused) { a.currentTime = 0; a.play().catch(() => {}); setShowFirst(true); }
+    }, 2000);
+    return () => { a.removeEventListener('ended', switchToB); b.removeEventListener('ended', switchToA); a.removeEventListener('timeupdate', checkA); b.removeEventListener('timeupdate', checkB); clearInterval(watchdog); };
   }, []);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
