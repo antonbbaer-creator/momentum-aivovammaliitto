@@ -74,14 +74,45 @@ export default function SettingsPage() {
   return (
     <AppShell title="Asetukset" subtitle="Organisaation hallinta">
       {/* Org switcher */}
-      {orgs.length > 1 && (
-        <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-          {orgs.map(o => (
-            <button key={o.orgId} className={`btn ${o.orgId === activeOrg ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setActiveOrg(o.orgId)}>{o.name}</button>
-          ))}
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', marginBottom: '1.5rem' }}>
+        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em' }}>Yhteisöt</h3>
         </div>
-      )}
+        <div style={{ padding: '1.25rem 1.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+            {orgs.map(o => (
+              <div key={o.orgId} onClick={() => { setActiveOrg(o.orgId); window.location.reload(); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '.75rem', padding: '.85rem 1rem',
+                  background: o.orgId === activeOrg ? 'rgba(5,107,159,.08)' : 'var(--elev)',
+                  border: `1px solid ${o.orgId === activeOrg ? 'var(--pri)' : 'var(--border)'}`,
+                  borderRadius: 'var(--r)', cursor: 'pointer', transition: 'all .15s',
+                }}
+                onMouseEnter={e => { if (o.orgId !== activeOrg) (e.currentTarget as any).style.borderColor = 'var(--border-l)'; }}
+                onMouseLeave={e => { if (o.orgId !== activeOrg) (e.currentTarget as any).style.borderColor = 'var(--border)'; }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 'var(--r)', flexShrink: 0,
+                  background: o.orgId === activeOrg ? 'var(--pri)' : 'var(--elev)',
+                  border: `1px solid ${o.orgId === activeOrg ? 'var(--pri)' : 'var(--border)'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: o.orgId === activeOrg ? '#fff' : 'var(--t2)',
+                  fontSize: '.85rem', fontWeight: 700, fontFamily: 'var(--font-display)',
+                }}>{o.name[0]}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '.88rem', fontWeight: 600 }}>{o.name}</div>
+                  <div style={{ fontSize: '.68rem', color: 'var(--t3)' }}>{o.role === 'owner' ? 'Omistaja' : o.role === 'admin' ? 'Admin' : o.role === 'visitor' ? 'Vierailija' : 'Jäsen'}</div>
+                </div>
+                {o.orgId === activeOrg && (
+                  <span style={{ fontSize: '.68rem', padding: '.2rem .55rem', borderRadius: 9999, background: 'rgba(5,107,159,.15)', color: 'var(--pri-l)', fontWeight: 700 }}>Aktiivinen</span>
+                )}
+              </div>
+            ))}
+          </div>
+          {orgs.length === 0 && (
+            <p style={{ color: 'var(--t3)', fontSize: '.85rem', textAlign: 'center', padding: '1rem' }}>Ei yhteisöjä. Luo uusi tai liity sanasanalla.</p>
+          )}
+        </div>
+      </div>
 
       {/* Org info */}
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', marginBottom: '1.5rem' }}>

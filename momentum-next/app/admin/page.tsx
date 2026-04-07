@@ -265,17 +265,6 @@ export default function AdminPage() {
 
   return (
     <AppShell title="Hallintapaneeli" subtitle="Käyttäjien ja organisaatioiden hallinta">
-      {/* Seed button */}
-      <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '.75rem', alignItems: 'center' }}>
-        <button className="btn btn-primary" onClick={seedCommunities} disabled={seeding}>
-          {seeding ? 'Luodaan...' : 'Luo AVL + LLFF yhteisöt'}
-        </button>
-        <span style={{ fontSize: '.78rem', color: 'var(--t3)' }}>
-          Luo Aivovammaliiton ja LLFF:n yhteisöt valmiilla sisällöillä (strategia, kalenteri, tiimi, kanavat).
-          Sanasanat: <code style={{ background: 'var(--elev)', padding: '.1rem .3rem', borderRadius: 3 }}>aivovammaliitto-hetki-2026</code> ja <code style={{ background: 'var(--elev)', padding: '.1rem .3rem', borderRadius: 3 }}>llff-elokuva-2026</code>
-        </span>
-      </div>
-
       {/* Stats */}
       <div className="stats" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="stat">
