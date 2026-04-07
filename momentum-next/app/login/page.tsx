@@ -32,6 +32,7 @@ export default function LoginPage() {
     <div className="onb">
       <div className="onb-wrap">
         <div className="onb-logo">
+          <img src="/brand/hetki-logo-white.png" alt="Hetki" />
           <h1>Momentum</h1>
           <p>Viestinnän suunnittelu- ja strategiatyökalu</p>
         </div>

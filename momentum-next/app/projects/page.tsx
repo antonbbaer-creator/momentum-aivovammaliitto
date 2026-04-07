@@ -4,6 +4,7 @@ import { useState } from 'react';
 import AppShell from '@/components/AppShell';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
+import { useToast } from '@/lib/toast';
 
 interface Task { id: number; text: string; done: boolean; assignee: string; }
 interface TeamMember { name: string; role: string; avatar: string; }
@@ -22,6 +23,7 @@ const taskProgress = (tasks: Task[]) => tasks?.length ? Math.round(tasks.filter(
 
 export default function ProjectsPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [projects, setProjects] = useOrgData<Project[]>('projects', []);
   const [mode, setMode] = useState<'kanban' | 'new' | 'detail'>('kanban');
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -42,6 +44,7 @@ export default function ProjectsPage() {
     const p: Project = { id: Date.now(), t: title.trim(), d: desc.trim(), st: 'idea', deadline, team: [], comments: [], tasks: [], archived: false, createdAt: Date.now() };
     setProjects(prev => [...prev, p]);
     setTitle(''); setDesc(''); setDeadline(''); setMode('kanban');
+    toast('Projekti luotu', 'success');
   };
 
   const moveProject = (id: number, newSt: string) => setProjects(prev => prev.map(p => p.id === id ? { ...p, st: newSt } : p));
@@ -54,7 +57,7 @@ export default function ProjectsPage() {
 
   // Detail view
   if (mode === 'detail' && selected) {
-    const [detailTab, setDetailTab] = [useState('overview')[0], useState('overview')[1]] as any; // simplified
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const progress = taskProgress(selected.tasks);
     const dlc = deadlineColor(selected.deadline);
     return (

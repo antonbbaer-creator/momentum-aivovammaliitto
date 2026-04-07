@@ -23,7 +23,7 @@ export default function Sidebar() {
   return (
     <div className="side">
       <div className="side-hd">
-        <div className="logo-text">Momentum</div>
+        <div className="logo-text"><img src="/brand/hetki-logo-white.png" alt="Hetki" /> Momentum</div>
       </div>
 
       <div className="ws-box" onClick={() => router.push('/settings')}>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
+import { ToastProvider } from "@/lib/toast";
 
 export const metadata: Metadata = {
   title: "Hetki \u2014 Momentum",
@@ -16,7 +17,9 @@ export default function RootLayout({
     <html lang="fi">
       <body>
         <AuthProvider>
-          {children}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </AuthProvider>
       </body>
     </html>
