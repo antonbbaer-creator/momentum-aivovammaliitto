@@ -56,8 +56,7 @@ export default function LoginPage() {
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.4rem', fontWeight: 500, letterSpacing: '.04em', textTransform: 'uppercase', marginBottom: '.75rem' }}>Momentum</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', color: 'var(--t3)', fontSize: '.82rem' }}>
             <span>by</span>
-            <img src="/brand/hetki-logo-white.png" alt="Hetki" style={{ height: 22, opacity: 0.7 }} />
-            <span style={{ fontFamily: 'var(--font-display)', fontSize: '.9rem', fontWeight: 500, letterSpacing: '.03em', textTransform: 'uppercase', opacity: 0.7 }}>Hetki Company</span>
+            <img src="/brand/hetki-company-logo-white.png" alt="Hetki Company" style={{ height: 20, opacity: 0.7 }} />
           </div>
         </div>
 
