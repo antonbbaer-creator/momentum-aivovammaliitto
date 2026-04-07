@@ -37,7 +37,7 @@ export default function OnboardingPage() {
   const [displayName, setDisplayName] = useState(user?.displayName || '');
 
   const rightPanel: Record<string, { title: string; sub: string }> = {
-    code: { title: 'Liity yhteisöösi', sub: 'Syötä organisaatiosi sanasana aloittaaksesi. Sait sen yhteisösi ylläpitäjältä.' },
+    code: { title: 'Liity yhteisöösi', sub: 'Syötä organisaatiosi salasana aloittaaksesi. Sait sen yhteisösi ylläpitäjältä.' },
     role: { title: 'Kerro roolisi', sub: 'Roolisi auttaa tiimiäsi ymmärtämään vastuualueesi.' },
     confirm: { title: 'Kaikki valmista!', sub: 'Tervetuloa yhteisöösi. Voit aloittaa Momentumin käytön.' },
   };
@@ -59,7 +59,7 @@ export default function OnboardingPage() {
           break;
         }
       }
-      if (!found) setJoinError('Sanasanaa ei löytynyt. Tarkista kirjoitusasu.');
+      if (!found) setJoinError('Salasanaa ei löytynyt. Tarkista kirjoitusasu.');
     } catch (e) {
       setJoinError('Virhe haussa. Yritä uudelleen.');
     } finally {
@@ -137,7 +137,7 @@ export default function OnboardingPage() {
 
         {/* Progress */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0', marginBottom: '3rem' }}>
-          {[{ id: 'code', l: 'Sanasana' }, { id: 'role', l: 'Roolisi' }, { id: 'confirm', l: 'Valmis' }].map((s, i) => {
+          {[{ id: 'code', l: 'Salasana' }, { id: 'role', l: 'Roolisi' }, { id: 'confirm', l: 'Valmis' }].map((s, i) => {
             const steps = ['code', 'role', 'confirm'];
             const ci = steps.indexOf(step);
             const done = i < ci;
@@ -167,12 +167,12 @@ export default function OnboardingPage() {
 
           {step === 'code' && (
             <div style={{ animation: 'fadeUp .5s' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '.35rem' }}>Syötä yhteisön sanasana</h2>
+              <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '.35rem' }}>Syötä yhteisön salasana</h2>
               <p style={{ color: 'var(--t3)', fontSize: '.85rem', marginBottom: '1.5rem' }}>
-                Sait sanasanan organisaatiosi yhteyshenkilöltä. Se yhdistää sinut oikeaan yhteisöön.
+                Sait salasanan organisaatiosi yhteyshenkilöltä. Se yhdistää sinut oikeaan yhteisöön.
               </p>
               <input className="input" value={joinCode} onChange={e => { setJoinCode(e.target.value); setJoinError(''); }}
-                placeholder="Esim. aivovammaliitto-hetki-2026" autoFocus
+                placeholder="Syötä salasana" autoFocus
                 style={{ fontSize: '1rem', padding: '.9rem 1.1rem', marginBottom: '.75rem' }}
                 onKeyDown={e => { if (e.key === 'Enter') lookupCode(); }} />
               {joinError && <p style={{ color: 'var(--red)', fontSize: '.82rem', marginBottom: '.75rem' }}>{joinError}</p>}

@@ -111,7 +111,7 @@ export default function SettingsPage() {
             ))}
           </div>
           {orgs.length === 0 && (
-            <p style={{ color: 'var(--t3)', fontSize: '.85rem', textAlign: 'center', padding: '1rem' }}>Ei yhteisöjä. Luo uusi tai liity sanasanalla.</p>
+            <p style={{ color: 'var(--t3)', fontSize: '.85rem', textAlign: 'center', padding: '1rem' }}>Ei yhteisöjä. Luo uusi tai liity salasanalla.</p>
           )}
         </div>
       </div>
@@ -150,11 +150,11 @@ export default function SettingsPage() {
       {orgJoinCode && (
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', marginBottom: '1.5rem' }}>
           <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em' }}>Yhteisön sanasana</h3>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em' }}>Yhteisön salasana</h3>
           </div>
           <div style={{ padding: '1.5rem' }}>
             <p style={{ fontSize: '.85rem', color: 'var(--t2)', marginBottom: '1rem', lineHeight: 1.6 }}>
-              Jaa tämä sanasana ihmisille jotka haluat kutsua yhteisöösi. He voivat liittyä tiimijäsenenä tai vierailijana.
+              Jaa tämä salasana ihmisille jotka haluat kutsua yhteisöösi. He voivat liittyä tiimijäsenenä tai vierailijana.
             </p>
             <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
               <code style={{ flex: 1, padding: '.75rem 1rem', background: 'var(--elev)', border: '1px solid var(--border)', borderRadius: 'var(--r)', fontSize: '1rem', fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: '.02em', color: 'var(--pri-l)' }}>
