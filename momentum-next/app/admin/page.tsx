@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { collection, getDocs, doc, deleteDoc, updateDoc, query, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import AppShell from '@/components/AppShell';
+import { useToast } from '@/lib/toast';
+import { AVL_ORG, AVL_EVENTS, AVL_CHANNEL_STATS, LLFF_ORG, LLFF_EVENTS, LLFF_CHANNEL_STATS } from '@/lib/seed-data';
 
 interface OrgMember {
   uid: string;
@@ -45,7 +47,64 @@ export default function AdminPage() {
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
   const [inviteOrgId, setInviteOrgId] = useState('');
 
+  const { toast } = useToast();
+  const [seeding, setSeeding] = useState(false);
   const isSuperAdmin = user?.email && SUPER_ADMINS.includes(user.email);
+
+  // Seed AVL + LLFF demo communities
+  const seedCommunities = async () => {
+    if (!user) return;
+    setSeeding(true);
+    try {
+      for (const { orgData, events, channelStats, orgId, orgName, joinCode } of [
+        { orgData: AVL_ORG, events: AVL_EVENTS, channelStats: AVL_CHANNEL_STATS, orgId: 'avl', orgName: 'Aivovammaliitto', joinCode: 'aivovammaliitto-hetki-2026' },
+        { orgData: LLFF_ORG, events: LLFF_EVENTS, channelStats: LLFF_CHANNEL_STATS, orgId: 'llff', orgName: 'Lapinlahden Elokuvajuhlat', joinCode: 'llff-elokuva-2026' },
+      ]) {
+        // Create org document
+        await setDoc(doc(db, 'organizations', orgId), {
+          name: orgName, shortName: orgData.s, slogan: orgData.slogan,
+          joinCode, createdAt: new Date().toISOString(), createdBy: user.uid, plan: 'free',
+        }, { merge: true });
+
+        // Add current user as owner
+        await setDoc(doc(db, 'organizations', orgId, 'members', user.uid), {
+          role: 'owner', joinedAt: new Date().toISOString(),
+          displayName: user.displayName || '', email: user.email || '', photoURL: user.photoURL || '',
+        }, { merge: true });
+
+        // Write org data
+        await setDoc(doc(db, 'organizations', orgId, 'data', 'org'), { v: JSON.stringify(orgData), ts: Date.now(), updatedBy: user.uid });
+        await setDoc(doc(db, 'organizations', orgId, 'data', 'events'), { v: JSON.stringify(events), ts: Date.now(), updatedBy: user.uid });
+        await setDoc(doc(db, 'organizations', orgId, 'data', 'channelStats'), { v: JSON.stringify(channelStats), ts: Date.now(), updatedBy: user.uid });
+
+        // Initialize empty collections
+        for (const key of ['projects', 'publications', 'media_meta', 'media_uploaded', 'media_collections']) {
+          await setDoc(doc(db, 'organizations', orgId, 'data', key), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid }, { merge: true });
+        }
+      }
+
+      // Update user's org list
+      const existingSnap = await getDocs(collection(db, 'userOrgs'));
+      let existingOrgs: any[] = [];
+      for (const d of existingSnap.docs) {
+        if (d.id === user.uid) existingOrgs = d.data().orgs || [];
+      }
+      const newOrgs = [
+        ...existingOrgs.filter((o: any) => o.orgId !== 'avl' && o.orgId !== 'llff'),
+        { orgId: 'avl', role: 'owner', name: 'Aivovammaliitto' },
+        { orgId: 'llff', role: 'owner', name: 'Lapinlahden Elokuvajuhlat' },
+      ];
+      await setDoc(doc(db, 'userOrgs', user.uid), { orgs: newOrgs });
+
+      toast('AVL + LLFF yhteisöt luotu!', 'success');
+      window.location.reload();
+    } catch (e) {
+      console.error('Seed error:', e);
+      toast('Virhe yhteisöjen luonnissa', 'error');
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   // Fetch all organizations and their members
   useEffect(() => {
@@ -206,6 +265,17 @@ export default function AdminPage() {
 
   return (
     <AppShell title="Hallintapaneeli" subtitle="Käyttäjien ja organisaatioiden hallinta">
+      {/* Seed button */}
+      <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '.75rem', alignItems: 'center' }}>
+        <button className="btn btn-primary" onClick={seedCommunities} disabled={seeding}>
+          {seeding ? 'Luodaan...' : 'Luo AVL + LLFF yhteisöt'}
+        </button>
+        <span style={{ fontSize: '.78rem', color: 'var(--t3)' }}>
+          Luo Aivovammaliiton ja LLFF:n yhteisöt valmiilla sisällöillä (strategia, kalenteri, tiimi, kanavat).
+          Sanasanat: <code style={{ background: 'var(--elev)', padding: '.1rem .3rem', borderRadius: 3 }}>aivovammaliitto-hetki-2026</code> ja <code style={{ background: 'var(--elev)', padding: '.1rem .3rem', borderRadius: 3 }}>llff-elokuva-2026</code>
+        </span>
+      </div>
+
       {/* Stats */}
       <div className="stats" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="stat">
