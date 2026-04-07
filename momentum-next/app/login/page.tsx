@@ -52,9 +52,13 @@ export default function LoginPage() {
         width: 480, flexShrink: 0, display: 'flex', flexDirection: 'column',
         justifyContent: 'center', padding: '3rem 3.5rem',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '2.5rem' }}>
-          <img src="/brand/hetki-logo-white.png" alt="Hetki" style={{ height: 28 }} />
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 500, letterSpacing: '.03em', textTransform: 'uppercase' }}>Momentum</span>
+        <div style={{ marginBottom: '2.5rem' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.4rem', fontWeight: 500, letterSpacing: '.04em', textTransform: 'uppercase', marginBottom: '.75rem' }}>Momentum</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', color: 'var(--t3)', fontSize: '.82rem' }}>
+            <span>by</span>
+            <img src="/brand/hetki-logo-white.png" alt="Hetki" style={{ height: 22, opacity: 0.7 }} />
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: '.9rem', fontWeight: 500, letterSpacing: '.03em', textTransform: 'uppercase', opacity: 0.7 }}>Hetki Company</span>
+          </div>
         </div>
 
         <h1 style={{
