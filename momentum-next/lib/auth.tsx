@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db, googleProvider } from './firebase';
+import { auth, db, googleProvider, persistenceReady } from './firebase';
 
 export type OrgRole = 'owner' | 'admin' | 'member' | 'visitor';
 
@@ -67,42 +67,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    let unsub: () => void;
-    // Set session persistence BEFORE listening to auth state
-    import('firebase/auth').then(({ setPersistence, browserSessionPersistence }) => {
-      setPersistence(auth, browserSessionPersistence).then(() => {
-        unsub = onAuthStateChanged(auth, async (u) => {
-          setUser(u);
-      if (u) {
-        // Update user profile in Firestore
-        await setDoc(doc(db, 'users', u.uid), {
-          email: u.email,
-          displayName: u.displayName,
-          photoURL: u.photoURL,
-          lastLoginAt: new Date().toISOString(),
-        }, { merge: true });
+    // Wait for session persistence to be set, THEN listen to auth state
+    persistenceReady.then(() => {
+      const unsub = onAuthStateChanged(auth, async (u) => {
+        setUser(u);
+        if (u) {
+          await setDoc(doc(db, 'users', u.uid), {
+            email: u.email,
+            displayName: u.displayName,
+            photoURL: u.photoURL,
+            lastLoginAt: new Date().toISOString(),
+          }, { merge: true });
 
-        // Fetch user's orgs
-        const userOrgs = await fetchOrgs(u.uid);
-        setOrgs(userOrgs);
+          const userOrgs = await fetchOrgs(u.uid);
+          setOrgs(userOrgs);
 
-        // Restore active org from localStorage
-        const stored = localStorage.getItem('momentum_activeOrg');
-        if (stored && userOrgs.some(o => o.orgId === stored)) {
-          setActiveOrgState(stored);
-        } else if (userOrgs.length > 0) {
-          setActiveOrgState(userOrgs[0].orgId);
-          localStorage.setItem('momentum_activeOrg', userOrgs[0].orgId);
+          const stored = typeof window !== 'undefined' ? localStorage.getItem('momentum_activeOrg') : null;
+          if (stored && userOrgs.some(o => o.orgId === stored)) {
+            setActiveOrgState(stored);
+          } else if (userOrgs.length > 0) {
+            setActiveOrgState(userOrgs[0].orgId);
+            localStorage.setItem('momentum_activeOrg', userOrgs[0].orgId);
+          }
+        } else {
+          setOrgs([]);
+          setActiveOrgState(null);
         }
-      } else {
-        setOrgs([]);
-        setActiveOrgState(null);
-      }
-      setLoading(false);
-        });
+        setLoading(false);
       });
+      return () => unsub();
     });
-    return () => { if (unsub) unsub(); };
   }, []);
 
   const setActiveOrg = (orgId: string) => {
