@@ -378,13 +378,14 @@ async function handleMediaFile(request, env, path) {
   const object = await env.MEDIA_BUCKET.get(key);
   if (!object) return new Response('Not found', { status: 404 });
 
-  return new Response(object.body, {
-    headers: {
-      'Content-Type': object.httpMetadata?.contentType || 'application/octet-stream',
-      'Cache-Control': 'public, max-age=31536000',
-      'Access-Control-Allow-Origin': '*',
-    },
-  });
+  const headers = {
+    'Content-Type': object.httpMetadata?.contentType || 'application/octet-stream',
+    'Cache-Control': 'public, max-age=31536000, immutable',
+    'Access-Control-Allow-Origin': '*',
+    'CF-Cache-Status': 'HIT',
+  };
+  if (object.size) headers['Content-Length'] = String(object.size);
+  return new Response(object.body, { headers });
 }
 
 async function handleMediaDelete(request, env, path) {
