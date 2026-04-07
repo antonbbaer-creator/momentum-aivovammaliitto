@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { User, onAuthStateChanged, signInWithPopup, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider, persistenceReady } from './firebase';
@@ -55,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isVisitor = activeOrgRole === 'visitor';
   const canEdit = activeOrgRole !== null && activeOrgRole !== 'visitor';
 
-  const fetchOrgs = async (uid: string) => {
+  const fetchOrgs = async (uid: string): Promise<UserOrg[]> => {
     const snap = await getDoc(doc(db, 'userOrgs', uid));
     if (snap.exists()) {
       const data = snap.data();
@@ -71,11 +71,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Wait for session persistence to be set, THEN listen to auth state
     persistenceReady.then(() => {
       const unsub = onAuthStateChanged(auth, async (u) => {
-        setUser(u);
         if (u) {
+          // Fetch everything BEFORE updating state — single render
           await setDoc(doc(db, 'users', u.uid), {
             email: u.email,
             displayName: u.displayName,
@@ -84,16 +83,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }, { merge: true });
 
           const userOrgs = await fetchOrgs(u.uid);
-          setOrgs(userOrgs);
 
           const stored = typeof window !== 'undefined' ? localStorage.getItem('momentum_activeOrg') : null;
+          let orgToSet: string | null = null;
           if (stored && userOrgs.some(o => o.orgId === stored)) {
-            setActiveOrgState(stored);
+            orgToSet = stored;
           } else if (userOrgs.length > 0) {
-            setActiveOrgState(userOrgs[0].orgId);
+            orgToSet = userOrgs[0].orgId;
             localStorage.setItem('momentum_activeOrg', userOrgs[0].orgId);
           }
+
+          // Set ALL state at once so no intermediate render with user but no orgs
+          setUser(u);
+          setOrgs(userOrgs);
+          setActiveOrgState(orgToSet);
         } else {
+          setUser(null);
           setOrgs([]);
           setActiveOrgState(null);
         }
