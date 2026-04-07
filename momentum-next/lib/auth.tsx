@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
+import { User, onAuthStateChanged, signInWithPopup, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider, persistenceReady } from './firebase';
 
@@ -23,6 +23,8 @@ interface AuthContextType {
   canEdit: boolean;
   setActiveOrg: (orgId: string) => void;
   loginWithGoogle: () => Promise<void>;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshOrgs: () => Promise<void>;
 }
@@ -37,6 +39,8 @@ const AuthContext = createContext<AuthContextType>({
   canEdit: true,
   setActiveOrg: () => {},
   loginWithGoogle: async () => {},
+  loginWithEmail: async () => {},
+  signUpWithEmail: async () => {},
   logout: async () => {},
   refreshOrgs: async () => {},
 });
@@ -108,6 +112,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signInWithPopup(auth, googleProvider);
   };
 
+  const loginWithEmail = async (email: string, password: string) => {
+    await signInWithEmailAndPassword(auth, email, password);
+  };
+
+  const signUpWithEmail = async (email: string, password: string, name: string) => {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(cred.user, { displayName: name });
+  };
+
   const logout = async () => {
     await signOut(auth);
     localStorage.removeItem('momentum_activeOrg');
@@ -116,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, loading, orgs, activeOrg, activeOrgRole, isVisitor, canEdit,
-      setActiveOrg, loginWithGoogle, logout, refreshOrgs
+      setActiveOrg, loginWithGoogle, loginWithEmail, signUpWithEmail, logout, refreshOrgs
     }}>
       {children}
     </AuthContext.Provider>
