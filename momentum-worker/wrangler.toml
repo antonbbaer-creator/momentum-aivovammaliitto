@@ -11,4 +11,4 @@ binding = "MEDIA_BUCKET"
 bucket_name = "momentum-media"
 
 [vars]
-ALLOWED_ORIGINS = "https://elegant-melba-ad4bcf.netlify.app,http://localhost:8080"
+ALLOWED_ORIGINS = "https://hetkimomentum.com,https://elegant-melba-ad4bcf.netlify.app,http://localhost:3000,http://localhost:8080"
