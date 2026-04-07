@@ -41,6 +41,8 @@ export default function ProjectsPage() {
 
   const createProject = () => {
     if (!title.trim()) return;
+    const exists = projects.some(p => p.t.toLowerCase() === title.trim().toLowerCase());
+    if (exists) { toast('Samanniminen projekti on jo olemassa', 'error'); return; }
     const p: Project = { id: Date.now(), t: title.trim(), d: desc.trim(), st: 'idea', deadline, team: [], comments: [], tasks: [], archived: false, createdAt: Date.now() };
     setProjects(prev => [...prev, p]);
     setTitle(''); setDesc(''); setDeadline(''); setMode('kanban');
