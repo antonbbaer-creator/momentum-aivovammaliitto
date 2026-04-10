@@ -6,13 +6,16 @@
 // ── CORS ──
 function corsHeaders(request, env) {
   const origin = request.headers.get('Origin') || '';
-  const allowed = (env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim());
-  const isAllowed = allowed.some(a => origin.startsWith(a) || a === '*');
+  const allowed = (env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+  // Always allow localhost/127.0.0.1 on any port for development
+  const isLocalhost = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  const isAllowed = isLocalhost || allowed.some(a => a === '*' || origin === a || origin.startsWith(a));
   return {
-    'Access-Control-Allow-Origin': isAllowed ? origin : allowed[0] || '*',
+    'Access-Control-Allow-Origin': isAllowed && origin ? origin : (allowed[0] || '*'),
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-Momentum-Org',
     'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin',
   };
 }
 
@@ -65,6 +68,9 @@ export default {
       // ── AI CHAT ──
       if (path === '/api/chat' && request.method === 'POST') {
         return handleChat(request, env, orgId);
+      }
+      if (path === '/api/ai/assist' && request.method === 'POST') {
+        return handleAiAssist(request, env, orgId);
       }
 
       // ── MEDIA ROUTES ──
@@ -402,18 +408,50 @@ async function handleMediaDelete(request, env, path) {
 }
 
 // ══════ AI CHAT (Anthropic Claude) ══════
+// Tukee sekä yksinkertaista chatia (legacy: { messages, systemContext } → { response })
+// että tool-use-orkestraatiota (uusi: { messages, system, tools, model } → Anthropicin raw response)
 
 async function handleChat(request, env, orgId) {
   const body = await request.json();
-  const { messages, systemContext } = body;
+  const { messages, systemContext, system, tools, model, max_tokens } = body;
 
   if (!messages || !Array.isArray(messages)) {
     return corsResponse(request, env, { error: 'messages required' }, 400);
   }
 
-  // Try Anthropic API first (if credits available), fallback to Workers AI
   const apiKey = env.ANTHROPIC_API_KEY;
 
+  // Jos tools määritelty → tool-use -mode: palauta Anthropicin koko response (selain orkestroi loopin)
+  if (apiKey && Array.isArray(tools) && tools.length > 0) {
+    try {
+      const payload = {
+        model: model || 'claude-sonnet-4-5',
+        max_tokens: max_tokens || 2048,
+        system: system || systemContext || 'Olet Claude, tiimin AI-avustaja.',
+        messages,
+        tools,
+      };
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return corsResponse(request, env, data);
+      }
+      const errText = await res.text();
+      return corsResponse(request, env, { error: 'Anthropic API error', details: errText }, res.status);
+    } catch (e) {
+      return corsResponse(request, env, { error: 'Anthropic call failed: ' + e.message }, 500);
+    }
+  }
+
+  // Legacy: yksinkertainen chat, ei työkaluja → palauta pelkkä text-response
   if (apiKey) {
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -424,9 +462,9 @@ async function handleChat(request, env, orgId) {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
-          system: systemContext || 'Olet viestinnän strateginen AI-kumppani. Vastaa suomeksi.',
+          model: model || 'claude-sonnet-4-5',
+          max_tokens: max_tokens || 1024,
+          system: system || systemContext || 'Olet viestinnän strateginen AI-kumppani. Vastaa suomeksi.',
           messages: messages.slice(-20),
         }),
       });
@@ -440,8 +478,8 @@ async function handleChat(request, env, orgId) {
     } catch (e) { /* fall through */ }
   }
 
-  // Fallback: Cloudflare Workers AI (free)
-  if (env.AI) {
+  // Fallback: Cloudflare Workers AI (free) — vain legacy-polulle (ei tool-use-tukea)
+  if (env.AI && (!tools || tools.length === 0)) {
     try {
       const prompt = (systemContext ? systemContext + '\n\n' : '') +
         messages.slice(-10).map(m => `${m.role === 'user' ? 'Käyttäjä' : 'Avustaja'}: ${m.content}`).join('\n') +
@@ -459,4 +497,351 @@ async function handleChat(request, env, orgId) {
   }
 
   return corsResponse(request, env, { error: 'No AI provider configured' }, 500);
+}
+
+// ══════ AI ASSIST — tool-use loop suoritetaan kokonaisuudessaan workerin puolella ══════
+// Client lähettää:
+//   { message, history, context: { orgName, userName, availablePublicationChannels,
+//                                   activePublications, voiceExamples } }
+// Worker ajaa Anthropicin kanssa tool-use loopin, hakee mediat R2:sta suoraan,
+// ja palauttaa: { reply, actions: [{type, payload}], toolsUsed }
+// Client soveltaa actionit Firestoren puolella.
+
+const R2_PUBLIC_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
+
+const AI_ASSIST_TOOLS = [
+  {
+    name: 'list_recent_media',
+    description: 'Hae mediapankista kuvat/tiedostot. Käytä ENSIN kun käyttäjä pyytää kuvia, karusellia, logoa tai visuaalia. Tulos sisältää valmiit mediaId+mediaUrl -parit jotka voit syöttää suoraan create_publication- tai attach_media_to_publication -työkaluun.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        limit: { type: 'number', description: 'Max tulosten määrä (oletus 20, max 50).' },
+        folder: { type: 'string', description: 'Rajaa yhteen kansioon, esim. "brand", "joona-motto", "valokuvat".' },
+        search: { type: 'string', description: 'Vapaasanahaku nimestä/kansiosta, esim. "logo", "festivaali", "tabu".' },
+      },
+    },
+  },
+  {
+    name: 'create_publication',
+    description: 'Luo uusi julkaisu työjonoon tilassa "ready". Jos käyttäjä pyytää kuvia/karusellia, anna media-array jossa on yksi tai useampi {mediaId, mediaUrl}. Ensimmäinen kuva on kansi, loput karusellin slidet järjestyksessä. Hae kuvat ensin list_recent_media-työkalulla, älä kuvitele niitä.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Lyhyt otsikko 1–2 rivillä.' },
+        body: { type: 'string', description: 'Julkaisuteksti, valmis kopioitavaksi. Noudata esimerkkien ääntä ja tyyliä.' },
+        channels: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Julkaisukanavat (Instagram, Facebook, LinkedIn, TikTok, YouTube, Nettisivut, Uutiskirje).',
+        },
+        category: { type: 'string', enum: ['some', 'press', 'partner', 'internal'] },
+        brief: { type: 'string', description: 'Lyhyt selitys mitä pyydettiin.' },
+        priority: { type: 'string', enum: ['low', 'normal', 'high'] },
+        media: {
+          type: 'array',
+          description: 'Liitettävät mediat järjestyksessä. Ensimmäinen on kansi.',
+          items: {
+            type: 'object',
+            properties: {
+              mediaId: { type: 'string' },
+              mediaUrl: { type: 'string' },
+            },
+            required: ['mediaId', 'mediaUrl'],
+          },
+        },
+      },
+      required: ['title', 'body', 'channels'],
+    },
+  },
+  {
+    name: 'attach_media_to_publication',
+    description: 'Lisää yksi tai useampi kuva olemassa olevaan julkaisuun. Käytä kun käyttäjä haluaa täydentää jo luotua julkaisua (katso publicationId "AKTIIVISET JULKAISUT" -listasta tai aiemmasta create_publication-vastauksesta).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        publicationId: { type: 'string' },
+        media: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              mediaId: { type: 'string' },
+              mediaUrl: { type: 'string' },
+            },
+            required: ['mediaId', 'mediaUrl'],
+          },
+        },
+      },
+      required: ['publicationId', 'media'],
+    },
+  },
+];
+
+function buildAssistSystemPrompt(context) {
+  const orgName = context.orgName || 'Organisaatio';
+  const userName = context.userName || 'Tiimiläinen';
+  const channels = (context.availablePublicationChannels || ['Instagram', 'Facebook', 'LinkedIn']).join(', ');
+
+  const voice = (context.voiceExamples || [])
+    .map(p => {
+      const body = (p.body || '').trim();
+      const clipped = body.length > 420 ? body.slice(0, 420) + '…' : body;
+      const ch = p.channels && p.channels.length ? ` [${p.channels.join(', ')}]` : '';
+      return `— "${p.title || '(otsikoton)'}"${ch}\n${clipped}`;
+    })
+    .join('\n\n') || '(Ei vielä julkaistuja esimerkkejä — käytä LLFF:n brändisävyä: lämmin, rohkea, taiteellinen, ei kliseitä.)';
+
+  const active = (context.activePublications || [])
+    .map(p => `• ${p.id} — "${p.title || '(otsikoton)'}" [${p.status}]${p.channels && p.channels.length ? ` ${p.channels.join(', ')}` : ''}`)
+    .join('\n') || '(Ei aktiivisia julkaisuja)';
+
+  return `Olet Momentum, Hetki Momentum -alustan sisäänrakennettu AI-avustaja. Sinulla on SUORA PÄÄSY mediapankkiin ja julkaisujonoon työkalujen kautta. Ajat kaikki toiminnot itse — älä koskaan pyydä käyttäjää tekemään niitä puolestasi.
+
+TOIMINTATAPA (tärkeä):
+1. Kun pyydetään tekemään julkaisu kuvilla, karusellilla tai logolla: kutsu ENSIN list_recent_media. Käytä folder- tai search-parametria rajaamaan (esim. search="logo", folder="brand", search="festivaali"). Tulos sisältää mediaId+mediaUrl -parit.
+2. Valitse esille sopivat kuvat ja kutsu create_publication ANTAEN media-array. Yksi kutsu = valmis julkaisu kansineen ja slideineen.
+3. Älä koskaan vastaa "voit itse lisätä kuvat" tai "tarvitsen ID:n". Jos ID tarvitaan, katso "AKTIIVISET JULKAISUT" -listasta alta.
+4. Jos käyttäjä pyytää lisää kuvia olemassa olevaan julkaisuun, käytä attach_media_to_publication ja anna publicationId listasta.
+
+KONTEKSTI:
+- Organisaatio: ${orgName}
+- Käyttäjä: ${userName}
+- Saatavilla olevat julkaisukanavat: ${channels}
+- Kategoriat: some, press, partner, internal
+
+AKTIIVISET JULKAISUT (käytä id:itä attach_media_to_publication-kutsuissa):
+${active}
+
+ÄÄNI JA TYYLI — MATKI NÄITÄ VIIME KAUDEN JULKAISUJA:
+Opiskele näiden sävyä, rytmiä, lauseiden rakennetta, sanastoa, aloituksia/lopetuksia ja hashtagien käyttöä. Kun luot uutta, kirjoita samalla äänellä — älä keksi omaa tyyliä.
+
+${voice}
+
+VASTAUSTEN TYYLI (chat):
+- Vastaa LYHYESTI suomeksi. Tee mitä pyydetään ilman selittelyä.
+- Kun julkaisu on luotu, vahvista yhdellä lauseella mitä teit ja montako kuvaa liitit.
+- Jos pyyntö on epäselvä, kysy YKSI tarkentava kysymys.
+- Jos et voi suorittaa pyyntöä (esim. julkaista suoraan ulkoiseen kanavaan), sano se suoraan.
+
+TÄRKEÄÄ:
+- Et voi julkaista ulkoisiin kanaviin — vain luoda drafteja työjonoon.
+- Ei emojeita julkaisuteksteissä ellei viime kauden esimerkeissä niitä käytetty tai käyttäjä erikseen pyydä.
+- LLFF festivaali 20.–26.8.2026 Lapinlahden alueella, taiteellinen johto Anton Baer + Sveta.`;
+}
+
+async function executeAssistTool(name, input, ctx) {
+  const { env, orgId, context, pendingActions } = ctx;
+
+  if (name === 'list_recent_media') {
+    if (!env.MEDIA_BUCKET) return { error: 'R2 ei ole konfiguroitu' };
+    const folder = input.folder ? String(input.folder).replace(/^\/+|\/+$/g, '') : '';
+    const prefix = folder ? `${orgId}/${folder}/` : `${orgId}/`;
+    const limit = Math.min(Number(input.limit) || 20, 50);
+    try {
+      const listed = await env.MEDIA_BUCKET.list({ prefix, limit: limit * 4 });
+      let files = (listed.objects || []).map(obj => {
+        const parts = obj.key.split('/');
+        const name = (parts[parts.length - 1] || '').replace(/^\d+_/, '');
+        return {
+          mediaId: 'r2_' + obj.key,
+          mediaUrl: `${R2_PUBLIC_CDN}/${obj.key}`,
+          name,
+          folder: parts[1] || 'uploaded',
+          ext: (name.split('.').pop() || '').toLowerCase(),
+        };
+      });
+      if (input.search) {
+        const q = String(input.search).toLowerCase();
+        files = files.filter(f => f.name.toLowerCase().includes(q) || f.folder.toLowerCase().includes(q));
+      }
+      const imageExts = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'avif', 'svg']);
+      files = files.filter(f => imageExts.has(f.ext)).slice(0, limit);
+      return { count: files.length, files };
+    } catch (e) {
+      return { error: `Mediahaku epäonnistui: ${e.message}` };
+    }
+  }
+
+  if (name === 'create_publication') {
+    const incoming = Array.isArray(input.media)
+      ? input.media.filter(m => m && m.mediaId && m.mediaUrl)
+      : [];
+    const id = 'pub_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    const payload = {
+      id,
+      title: input.title || 'Uusi julkaisu',
+      body: input.body || '',
+      channels: Array.isArray(input.channels) ? input.channels : [],
+      category: input.category || 'some',
+      priority: input.priority || 'normal',
+      brief: input.brief || '',
+      mediaIds: incoming.map(m => m.mediaId),
+      image: incoming[0]?.mediaUrl || null,
+    };
+    pendingActions.push({ type: 'create_publication', payload });
+    return {
+      success: true,
+      publicationId: id,
+      attachedMedia: incoming.length,
+      message: `Julkaisu "${payload.title}" valmistelu onnistui${incoming.length > 0 ? ` (${incoming.length} kuva${incoming.length === 1 ? '' : 'a'} liitetty karusellijärjestyksessä)` : ''}.`,
+    };
+  }
+
+  if (name === 'attach_media_to_publication') {
+    const pid = input.publicationId;
+    const incoming = Array.isArray(input.media)
+      ? input.media.filter(m => m && m.mediaId && m.mediaUrl)
+      : [];
+    if (incoming.length === 0) {
+      return { error: 'Media-array on tyhjä.' };
+    }
+
+    // 1. Tarkista onko kyseessä juuri luotu pending-julkaisu
+    const pending = pendingActions.find(a => a.type === 'create_publication' && a.payload.id === pid);
+    if (pending) {
+      const existingIds = pending.payload.mediaIds || [];
+      const newIds = incoming.map(m => m.mediaId).filter(id => !existingIds.includes(id));
+      pending.payload.mediaIds = [...existingIds, ...newIds];
+      if (!pending.payload.image && incoming[0]) pending.payload.image = incoming[0].mediaUrl;
+      return { success: true, attachedCount: newIds.length, totalMedia: pending.payload.mediaIds.length };
+    }
+
+    // 2. Olemassa oleva julkaisu kontekstissa → tee update_publication action
+    const existing = (context.activePublications || []).find(p => p.id === pid);
+    if (!existing) {
+      const available = (context.activePublications || []).slice(0, 8).map(p => p.id).join(', ');
+      return { error: `Julkaisua "${pid}" ei löytynyt. Saatavilla: ${available || '(ei yhtään)'}` };
+    }
+    let upd = pendingActions.find(a => a.type === 'update_publication' && a.payload.id === pid);
+    if (!upd) {
+      upd = {
+        type: 'update_publication',
+        payload: {
+          id: pid,
+          mediaIds: Array.isArray(existing.mediaIds) ? [...existing.mediaIds] : [],
+          image: existing.image || null,
+        },
+      };
+      pendingActions.push(upd);
+    }
+    const existingIds = upd.payload.mediaIds || [];
+    const newIds = incoming.map(m => m.mediaId).filter(id => !existingIds.includes(id));
+    upd.payload.mediaIds = [...existingIds, ...newIds];
+    if (!upd.payload.image && incoming[0]) upd.payload.image = incoming[0].mediaUrl;
+    return { success: true, attachedCount: newIds.length, totalMedia: upd.payload.mediaIds.length };
+  }
+
+  return { error: `Tuntematon työkalu: ${name}` };
+}
+
+async function handleAiAssist(request, env, orgId) {
+  if (!env.ANTHROPIC_API_KEY) {
+    return corsResponse(request, env, { error: 'ANTHROPIC_API_KEY puuttuu' }, 500);
+  }
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return corsResponse(request, env, { error: 'Virheellinen JSON' }, 400);
+  }
+  const { message, history = [], context = {} } = body || {};
+  if (!message || typeof message !== 'string') {
+    return corsResponse(request, env, { error: 'message (string) vaaditaan' }, 400);
+  }
+
+  const systemPrompt = buildAssistSystemPrompt(context);
+  const messages = [
+    ...(Array.isArray(history) ? history : []),
+    { role: 'user', content: message },
+  ];
+
+  const pendingActions = [];
+  const toolsUsed = [];
+  let finalReply = '';
+  let lastError = null;
+
+  const MAX_ITERATIONS = 6;
+  for (let i = 0; i < MAX_ITERATIONS; i++) {
+    let data;
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5',
+          max_tokens: 2048,
+          system: systemPrompt,
+          messages,
+          tools: AI_ASSIST_TOOLS,
+        }),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        lastError = `Anthropic ${res.status}: ${errText.slice(0, 300)}`;
+        break;
+      }
+      data = await res.json();
+    } catch (e) {
+      lastError = `Anthropic-kutsu epäonnistui: ${e.message}`;
+      break;
+    }
+
+    const contentBlocks = Array.isArray(data.content) ? data.content : [];
+    const textJoined = contentBlocks
+      .filter(b => b.type === 'text')
+      .map(b => b.text)
+      .join('\n')
+      .trim();
+    if (textJoined) finalReply = textJoined;
+
+    if (data.stop_reason === 'tool_use') {
+      const toolUses = contentBlocks.filter(b => b.type === 'tool_use');
+      if (toolUses.length === 0) break;
+
+      messages.push({ role: 'assistant', content: contentBlocks });
+
+      const toolResults = [];
+      for (const tu of toolUses) {
+        toolsUsed.push(tu.name);
+        let result;
+        try {
+          result = await executeAssistTool(tu.name, tu.input || {}, { env, orgId, context, pendingActions });
+        } catch (e) {
+          result = { error: e.message };
+        }
+        const isError = !!(result && result.error);
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: tu.id,
+          content: JSON.stringify(result || {}),
+          ...(isError ? { is_error: true } : {}),
+        });
+      }
+      messages.push({ role: 'user', content: toolResults });
+      continue;
+    }
+
+    // end_turn tai muu → lopeta loop
+    break;
+  }
+
+  if (!finalReply && lastError) {
+    return corsResponse(request, env, {
+      reply: '',
+      actions: pendingActions,
+      toolsUsed,
+      error: lastError,
+    });
+  }
+
+  return corsResponse(request, env, {
+    reply: finalReply || 'Ei vastausta.',
+    actions: pendingActions,
+    toolsUsed,
+  });
 }

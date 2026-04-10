@@ -16,14 +16,28 @@ export function useOrgData<T>(key: string, defaultValue: T): [T, (val: T | ((pre
   const [loading, setLoading] = useState(true);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const isLocalUpdate = useRef(false);
+  // Pidetään default-arvoa refissä jotta useEffect voi käyttää sitä muuttamatta dep-listaa
+  const defaultValueRef = useRef(defaultValue);
+  defaultValueRef.current = defaultValue;
 
-  // Subscribe to real-time updates
+  // Subscribe to real-time updates. Kun key tai org muuttuu,
+  // nollataan tila default-arvoon jotta edellisen avaimen data ei vuoda uuteen.
   useEffect(() => {
+    // Peruuta mahdollinen kesken oleva debounced kirjoitus — se kuului edelliseen avaimeen
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    // Nollaa tila default-arvoon kun key vaihtuu (tai kirjautuminen muuttuu)
+    setValueState(defaultValueRef.current);
+    isLocalUpdate.current = false;
+
     if (!activeOrg || !user) {
       setLoading(false);
       return;
     }
 
+    setLoading(true);
     const docRef = doc(db, 'organizations', activeOrg, 'data', key);
 
     const unsub = onSnapshot(docRef, (snap) => {
@@ -38,6 +52,11 @@ export function useOrgData<T>(key: string, defaultValue: T): [T, (val: T | ((pre
           isLocalUpdate.current = false;
         } catch (e) {
           console.warn(`Failed to parse ${key}:`, e);
+        }
+      } else {
+        // Dokumenttia ei ole vielä olemassa — varmistetaan että tila on default
+        if (!isLocalUpdate.current) {
+          setValueState(defaultValueRef.current);
         }
       }
       setLoading(false);

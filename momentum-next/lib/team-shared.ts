@@ -16,7 +16,8 @@ export interface OrgTeamMember {
   role: string;
   teamId: string; // refers to OrgTeam.id
   type: 'permanent' | 'project' | 'external';
-  email?: string;
+  email?: string;                    // primary contact email
+  linkedUserEmails?: string[];       // kaikki Firebase-tilit jotka on linkitetty t\u00e4h\u00e4n j\u00e4seneen
   phone?: string;
   avatar?: string;
   responsibilities?: string[];
@@ -64,7 +65,7 @@ export const DEFAULT_LLFF_TEAMS: OrgTeam[] = [
 export const DEFAULT_LLFF_TEAM_MEMBERS: OrgTeamMember[] = [
   // === Executive Team ===
   { id: 'sveta',  name: 'Svetlana Romanova', role: 'Vastaava tuottaja',  teamId: 'executive', type: 'permanent', avatar: 'S' },
-  { id: 'anton',  name: 'Anton Baer',        role: 'Taiteellinen johtaja', teamId: 'executive', type: 'permanent', avatar: 'A' },
+  { id: 'anton',  name: 'Anton Baer',        role: 'Taiteellinen johtaja', teamId: 'executive', type: 'permanent', avatar: 'A', email: 'anton@hetkicompany.com', linkedUserEmails: ['anton@hetkicompany.com', 'anton.baer@gmail.com'] },
   { id: 'anna',   name: 'Anna Lehtonen',     role: 'Tuottaja',            teamId: 'executive', type: 'permanent', avatar: 'A' },
 
   // === Elokuva Tiimi ===
@@ -91,3 +92,43 @@ export const getTeamMembers = (members: OrgTeamMember[], teamId: string): OrgTea
 
 // Fallback color for members without team
 export const DEFAULT_TEAM_COLOR = '#888888';
+
+/**
+ * Resolve a Firebase user → OrgTeamMember.
+ * Tarkistaa s\u00e4hk\u00f6postit (linkedUserEmails + email) ja nimen,
+ * sis\u00e4lt\u00e4en varminta l\u00f6ysint\u00e4 matchia: etunimi.
+ */
+export const resolveUserMember = (
+  members: OrgTeamMember[],
+  user: { email?: string | null; displayName?: string | null } | null
+): OrgTeamMember | undefined => {
+  if (!user) return undefined;
+  const email = user.email?.toLowerCase().trim() || '';
+  const name = user.displayName?.trim() || '';
+
+  // 1. Exact email match (linkedUserEmails OR primary email)
+  if (email) {
+    const byEmail = members.find(m =>
+      (m.linkedUserEmails || []).some(e => e.toLowerCase().trim() === email) ||
+      (m.email && m.email.toLowerCase().trim() === email)
+    );
+    if (byEmail) return byEmail;
+  }
+
+  // 2. Exact name match
+  if (name) {
+    const byName = members.find(m => m.name === name);
+    if (byName) return byName;
+  }
+
+  // 3. Fuzzy first-name match (last resort for users who changed display name)
+  if (name) {
+    const firstName = name.split(' ')[0].toLowerCase();
+    const byFirstName = members.find(m =>
+      m.name.toLowerCase().split(' ')[0] === firstName
+    );
+    if (byFirstName) return byFirstName;
+  }
+
+  return undefined;
+};

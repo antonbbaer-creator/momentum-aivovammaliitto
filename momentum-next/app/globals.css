@@ -38,6 +38,7 @@
     @keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
     @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+    @keyframes editorSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 
     /* ─── TOAST ─── */
     .toast-wrap{position:fixed;top:1.5rem;right:1.5rem;z-index:1000;display:flex;flex-direction:column;gap:.5rem}

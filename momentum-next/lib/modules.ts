@@ -14,6 +14,7 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   dashboard:  { id: 'dashboard',  label: 'Koti',       icon: '◉', path: '/dashboard',  alwaysOn: true },
   strategy:   { id: 'strategy',   label: 'Strategia',  icon: '◈', path: '/strategy',   alwaysOn: false },
   team:       { id: 'team',       label: 'Tiimi',      icon: '≡', path: '/team',       alwaysOn: false },
+  viestit:    { id: 'viestit',    label: 'Viestit',    icon: '◎', path: '/viestit',    alwaysOn: false },
   aikataulut: { id: 'aikataulut', label: 'Aikataulut', icon: '◌', path: '/aikataulut', alwaysOn: false },
   viestinta:  { id: 'viestinta',  label: 'Viestintä',  icon: '▶', path: '/viestinta',  alwaysOn: false },
   ohjelmisto: { id: 'ohjelmisto', label: 'Ohjelmisto', icon: '▷', path: '/ohjelmisto', alwaysOn: false },
@@ -21,13 +22,14 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'aikataulut', 'viestinta', 'ohjelmisto', 'budget'];
+export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'viestit', 'aikataulut', 'viestinta', 'ohjelmisto', 'budget'];
 
 // Default modules for new orgs
 export const DEFAULT_MODULES: Record<string, boolean> = {
   dashboard: true,
   strategy: true,
   team: true,
+  viestit: true,   // Sisäinen chat — tiimikanavat + DMit
   aikataulut: true,
   viestinta: true,
   ohjelmisto: true,

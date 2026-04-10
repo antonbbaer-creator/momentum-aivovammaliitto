@@ -63,6 +63,7 @@ export default function TeamSection() {
   const [mName, setMName] = useState('');
   const [mRole, setMRole] = useState('');
   const [mEmail, setMEmail] = useState('');
+  const [mLinkedEmails, setMLinkedEmails] = useState('');  // pilkuilla erotettu
   const [mPhone, setMPhone] = useState('');
   const [mType, setMType] = useState<'permanent' | 'project' | 'external'>('permanent');
   const [mTeamId, setMTeamId] = useState('');
@@ -70,6 +71,7 @@ export default function TeamSection() {
 
   const openNewMember = (teamId?: string) => {
     setEditMemberId(null); setMName(''); setMRole(''); setMEmail(''); setMPhone('');
+    setMLinkedEmails('');
     setMType('permanent'); setMTeamId(teamId || selectedTeamId || orgTeams[0]?.id || '');
     setMNote(''); setShowMemberForm(true);
   };
@@ -77,16 +79,20 @@ export default function TeamSection() {
   const openEditMember = (m: OrgTeamMember) => {
     setEditMemberId(m.id); setMName(m.name); setMRole(m.role); setMEmail(m.email || '');
     setMPhone(m.phone || ''); setMType(m.type); setMTeamId(m.teamId); setMNote(m.note || '');
+    setMLinkedEmails((m.linkedUserEmails || []).join(', '));
     setShowMemberForm(true);
   };
 
   const saveMember = () => {
     if (!mName.trim() || !mRole.trim() || !mTeamId) return;
+    const parsedLinkedEmails = mLinkedEmails
+      .split(/[,\n]/).map(e => e.trim()).filter(e => e.length > 0);
     const member: OrgTeamMember = {
       id: editMemberId || 'm_' + Date.now(),
       name: mName.trim(), role: mRole.trim(),
       teamId: mTeamId, type: mType,
       email: mEmail.trim() || undefined,
+      linkedUserEmails: parsedLinkedEmails.length > 0 ? parsedLinkedEmails : undefined,
       phone: mPhone.trim() || undefined,
       avatar: mName.trim()[0].toUpperCase(),
       note: mNote.trim() || undefined,
@@ -186,6 +192,16 @@ export default function TeamSection() {
                     {(m.email || m.phone) && (
                       <div style={{ fontSize: '.7rem', color: 'var(--t3)' }}>
                         {m.email}{m.email && m.phone && ' · '}{m.phone}
+                      </div>
+                    )}
+                    {m.linkedUserEmails && m.linkedUserEmails.length > 0 && (
+                      <div style={{
+                        fontSize: '.58rem', color: 'var(--pri-l)', fontWeight: 600,
+                        background: 'rgba(5,107,159,.08)', padding: '.25rem .5rem',
+                        borderRadius: 9999, alignSelf: 'flex-start',
+                        display: 'inline-flex', alignItems: 'center', gap: '.3rem',
+                      }}>
+                        ● Linkitetty: {m.linkedUserEmails.length} {m.linkedUserEmails.length === 1 ? 'tili' : 'tiliä'}
                       </div>
                     )}
                     {m.note && (
@@ -449,8 +465,20 @@ export default function TeamSection() {
             </select>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
-            <div className="field"><label>Sähköposti</label><input className="input" value={mEmail} onChange={e => setMEmail(e.target.value)} /></div>
+            <div className="field"><label>Sähköposti (yhteystieto)</label><input className="input" value={mEmail} onChange={e => setMEmail(e.target.value)} /></div>
             <div className="field"><label>Puhelin</label><input className="input" value={mPhone} onChange={e => setMPhone(e.target.value)} /></div>
+          </div>
+          <div className="field">
+            <label>Linkitetyt käyttäjätilit (Firebase)</label>
+            <input
+              className="input"
+              value={mLinkedEmails}
+              onChange={e => setMLinkedEmails(e.target.value)}
+              placeholder="Esim. anton@hetkicompany.com, anton.baer@gmail.com"
+            />
+            <div style={{ fontSize: '.62rem', color: 'var(--t3)', marginTop: '.25rem' }}>
+              Erota pilkuilla. Näillä sähköposteilla kirjautuvat käyttäjät näkevät dashboardillaan tehtävät ja apurahat jotka on merkitty tälle jäsenelle.
+            </div>
           </div>
           <div className="field"><label>Muistiinpano</label><textarea className="input textarea" value={mNote} onChange={e => setMNote(e.target.value)} /></div>
           <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>

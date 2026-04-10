@@ -16,6 +16,7 @@ import {
 import {
   OrgTeamMember,
   DEFAULT_LLFF_TEAM_MEMBERS,
+  resolveUserMember,
 } from '@/lib/team-shared';
 
 const WORKER_URL = 'https://momentum-worker.anton-4f9.workers.dev';
@@ -34,16 +35,23 @@ export default function DashboardPage() {
   const grants = rawGrants.map(normalizeGrant);
 
   // Match currently-logged-in user to their OrgTeamMember record
-  // Prio: email → displayName → first name
-  const myMember = orgMembers.find(m => {
-    if (user?.email && m.email && m.email.toLowerCase() === user.email.toLowerCase()) return true;
-    if (user?.displayName && m.name === user.displayName) return true;
-    return false;
-  });
+  // Käyttää jaettua resolveUserMember-helperia joka tarkistaa:
+  //   1. linkedUserEmails-array (tukee useita Firebase-tilejä per jäsen)
+  //   2. email-kenttä
+  //   3. displayName tarkka
+  //   4. etunimi (fuzzy fallback)
+  const myMember = resolveUserMember(orgMembers, user);
 
-  // Grants assigned to me (exclude rejected)
+  // Grants assigned to me (exclude rejected AND past deadlines)
   const myGrants = myMember ? grants
-    .filter(g => g.responsibleId === myMember.id && g.status !== 'rejected')
+    .filter(g => {
+      if (g.responsibleId !== myMember.id) return false;
+      if (g.status === 'rejected') return false;
+      // Suodata menneet pois — jos deadline on annettu ja se on menneisyydessä, hyppää yli
+      const days = daysUntilDeadline(g);
+      if (days !== null && days < 0) return false;
+      return true;
+    })
     .sort((a, b) => {
       const da = daysUntilDeadline(a) ?? 999999;
       const db = daysUntilDeadline(b) ?? 999999;
@@ -56,10 +64,67 @@ export default function DashboardPage() {
 
   const firstName = user?.displayName?.split(' ')[0] || 'käyttäjä';
 
-  // My open tasks across all projects
+  // My open project tasks — match by displayName OR first name (if nickname)
   const myTasks = projects.flatMap((p: any) =>
     (p.tasks || []).map((t: any, ti: number) => ({ ...t, projectName: p.t, projectId: p.id, taskIndex: ti }))
-  ).filter((t: any) => t.assignee === user?.displayName && !t.done);
+  ).filter((t: any) => {
+    if (t.done) return false;
+    if (!t.assignee) return false;
+    if (t.assignee === user?.displayName) return true;
+    // Jos teht\u00e4v\u00e4 on merkitty tiimil\u00e4isen nimell\u00e4 ja tiimil\u00e4inen on match
+    if (myMember && t.assignee === myMember.name) return true;
+    return false;
+  });
+
+  // Yhdistetty tehtävälista — sisältää sekä projektitehtävät että apurahat
+  // yhdessä, lajiteltuna kiireellisyyden mukaan
+  interface UnifiedItem {
+    id: string;
+    kind: 'task' | 'grant';
+    title: string;
+    subtitle: string;
+    deadline?: string;
+    deadlineText?: string;
+    days: number | null;
+    color: string;
+    onClick: () => void;
+    // Task-only fields
+    taskRef?: { projectId: number; taskIndex: number };
+  }
+
+  const unifiedList: UnifiedItem[] = [
+    ...myTasks.map((t: any): UnifiedItem => ({
+      id: `task_${t.projectId}_${t.taskIndex}`,
+      kind: 'task',
+      title: t.text,
+      subtitle: t.projectName,
+      deadline: t.deadline,
+      deadlineText: t.deadline,
+      days: t.deadline ? Math.ceil((new Date(t.deadline).getTime() - Date.now()) / 86400000) : null,
+      color: 'var(--pri)',
+      onClick: () => router.push(`/${orgSlug}/projects`),
+      taskRef: { projectId: t.projectId, taskIndex: t.taskIndex },
+    })),
+    ...myGrants.map((g): UnifiedItem => {
+      const sd = STATUS_DEFS[g.status];
+      return {
+        id: `grant_${g.id}`,
+        kind: 'grant',
+        title: `${g.funder}: ${g.grantName}`,
+        subtitle: `Apuraha · ${g.year} · ${sd.label}${g.amount > 0 ? ' · ' + (g.amount >= 1000 ? `${(g.amount / 1000).toFixed(g.amount % 1000 === 0 ? 0 : 1)}k €` : `${g.amount} €`) : ''}`,
+        deadline: g.deadline,
+        deadlineText: g.deadlineText,
+        days: daysUntilDeadline(g),
+        color: sd.color,
+        onClick: () => router.push(`/${orgSlug}/budget`),
+      };
+    }),
+  ].sort((a, b) => {
+    // Sort by days (ascending), items without deadlines go to the end
+    const da = a.days ?? 999999;
+    const db = b.days ?? 999999;
+    return da - db;
+  });
 
   // My projects (where I have open tasks)
   const myProjectIds = [...new Set(myTasks.map(t => t.projectId))];
@@ -130,52 +195,87 @@ export default function DashboardPage() {
   return (
     <AppShell title={`Hei, ${firstName}!`} subtitle={org.name || ''}>
 
-      {/* My tasks */}
+      {/* Sinun tehtäväsi — yhdistetty lista: projektitehtävät + apurahat samassa */}
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', marginBottom: '1.5rem' }}>
         <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em' }}>Sinun tehtäväsi</h3>
             <p style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.15rem' }}>Mitä tänään työstetään?</p>
           </div>
-          <span style={{ fontSize: '.75rem', color: myTasks.length > 0 ? 'var(--pri-l)' : 'var(--t3)' }}>{myTasks.length} avointa{myGrants.length > 0 && ` · ${myGrants.length} apurahaa`}</span>
+          <span style={{ fontSize: '.75rem', color: unifiedList.length > 0 ? 'var(--pri-l)' : 'var(--t3)' }}>{unifiedList.length} {unifiedList.length === 1 ? 'kohde' : 'kohdetta'}</span>
         </div>
-        <div style={{ padding: '1.25rem 1.5rem' }}>
-          {myTasks.length === 0 ? (
+        <div style={{ padding: '.85rem 1rem', display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+          {unifiedList.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--t3)' }}>
-              <p style={{ fontSize: '.88rem', marginBottom: '.5rem' }}>Ei avoimia projektitehtäviä sinulle.</p>
+              <p style={{ fontSize: '.88rem', marginBottom: '.5rem' }}>Ei avoimia tehtäviä sinulle.</p>
               <p style={{ fontSize: '.75rem' }}>
-                Tehtäviä voi määritellä Projektit-sivulta.
-                {myGrants.length > 0 && ' Sinulla on kuitenkin vastuuapurahoja (katso alta).'}
+                Projektitehtäviä voi määritellä Projektit-sivulta, apurahoja Apurahat-sivulta.
               </p>
             </div>
           ) : (
-            myTasks.map((task: any, i: number) => {
-              const dlc = task.deadline ? deadlineColor(task.deadline) : null;
-              const key = `${task.projectId}_${task.taskIndex}`;
-              const isDone = completedTasks.has(key);
+            unifiedList.map((item) => {
+              const isDone = item.taskRef ? completedTasks.has(`${item.taskRef.projectId}_${item.taskRef.taskIndex}`) : false;
+              const days = item.days;
+              const urgent = days !== null && days >= 0 && days <= 14;
+              const warn = days !== null && days >= 0 && days <= 30;
+              const dlColor = urgent ? 'var(--red)' : warn ? 'var(--yellow)' : 'var(--green)';
+              const isGrant = item.kind === 'grant';
               return (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: '.75rem', padding: '.75rem',
+                <div key={item.id} style={{
+                  display: 'flex', alignItems: 'center', gap: '.75rem',
+                  padding: '.65rem .85rem',
                   background: isDone ? 'rgba(45,212,160,.06)' : 'var(--elev)',
                   border: `1px solid ${isDone ? 'rgba(45,212,160,.2)' : 'var(--border)'}`,
-                  borderRadius: 'var(--r)', marginBottom: '.5rem',
-                  opacity: isDone ? 0.5 : 1, transition: 'all .5s ease',
+                  borderLeft: `3px solid ${isDone ? 'var(--green)' : item.color}`,
+                  borderRadius: 'var(--r)',
+                  opacity: isDone ? 0.5 : 1,
+                  transition: 'all .3s ease',
                   textDecoration: isDone ? 'line-through' : 'none',
                 }}>
-                  <input type="checkbox" checked={isDone} onChange={() => !isDone && toggleTask(task.projectId, task.taskIndex)}
-                    style={{ width: 18, height: 18, cursor: isDone ? 'default' : 'pointer', flexShrink: 0, accentColor: 'var(--green)' }} />
-                  <div style={{ width: 4, height: 32, borderRadius: 2, background: isDone ? 'var(--green)' : (dlc?.color || 'var(--pri)'), flexShrink: 0 }} />
-                  <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => router.push(`/${orgSlug}/projects`)}>
-                    <div style={{ fontSize: '.85rem', fontWeight: 600 }}>{task.text}</div>
-                    <div style={{ fontSize: '.68rem', color: 'var(--t3)', marginTop: '.1rem' }}>{task.projectName}</div>
+                  {/* Checkbox ONLY for project tasks (grants käsitellään Apurahat-sivulla) */}
+                  {item.kind === 'task' && item.taskRef && (
+                    <input
+                      type="checkbox"
+                      checked={isDone}
+                      onChange={() => !isDone && toggleTask(item.taskRef!.projectId, item.taskRef!.taskIndex)}
+                      style={{ width: 18, height: 18, cursor: isDone ? 'default' : 'pointer', flexShrink: 0, accentColor: 'var(--green)' }}
+                    />
+                  )}
+                  {item.kind === 'grant' && (
+                    <div style={{
+                      width: 22, height: 22, borderRadius: '50%',
+                      background: item.color, color: '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '.58rem', fontWeight: 800, flexShrink: 0,
+                    }}>€</div>
+                  )}
+                  <div style={{ flex: 1, cursor: 'pointer', minWidth: 0 }} onClick={item.onClick}>
+                    <div style={{ fontSize: '.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.title}
+                    </div>
+                    <div style={{ fontSize: '.68rem', color: 'var(--t3)', marginTop: '.1rem' }}>
+                      {item.subtitle}
+                    </div>
                   </div>
+                  {/* Deadline display */}
                   {isDone ? (
-                    <button onClick={e => { e.stopPropagation(); undoTask(task.projectId, task.taskIndex); }}
-                      style={{ fontSize: '.65rem', fontWeight: 600, color: 'var(--pri-l)', background: 'rgba(5,107,159,.1)', border: '1px solid rgba(5,107,159,.2)', borderRadius: 'var(--r)', padding: '.25rem .6rem', cursor: 'pointer', flexShrink: 0 }}>
+                    <button
+                      onClick={e => { e.stopPropagation(); if (item.taskRef) undoTask(item.taskRef.projectId, item.taskRef.taskIndex); }}
+                      style={{ fontSize: '.65rem', fontWeight: 600, color: 'var(--pri-l)', background: 'rgba(5,107,159,.1)', border: '1px solid rgba(5,107,159,.2)', borderRadius: 'var(--r)', padding: '.25rem .6rem', cursor: 'pointer', flexShrink: 0 }}
+                    >
                       Palauta
                     </button>
                   ) : (
-                    dlc && <span style={{ fontSize: '.65rem', fontWeight: 600, color: dlc.color, flexShrink: 0 }}>{dlc.label}</span>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      {isGrant && item.deadlineText && (
+                        <div style={{ fontSize: '.65rem', fontWeight: 600, color: 'var(--t2)' }}>{item.deadlineText}</div>
+                      )}
+                      {days !== null && days >= 0 && (
+                        <div style={{ fontSize: '.6rem', fontWeight: 700, color: dlColor, marginTop: isGrant ? '.1rem' : 0 }}>
+                          {days === 0 ? 'TÄNÄÄN' : `${days} pv`}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               );
@@ -183,77 +283,6 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-
-      {/* Vastuuapurahat — apurahat joissa vastuuhenkilöksi on merkitty minut */}
-      {myMember && myGrants.length > 0 && (
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', marginBottom: '1.5rem' }}>
-          <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em' }}>Vastuuapurahat</h3>
-              <p style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.15rem' }}>Apurahat joissa vastuuhenkilönä olet sinä ({myMember.name})</p>
-            </div>
-            <span style={{ fontSize: '.75rem', color: 'var(--pri-l)', fontWeight: 600 }}>{myGrants.length} {myGrants.length === 1 ? 'apuraha' : 'apurahaa'}</span>
-          </div>
-          <div style={{ padding: '.85rem 1rem', display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
-            {myGrants.slice(0, 8).map(g => {
-              const sd = STATUS_DEFS[g.status];
-              const days = daysUntilDeadline(g);
-              const urgent = days !== null && days >= 0 && days <= 14;
-              const warn = days !== null && days >= 0 && days <= 30;
-              const past = days !== null && days < 0;
-              const dlColor = urgent ? 'var(--red)' : warn ? 'var(--yellow)' : 'var(--green)';
-              return (
-                <div key={g.id} onClick={() => router.push(`/${orgSlug}/budget`)} style={{
-                  display: 'flex', alignItems: 'center', gap: '.75rem',
-                  padding: '.65rem .85rem',
-                  background: 'var(--elev)',
-                  border: '1px solid var(--border)',
-                  borderLeft: `3px solid ${sd.color}`,
-                  borderRadius: 'var(--r)',
-                  cursor: 'pointer',
-                  opacity: past ? .55 : 1,
-                }}>
-                  <div style={{
-                    width: 28, height: 28, borderRadius: '50%',
-                    background: sd.color, color: '#fff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '.7rem', fontWeight: 800, flexShrink: 0,
-                  }}>{sd.icon}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '.85rem', fontWeight: 700, color: 'var(--t1)' }}>
-                      {g.funder}
-                    </div>
-                    <div style={{ fontSize: '.68rem', color: 'var(--t3)', marginTop: '.1rem' }}>
-                      {g.grantName} · {g.year} · {sd.label}
-                      {g.amount > 0 && <> · {g.amount >= 1000 ? `${(g.amount / 1000).toFixed(g.amount % 1000 === 0 ? 0 : 1)}k €` : `${g.amount} €`}</>}
-                    </div>
-                  </div>
-                  {g.deadlineText && (
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: '.7rem', fontWeight: 700, color: 'var(--t2)' }}>{g.deadlineText}</div>
-                      {days !== null && days >= 0 && (
-                        <div style={{ fontSize: '.6rem', fontWeight: 700, color: dlColor, marginTop: '.1rem' }}>
-                          {days === 0 ? 'TÄNÄÄN' : `${days} pv jäljellä`}
-                        </div>
-                      )}
-                      {days !== null && days < 0 && (
-                        <div style={{ fontSize: '.6rem', fontWeight: 700, color: 'var(--t3)', marginTop: '.1rem' }}>
-                          Mennyt
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            {myGrants.length > 8 && (
-              <div style={{ fontSize: '.7rem', color: 'var(--t3)', textAlign: 'center', padding: '.5rem' }}>
-                + {myGrants.length - 8} muuta — <button onClick={() => router.push(`/${orgSlug}/budget`)} style={{ background: 'transparent', border: 'none', color: 'var(--pri-l)', fontWeight: 700, cursor: 'pointer', fontSize: '.7rem' }}>Avaa Apurahat →</button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Ei merkittyä team-member-rekordia — vihje käyttäjälle */}
       {!myMember && myGrants.length === 0 && orgMembers.length > 0 && (

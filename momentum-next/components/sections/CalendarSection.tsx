@@ -23,6 +23,8 @@ interface CalEvent {
   ch: string;
   date: string;
   st: string;
+  pubId?: string; // set by editor publish flow → links back to Publication
+  kind?: string;  // 'publication' when created via editor
 }
 
 // Minimal Project shape for deadline rendering (avoid circular dep on ProjectsSection)
@@ -34,13 +36,30 @@ interface ProjectLite {
   teamId?: string;
 }
 
+// Minimal Publication shape (mirrors PublicationsSection)
+interface PubLite {
+  id: string;
+  title: string;
+  date: string | null;
+  status: string;
+  channels?: string[];
+  category?: string;
+}
+
 interface Props {
   // Optional shared state (from hub)
   phases?: YearPhase[];
   setPhases?: (v: YearPhase[] | ((prev: YearPhase[]) => YearPhase[])) => void;
   events?: CalEvent[];
   setEvents?: (v: CalEvent[] | ((prev: CalEvent[]) => CalEvent[])) => void;
+  // 'viestinta' = näytä vain viestintätiimin projektit + julkaisut. 'full' = kaikki (default).
+  mode?: 'full' | 'viestinta';
+  // Callback when a linked publication is clicked — used by Viestintä-hub to open the detail view.
+  onOpenPublication?: (publicationId: string) => void;
 }
+
+// Viestintätiimin ID — vastaa DEFAULT_LLFF_TEAMS:n id:tä
+const VIESTINTA_TEAM_ID = 'viestinta';
 
 const weekdays = ['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'];
 const statusColors: Record<string, string> = {
@@ -50,7 +69,7 @@ const statusColors: Record<string, string> = {
   peruttu: 'var(--red)',
 };
 
-export default function CalendarSection({ phases: propPhases, setPhases: propSetPhases, events: propEvents, setEvents: propSetEvents }: Props) {
+export default function CalendarSection({ phases: propPhases, setPhases: propSetPhases, events: propEvents, setEvents: propSetEvents, mode = 'full', onOpenPublication }: Props) {
   const { canEdit } = useAuth();
   const { toast } = useToast();
   const [ownEvents, ownSetEvents] = useOrgData<CalEvent[]>('events', []);
@@ -58,6 +77,8 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
   const [org] = useOrgData<any>('org', { channels: [] });
   const [projects] = useOrgData<ProjectLite[]>('projects', []);
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', DEFAULT_LLFF_TEAMS);
+  const [publications] = useOrgData<PubLite[]>('publications', []);
+  const isViestinta = mode === 'viestinta';
 
   const rawPhases = propPhases ?? ownRawPhases;
   const setPhases = propSetPhases ?? ownSetPhases;
@@ -87,12 +108,35 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
 
   const getEventsForDay = (day: number) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return events.filter(e => e.date === dateStr);
+    // Viestintä-tilassa: vain julkaisut (kind === 'publication'). Muuten kaikki.
+    return events.filter(e => {
+      if (e.date !== dateStr) return false;
+      if (isViestinta && e.kind !== 'publication') return false;
+      return true;
+    });
   };
 
   const getProjectDeadlinesForDay = (day: number) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return projects.filter(p => p.deadline === dateStr && !p.archived);
+    return projects.filter(p => {
+      if (p.deadline !== dateStr) return false;
+      if (p.archived) return false;
+      if (isViestinta && p.teamId !== VIESTINTA_TEAM_ID) return false;
+      return true;
+    });
+  };
+
+  // Viestintä-tilassa lisänäkymä: julkaisut jotka eivät tule events-listasta (esim. luotu PublicationsSectionista suoraan)
+  const getOrphanPublicationsForDay = (day: number) => {
+    if (!isViestinta) return [] as PubLite[];
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    // Kerää pub-id:t joille on jo event
+    const linkedIds = new Set((events || []).filter(e => e.kind === 'publication' && e.pubId).map(e => e.pubId));
+    return (publications || []).filter(p =>
+      p.date === dateStr &&
+      (p.status === 'ready' || p.status === 'draft') &&
+      !linkedIds.has(p.id)
+    );
   };
 
   const getTeamColor = (teamId?: string): string => {
@@ -106,6 +150,11 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
     setShowForm(true);
   };
   const openEdit = (ev: CalEvent) => {
+    // If this event is linked to a Publication and we have a handler, open the publication detail view instead
+    if (ev.kind === 'publication' && ev.pubId && onOpenPublication) {
+      onOpenPublication(ev.pubId);
+      return;
+    }
     setEditId(ev.id); setFormTitle(ev.t); setFormDate(ev.date); setFormCh(ev.ch); setFormSt(ev.st || 'suunniteltu');
     setShowForm(true);
   };
@@ -238,14 +287,26 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
             <button className={`cal-view-btn ${view === 'month' ? 'act' : ''}`} onClick={() => setView('month')}>Kuukausi</button>
             <button className={`cal-view-btn ${view === 'list' ? 'act' : ''}`} onClick={() => setView('list')}>Lista</button>
           </div>
-          {canEdit && <button className="btn btn-primary btn-sm" onClick={() => openNew()}>+ Tapahtuma</button>}
+          {canEdit && !isViestinta && <button className="btn btn-primary btn-sm" onClick={() => openNew()}>+ Tapahtuma</button>}
         </div>
       </div>
+      {isViestinta && (
+        <div style={{
+          marginBottom: '1rem', padding: '.6rem .85rem',
+          background: 'var(--elev)', border: '1px solid var(--border)',
+          borderRadius: 'var(--r)',
+          fontSize: '.72rem', color: 'var(--t2)',
+          display: 'flex', gap: '.5rem', alignItems: 'center',
+        }}>
+          <span style={{ color: 'var(--pri-l)', fontWeight: 700 }}>▶</span>
+          <span>Viestinnän kalenteri — vain viestintätiimin projektit ja julkaisut. Luo uusi julkaisu Editori-välilehdeltä.</span>
+        </div>
+      )}
 
       {view === 'month' && (
         <>
           {/* === PHASE BAR LANE === */}
-          {phasesThisMonth.length > 0 && (
+          {!isViestinta && phasesThisMonth.length > 0 && (
             <div style={{ marginBottom: '.75rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '.75rem' }}>
               <div style={{ fontSize: '.65rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--t3)', marginBottom: '.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>Vuosikellon vaiheet tässä kuussa</span>
@@ -396,8 +457,9 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
                 const day = i + 1;
                 const dayEvents = getEventsForDay(day);
                 const dayDeadlines = getProjectDeadlinesForDay(day);
+                const dayOrphanPubs = getOrphanPublicationsForDay(day);
                 const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
-                const totalItems = dayEvents.length + dayDeadlines.length;
+                const totalItems = dayEvents.length + dayDeadlines.length + dayOrphanPubs.length;
                 return (
                   <div key={day} onClick={() => canEdit && openNew(day)} style={{
                     minHeight: 90, padding: '.4rem',
@@ -424,13 +486,36 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
                     })}
                     {/* Calendar events */}
                     {dayEvents.slice(0, Math.max(0, 3 - dayDeadlines.length)).map(ev => (
-                      <div key={ev.id} onClick={e => { e.stopPropagation(); openEdit(ev); }} style={{
+                      <div key={ev.id} onClick={e => { e.stopPropagation(); openEdit(ev); }} title={ev.kind === 'publication' ? `Julkaisu: ${ev.t}` : ev.t} style={{
                         fontSize: '.62rem', padding: '.15rem .3rem', borderRadius: 3, marginBottom: '2px',
                         background: `${statusColors[ev.st] || 'var(--pri)'}20`,
                         color: statusColors[ev.st] || 'var(--pri)',
                         fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>{ev.t}</div>
+                        borderLeft: ev.kind === 'publication' ? `2px solid ${statusColors[ev.st] || 'var(--pri)'}` : undefined,
+                      }}>
+                        {ev.kind === 'publication' ? '▶ ' : ''}{ev.t}
+                      </div>
                     ))}
+                    {/* Orphan publications (no linked event) */}
+                    {dayOrphanPubs.slice(0, Math.max(0, 3 - dayDeadlines.length - dayEvents.length)).map(pub => {
+                      const color = pub.status === 'ready' ? statusColors.valmis : statusColors.suunniteltu;
+                      return (
+                        <div
+                          key={`pub-${pub.id}`}
+                          title={`Julkaisu: ${pub.title}`}
+                          onClick={e => { e.stopPropagation(); if (onOpenPublication) onOpenPublication(pub.id); }}
+                          style={{
+                            fontSize: '.62rem', padding: '.15rem .3rem', borderRadius: 3, marginBottom: '2px',
+                            background: `${color}20`,
+                            color,
+                            fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            borderLeft: `2px solid ${color}`,
+                            cursor: onOpenPublication ? 'pointer' : 'default',
+                          }}>
+                          ▶ {pub.title}
+                        </div>
+                      );
+                    })}
                     {totalItems > 3 && <div style={{ fontSize: '.58rem', color: 'var(--t3)' }}>+{totalItems - 3}</div>}
                   </div>
                 );
@@ -442,7 +527,9 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
 
       {view === 'list' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-          {[...events].sort((a, b) => a.date.localeCompare(b.date)).map(ev => (
+          {[...events]
+            .filter(e => !isViestinta || e.kind === 'publication')
+            .sort((a, b) => a.date.localeCompare(b.date)).map(ev => (
             <div key={ev.id} onClick={() => openEdit(ev)} style={{
               display: 'flex', alignItems: 'center', gap: '1rem', padding: '.85rem 1.25rem',
               background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r)', cursor: 'pointer',

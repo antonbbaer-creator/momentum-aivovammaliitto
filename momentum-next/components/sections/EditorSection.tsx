@@ -11,9 +11,11 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import { normalizePublication } from '@/lib/publications-shared';
 
 const WORKER_URL = 'https://momentum-worker.anton-4f9.workers.dev';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
@@ -73,38 +75,44 @@ interface ImageOverlay {
   name?: string;
   x: number;         // % from left (0-100)
   y: number;         // % from top (0-100)
-  widthPct: number;  // width as % of canvas width (1-100)
+  widthPct: number;  // width as % of canvas width (1-100+)
   opacity: number;   // 0-1
   rotation: number;  // degrees
   z: number;         // stacking order within overlays (higher = on top)
+}
+
+// Per-slide content — karusellissa on yksi Slide per pohja
+interface Slide {
+  id: string;
+  bgType: 'color' | 'image';
+  bgValue: string;
+  bgOpacity: number;         // overlay darkening for legibility (0-1)
+  overlays: ImageOverlay[];  // foreground images from media bank / upload
+  caption: string;
+  captionColor: string;
+  captionSizePct: number;
+  captionY: number;
+  title: string;
+  titleColor: string;
+  titleSizePct: number;
+  titleY: number;
+  titleAlign: 'left' | 'center' | 'right';
+  titleWeight: number;
+  subtitle: string;
+  subtitleColor: string;
+  subtitleSizePct: number;
+  subtitleY: number;
+  subtitleWeight: number;
+  logoId: string;
+  logoPos: LogoPosition;
+  logoSizePct: number;
 }
 
 interface Design {
   id: string;
   name: string;
   templateId: string;
-  bgType: 'color' | 'image';
-  bgValue: string;
-  bgOpacity: number;         // overlay darkening for legibility (0-1)
-  overlays: ImageOverlay[];  // UUSI: foreground images from media bank / upload
-  caption: string;           // small label above title (e.g. "Muutos esityspaikkaan!", "Tickets")
-  captionColor: string;
-  captionSizePct: number;
-  captionY: number;
-  title: string;
-  titleColor: string;
-  titleSizePct: number;      // % of canvas width (e.g. 6 = 6%)
-  titleY: number;            // % of canvas height (vertical anchor)
-  titleAlign: 'left' | 'center' | 'right';
-  titleWeight: number;       // 400-800 DM Sans
-  subtitle: string;
-  subtitleColor: string;
-  subtitleSizePct: number;
-  subtitleY: number;
-  subtitleWeight: number;    // 400-600 DM Sans
-  logoId: string;            // 'none' | 'banner' | 'logo' | 'symbol'
-  logoPos: LogoPosition;
-  logoSizePct: number;       // % of canvas width
+  slides: Slide[];           // karusellissa useita; yhdessä vain 1
   createdAt: number;
   updatedAt: number;
   thumbnail?: string;
@@ -121,12 +129,12 @@ interface MediaFile {
 type PickerTarget = 'background' | 'overlay';
 
 // ========== DESIGN PRESETS (based on LLFF 2025 Instagram style) ==========
-// Jokainen preset on osittainen Design-konfiguraatio joka sovelletaan painalluksella
+// Jokainen preset on osittainen Slide-konfiguraatio joka sovelletaan painalluksella
 interface Preset {
   id: string;
   label: string;
   description: string;
-  apply: (base: Design) => Design;
+  apply: (base: Slide) => Slide;
 }
 
 const DESIGN_PRESETS: Preset[] = [
@@ -225,17 +233,15 @@ const DESIGN_PRESETS: Preset[] = [
       title: 'Nordic Frames',
       titleColor: '#FFFFFF', titleSizePct: 9, titleY: 42,
       titleAlign: 'center', titleWeight: 800,
-      subtitle: '8 elokuvaa \u2014 Pohjoismaiden uusia kykyjä',
+      subtitle: '8 elokuvaa — Pohjoismaiden uusia kykyjä',
       subtitleColor: '#FBD1E4', subtitleSizePct: 3, subtitleY: 60, subtitleWeight: 500,
       logoId: 'symbol', logoPos: 'bottom-center', logoSizePct: 16,
     }),
   },
 ];
 
-const blankDesign = (templateId: string = 'ig-square'): Design => ({
-  id: 'design_' + Date.now(),
-  name: 'Uusi suunnitelma',
-  templateId,
+const blankSlide = (): Slide => ({
+  id: 'slide_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
   bgType: 'color',
   bgValue: '#3A1E5E', // LLFF 2025 tumma violetti
   bgOpacity: 0,
@@ -258,29 +264,87 @@ const blankDesign = (templateId: string = 'ig-square'): Design => ({
   logoId: 'symbol',
   logoPos: 'bottom-center',
   logoSizePct: 18,
+});
+
+const blankDesign = (templateId: string = 'ig-square'): Design => ({
+  id: 'design_' + Date.now(),
+  name: 'Uusi suunnitelma',
+  templateId,
+  slides: [blankSlide()],
   createdAt: Date.now(),
   updatedAt: Date.now(),
 });
 
-// Normalize loaded design — ensures new fields exist on older saves
-const normalizeDesign = (d: Design): Design => ({
-  ...d,
-  overlays: d.overlays || [],
-  caption: d.caption ?? '',
-  captionColor: d.captionColor ?? '#FFFFFF',
-  captionSizePct: d.captionSizePct ?? 3.5,
-  captionY: d.captionY ?? 18,
-  titleWeight: d.titleWeight ?? 700,
-  subtitleWeight: d.subtitleWeight ?? 500,
+// Normalize slide — ensures new fields exist on older saves
+const normalizeSlide = (s: any): Slide => ({
+  id: s.id || 'slide_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+  bgType: s.bgType || 'color',
+  bgValue: s.bgValue || '#3A1E5E',
+  bgOpacity: s.bgOpacity ?? 0,
+  overlays: Array.isArray(s.overlays) ? s.overlays : [],
+  caption: s.caption ?? '',
+  captionColor: s.captionColor ?? '#FFFFFF',
+  captionSizePct: s.captionSizePct ?? 3.5,
+  captionY: s.captionY ?? 18,
+  title: s.title ?? '',
+  titleColor: s.titleColor ?? '#FFFFFF',
+  titleSizePct: s.titleSizePct ?? 7,
+  titleY: s.titleY ?? 45,
+  titleAlign: s.titleAlign ?? 'center',
+  titleWeight: s.titleWeight ?? 700,
+  subtitle: s.subtitle ?? '',
+  subtitleColor: s.subtitleColor ?? '#E8A5C5',
+  subtitleSizePct: s.subtitleSizePct ?? 3.5,
+  subtitleY: s.subtitleY ?? 62,
+  subtitleWeight: s.subtitleWeight ?? 500,
+  logoId: s.logoId ?? 'symbol',
+  logoPos: s.logoPos ?? 'bottom-center',
+  logoSizePct: s.logoSizePct ?? 18,
 });
+
+// Normalize loaded design — migrates old single-slide designs to slides-based shape
+const normalizeDesign = (d: any): Design => {
+  // If the design already has slides array, just normalize each slide
+  if (Array.isArray(d.slides) && d.slides.length > 0) {
+    return {
+      id: d.id,
+      name: d.name,
+      templateId: d.templateId,
+      slides: d.slides.map(normalizeSlide),
+      createdAt: d.createdAt,
+      updatedAt: d.updatedAt,
+      thumbnail: d.thumbnail,
+    };
+  }
+  // Old single-slide format — all visual fields on the design itself
+  return {
+    id: d.id,
+    name: d.name || 'Uusi suunnitelma',
+    templateId: d.templateId || 'ig-square',
+    slides: [normalizeSlide(d)],
+    createdAt: d.createdAt || Date.now(),
+    updatedAt: d.updatedAt || Date.now(),
+    thumbnail: d.thumbnail,
+  };
+};
 
 export default function EditorSection() {
   const { activeOrg, canEdit } = useAuth();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  // When linked from a Publication (?pubId=pub_123), the Editor operates in "attach" mode:
+  // Julkaise-painike päivittää olemassa olevaa Publication-tietuetta eikä luo uutta.
+  const linkedPubId = searchParams?.get('pubId') || null;
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasWrapperRef = useRef<HTMLDivElement>(null);
   const [designs, setDesigns] = useOrgData<Design[]>('llff_designs', []);
+  // Julkaisut + kalenteritapahtumat — Julkaise-painike lisää näihin
+  const [publications, setPublications] = useOrgData<any[]>('publications', []);
+  const [calEvents, setCalEvents] = useOrgData<any[]>('events', []);
+  const [org] = useOrgData<any>('org', { channels: [] });
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Design>(() => blankDesign());
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [mediaLoading, setMediaLoading] = useState(false);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
@@ -288,18 +352,162 @@ export default function EditorSection() {
   const [mediaFolderFilter, setMediaFolderFilter] = useState<string>('all');
   const [mediaSearch, setMediaSearch] = useState('');
   const [fontLoaded, setFontLoaded] = useState(false);
-  const [bgImg, setBgImg] = useState<HTMLImageElement | null>(null);
-  const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
-  // Overlay image cache: ref + version counter
-  // Using a ref avoids stale closures in the loading effect; the version
-  // counter is used solely to re-trigger draws when images finish loading.
+  // Image caches — ref-based so async loads don't stale-closure
+  const bgCache = useRef<Map<string, HTMLImageElement>>(new Map());
+  const logoCache = useRef<Map<string, HTMLImageElement>>(new Map());
   const overlayCache = useRef<Map<string, HTMLImageElement>>(new Map());
-  const [overlayCacheVersion, setOverlayCacheVersion] = useState(0);
+  const [imgCacheVersion, setImgCacheVersion] = useState(0);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
+  const [imageLoadingCount, setImageLoadingCount] = useState(0);
+  // Julkaise-modalin tila
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [publishTitle, setPublishTitle] = useState('');
+  const [publishBody, setPublishBody] = useState('');
+  const [publishChannels, setPublishChannels] = useState<string[]>([]);
+  const [publishDate, setPublishDate] = useState('');
+  const [publishCategory, setPublishCategory] = useState<string>('some');
+  const [publishStatus, setPublishStatus] = useState<'draft' | 'ready'>('ready');
+  const [publishing, setPublishing] = useState(false);
+  // Drag state for mouse-based overlay repositioning
+  const dragState = useRef<{
+    id: string;
+    startX: number; startY: number;
+    origX: number; origY: number;
+  } | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const overlayUploadRef = useRef<HTMLInputElement>(null);
+  // Tracks which linkedPubId we have already auto-loaded so user edits aren't overwritten
+  const loadedFromPubRef = useRef<string | null>(null);
+
+  // Auto-load linked publication into the editor (design + media), so the user sees the
+  // existing slides immediately and can edit them in place. Runs once per linkedPubId.
+  useEffect(() => {
+    if (!linkedPubId) return;
+    if (loadedFromPubRef.current === linkedPubId) return;
+    // Wait until both lists are populated (firestore hooks return [] until first snapshot)
+    if (!Array.isArray(publications)) return;
+    const pub = publications.find((p: any) => p && p.id === linkedPubId);
+    if (!pub) return; // not in this org's data — give up gracefully
+
+    // Path A: publication has a designId AND design exists → load design directly
+    if (pub.designId && Array.isArray(designs)) {
+      const existingDesign = designs.find((d: any) => d && d.id === pub.designId);
+      if (existingDesign) {
+        setDraft(normalizeDesign(existingDesign));
+        setCurrentId(existingDesign.id);
+        setCurrentSlideIndex(0);
+        setSelectedOverlayId(null);
+        loadedFromPubRef.current = linkedPubId;
+        return;
+      }
+    }
+
+    // Path B: derive a draft design from the publication's mediaIds (each becomes one slide).
+    // mediaId format: 'r2_<key>'  (e.g. r2_llff/brand/123_logo.png)
+    const mediaIds: string[] = Array.isArray(pub.mediaIds) ? pub.mediaIds : [];
+    const slideUrls: string[] = mediaIds
+      .map(id => (typeof id === 'string' && id.startsWith('r2_')) ? `${R2_CDN}/${id.slice(3)}` : '')
+      .filter(Boolean);
+
+    // Fall back to cover image if mediaIds are empty
+    if (slideUrls.length === 0 && pub.image) slideUrls.push(pub.image);
+
+    if (slideUrls.length === 0) {
+      // Nothing visual — at least mark as loaded so we don't keep retrying
+      loadedFromPubRef.current = linkedPubId;
+      return;
+    }
+
+    const baseSlide = blankSlide();
+    const slides: Slide[] = slideUrls.map((url, idx) => ({
+      ...baseSlide,
+      id: 'slide_' + Date.now() + '_' + idx + '_' + Math.random().toString(36).slice(2, 7),
+      bgType: 'image',
+      bgValue: url,
+      bgOpacity: 0,
+      // Only show title text on the first slide so the carousel remains clean
+      title: idx === 0 ? (pub.title || baseSlide.title) : '',
+      caption: '',
+      subtitle: '',
+      logoId: 'none',
+    }));
+
+    setDraft({
+      id: 'design_' + Date.now(),
+      name: pub.title || 'Julkaisu ' + linkedPubId,
+      templateId: 'ig-portrait',
+      slides,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    setCurrentId(null);
+    setCurrentSlideIndex(0);
+    setSelectedOverlayId(null);
+    loadedFromPubRef.current = linkedPubId;
+  }, [linkedPubId, publications, designs]);
 
   const template = TEMPLATES.find(t => t.id === draft.templateId) || TEMPLATES[0];
+
+  // Make sure currentSlideIndex is always valid
+  const safeSlideIndex = Math.max(0, Math.min(currentSlideIndex, draft.slides.length - 1));
+  const currentSlide: Slide = draft.slides[safeSlideIndex] || draft.slides[0];
+
+  // Helper: update just the current slide within the draft
+  const updateSlide = (patch: Partial<Slide>) => {
+    setDraft(prev => {
+      const nextSlides = prev.slides.map((s, i) =>
+        i === safeSlideIndex ? { ...s, ...patch } : s
+      );
+      return { ...prev, slides: nextSlides, updatedAt: Date.now() };
+    });
+  };
+
+  // Helper: mutate the current slide via a function (useful for array ops)
+  const mutateSlide = (mutator: (s: Slide) => Slide) => {
+    setDraft(prev => {
+      const nextSlides = prev.slides.map((s, i) =>
+        i === safeSlideIndex ? mutator(s) : s
+      );
+      return { ...prev, slides: nextSlides, updatedAt: Date.now() };
+    });
+  };
+
+  // Helper: add/remove/reorder slides
+  const addSlide = (options: { duplicate?: boolean } = {}) => {
+    setDraft(prev => {
+      const cur = prev.slides[safeSlideIndex];
+      const newSlide: Slide = options.duplicate && cur
+        ? { ...cur, id: 'slide_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+            overlays: cur.overlays.map(o => ({ ...o, id: 'ov_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7) })) }
+        : blankSlide();
+      return { ...prev, slides: [...prev.slides, newSlide], updatedAt: Date.now() };
+    });
+    // Switch to the new slide
+    setTimeout(() => setCurrentSlideIndex(draft.slides.length), 0);
+  };
+
+  const removeSlide = (index: number) => {
+    if (draft.slides.length <= 1) { toast('Karusellissa on oltava vähintään yksi slaide', 'error'); return; }
+    setDraft(prev => ({
+      ...prev,
+      slides: prev.slides.filter((_, i) => i !== index),
+      updatedAt: Date.now(),
+    }));
+    if (safeSlideIndex >= draft.slides.length - 1) {
+      setCurrentSlideIndex(Math.max(0, draft.slides.length - 2));
+    }
+  };
+
+  const moveSlide = (from: number, to: number) => {
+    if (from === to || to < 0 || to >= draft.slides.length) return;
+    setDraft(prev => {
+      const arr = [...prev.slides];
+      const [item] = arr.splice(from, 1);
+      arr.splice(to, 0, item);
+      return { ...prev, slides: arr, updatedAt: Date.now() };
+    });
+    setCurrentSlideIndex(to);
+  };
 
   // Load DM Sans font family (all weights)
   useEffect(() => {
@@ -316,67 +524,48 @@ export default function EditorSection() {
     })).finally(() => setFontLoaded(true));
   }, []);
 
-  // Load background image when bgValue changes (if image type)
-  useEffect(() => {
-    if (draft.bgType !== 'image' || !draft.bgValue) { setBgImg(null); return; }
+  // Helper: load any image into a cache with CORS fallback
+  const loadImageIntoCache = (src: string, cache: Map<string, HTMLImageElement>) => {
+    if (!src || cache.has(src)) return;
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => setBgImg(img);
-    img.onerror = () => setBgImg(null);
-    img.src = draft.bgValue;
-  }, [draft.bgType, draft.bgValue]);
-
-  // Load logo image when logoId changes
-  useEffect(() => {
-    const logo = LOGO_OPTIONS.find(l => l.id === draft.logoId);
-    if (!logo || !logo.src) { setLogoImg(null); return; }
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => setLogoImg(img);
-    img.onerror = () => setLogoImg(null);
-    img.src = logo.src;
-  }, [draft.logoId]);
-
-  // Load overlay images when overlays change — ref-based cache to avoid stale closures
-  useEffect(() => {
-    const cache = overlayCache.current;
-    const needed = new Set(draft.overlays.map(o => o.src));
-    let changed = false;
-    // Prune no-longer-used
-    for (const src of Array.from(cache.keys())) {
-      if (!needed.has(src)) { cache.delete(src); changed = true; }
-    }
-    // Find overlays whose image isn't loaded yet
-    const toLoad = draft.overlays.filter(o => !cache.has(o.src));
-    if (changed && toLoad.length === 0) {
-      setOverlayCacheVersion(v => v + 1);
-    }
-    if (toLoad.length === 0) return;
-
-    toLoad.forEach(o => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        cache.set(o.src, img);
-        setOverlayCacheVersion(v => v + 1);
+    img.onload = () => {
+      cache.set(src, img);
+      setImgCacheVersion(v => v + 1);
+    };
+    img.onerror = () => {
+      // Retry without CORS (export may be tainted but display works)
+      const fallback = new Image();
+      fallback.onload = () => {
+        cache.set(src, fallback);
+        setImgCacheVersion(v => v + 1);
       };
-      img.onerror = (err) => {
-        console.warn('[EditorSection] Overlay image failed to load:', o.src, err);
-        // Retry without crossOrigin — display-only fallback
-        const fallback = new Image();
-        fallback.onload = () => {
-          cache.set(o.src, fallback);
-          setOverlayCacheVersion(v => v + 1);
-          console.warn('[EditorSection] Loaded without CORS (export may be tainted):', o.src);
-        };
-        fallback.onerror = () => {
-          console.error('[EditorSection] Overlay image totally failed:', o.src);
-        };
-        fallback.src = o.src;
-      };
-      img.src = o.src;
+      fallback.onerror = () => console.warn('[EditorSection] Image failed to load:', src);
+      fallback.src = src;
+    };
+    img.src = src;
+  };
+
+  // Load ALL images needed for ALL slides (bg + logos + overlays)
+  // This ensures carousel thumbnails + navigation pre-load everything
+  useEffect(() => {
+    // Background images
+    draft.slides.forEach(s => {
+      if (s.bgType === 'image' && s.bgValue) {
+        loadImageIntoCache(s.bgValue, bgCache.current);
+      }
     });
-  }, [draft.overlays]);
+    // Logos — all 3 logo variants
+    LOGO_OPTIONS.forEach(lo => {
+      if (lo.src) loadImageIntoCache(lo.src, logoCache.current);
+    });
+    // Overlays across all slides
+    draft.slides.forEach(s => {
+      s.overlays.forEach(o => {
+        loadImageIntoCache(o.src, overlayCache.current);
+      });
+    });
+  }, [draft.slides]);
 
   // Fetch R2 media files for background picker
   const fetchMedia = useCallback(async () => {
@@ -403,7 +592,9 @@ export default function EditorSection() {
   }, [activeOrg, mediaLoading]);
 
   // ========== CANVAS DRAWING ==========
-  const draw = useCallback((canvas: HTMLCanvasElement, forExport = false) => {
+  // Pure draw function: renders a specific slide onto a canvas.
+  // This is not a useCallback — we call it manually via drawCurrent() below.
+  const drawSlide = (canvas: HTMLCanvasElement, slide: Slide, forExport = false) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const w = template.w;
@@ -413,37 +604,33 @@ export default function EditorSection() {
     canvas.height = h * dpr;
     canvas.style.width = '100%';
     canvas.style.height = 'auto';
-    ctx.scale(dpr, dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
 
     // Background
-    if (draft.bgType === 'image' && bgImg) {
-      // Cover-fit
+    const bgImg = slide.bgType === 'image' && slide.bgValue ? bgCache.current.get(slide.bgValue) : null;
+    if (bgImg && bgImg.complete && bgImg.naturalWidth > 0) {
       const scale = Math.max(w / bgImg.width, h / bgImg.height);
       const iw = bgImg.width * scale;
       const ih = bgImg.height * scale;
       ctx.drawImage(bgImg, (w - iw) / 2, (h - ih) / 2, iw, ih);
-      // Overlay for legibility
-      if (draft.bgOpacity > 0) {
-        ctx.fillStyle = `rgba(0,0,0,${draft.bgOpacity})`;
+      if (slide.bgOpacity > 0) {
+        ctx.fillStyle = `rgba(0,0,0,${slide.bgOpacity})`;
         ctx.fillRect(0, 0, w, h);
       }
     } else {
-      ctx.fillStyle = draft.bgValue;
+      ctx.fillStyle = slide.bgValue || '#000';
       ctx.fillRect(0, 0, w, h);
     }
 
-    // === OVERLAY IMAGES (foreground media from media bank or upload) ===
-    // Render in z-order (lowest z first). Images are loaded into overlayCache.current ref
-    // asynchronously; setOverlayCacheVersion triggers re-draws when new ones arrive.
-    const sortedOverlays = [...draft.overlays].sort((a, b) => a.z - b.z);
+    // Overlays
+    const sortedOverlays = [...slide.overlays].sort((a, b) => a.z - b.z);
     for (const ov of sortedOverlays) {
       const img = overlayCache.current.get(ov.src);
-      if (!img || !img.complete || img.naturalWidth === 0) continue; // still loading or failed
+      if (!img || !img.complete || img.naturalWidth === 0) continue;
       const ovW = w * (ov.widthPct / 100);
       const ovH = (img.height / img.width) * ovW;
-      // x/y are center-point % of canvas
       const cx = w * (ov.x / 100);
       const cy = h * (ov.y / 100);
       ctx.save();
@@ -454,7 +641,7 @@ export default function EditorSection() {
       ctx.restore();
     }
 
-    // Helper to draw wrapped text
+    // Wrapped text helper
     const drawWrapped = (text: string, x: number, y: number, maxWidth: number, lineHeight: number) => {
       const words = text.split(' ');
       const lines: string[] = [];
@@ -468,45 +655,47 @@ export default function EditorSection() {
       lines.forEach((l, i) => ctx.fillText(l, x, y0 + i * lineHeight));
     };
 
-    // Caption (small label above title — "Muutos esityspaikkaan!", "Tickets", etc.)
-    if (draft.caption) {
-      const fontSize = Math.round(w * (draft.captionSizePct / 100));
+    // Caption
+    if (slide.caption) {
+      const fontSize = Math.round(w * (slide.captionSizePct / 100));
       ctx.font = `500 ${fontSize}px "DM Sans", system-ui, sans-serif`;
-      ctx.fillStyle = draft.captionColor;
+      ctx.fillStyle = slide.captionColor;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      drawWrapped(draft.caption, w / 2, h * (draft.captionY / 100), w * 0.84, fontSize * 1.25);
+      drawWrapped(slide.caption, w / 2, h * (slide.captionY / 100), w * 0.84, fontSize * 1.25);
     }
 
     // Title
-    if (draft.title) {
-      const fontSize = Math.round(w * (draft.titleSizePct / 100));
-      ctx.font = `${draft.titleWeight} ${fontSize}px "DM Sans", system-ui, sans-serif`;
-      ctx.fillStyle = draft.titleColor;
-      ctx.textAlign = draft.titleAlign;
+    if (slide.title) {
+      const fontSize = Math.round(w * (slide.titleSizePct / 100));
+      ctx.font = `${slide.titleWeight} ${fontSize}px "DM Sans", system-ui, sans-serif`;
+      ctx.fillStyle = slide.titleColor;
+      ctx.textAlign = slide.titleAlign;
       ctx.textBaseline = 'middle';
-      const x = draft.titleAlign === 'center' ? w / 2 : draft.titleAlign === 'left' ? w * 0.08 : w * 0.92;
-      drawWrapped(draft.title, x, h * (draft.titleY / 100), w * 0.84, fontSize * 1.12);
+      const x = slide.titleAlign === 'center' ? w / 2 : slide.titleAlign === 'left' ? w * 0.08 : w * 0.92;
+      drawWrapped(slide.title, x, h * (slide.titleY / 100), w * 0.84, fontSize * 1.12);
     }
 
     // Subtitle
-    if (draft.subtitle) {
-      const fontSize = Math.round(w * (draft.subtitleSizePct / 100));
-      ctx.font = `${draft.subtitleWeight} ${fontSize}px "DM Sans", system-ui, sans-serif`;
-      ctx.fillStyle = draft.subtitleColor;
-      ctx.textAlign = draft.titleAlign;
+    if (slide.subtitle) {
+      const fontSize = Math.round(w * (slide.subtitleSizePct / 100));
+      ctx.font = `${slide.subtitleWeight} ${fontSize}px "DM Sans", system-ui, sans-serif`;
+      ctx.fillStyle = slide.subtitleColor;
+      ctx.textAlign = slide.titleAlign;
       ctx.textBaseline = 'middle';
-      const x = draft.titleAlign === 'center' ? w / 2 : draft.titleAlign === 'left' ? w * 0.08 : w * 0.92;
-      drawWrapped(draft.subtitle, x, h * (draft.subtitleY / 100), w * 0.84, fontSize * 1.2);
+      const x = slide.titleAlign === 'center' ? w / 2 : slide.titleAlign === 'left' ? w * 0.08 : w * 0.92;
+      drawWrapped(slide.subtitle, x, h * (slide.subtitleY / 100), w * 0.84, fontSize * 1.2);
     }
 
     // Logo watermark
-    if (logoImg && draft.logoId !== 'none') {
-      const logoW = w * (draft.logoSizePct / 100);
+    const logoOption = LOGO_OPTIONS.find(l => l.id === slide.logoId);
+    const logoImg = logoOption?.src ? logoCache.current.get(logoOption.src) : null;
+    if (logoImg && logoImg.complete && logoImg.naturalWidth > 0 && slide.logoId !== 'none') {
+      const logoW = w * (slide.logoSizePct / 100);
       const logoH = (logoImg.height / logoImg.width) * logoW;
       const pad = w * 0.04;
       let lx = pad, ly = pad;
-      switch (draft.logoPos) {
+      switch (slide.logoPos) {
         case 'top-left':      lx = pad;              ly = pad; break;
         case 'top-right':     lx = w - logoW - pad;  ly = pad; break;
         case 'top-center':    lx = (w - logoW) / 2;  ly = pad; break;
@@ -517,21 +706,30 @@ export default function EditorSection() {
       }
       ctx.drawImage(logoImg, lx, ly, logoW, logoH);
     }
-  }, [template, draft, bgImg, logoImg, overlayCacheVersion]);
+  };
 
-  // Redraw preview on any change
+  // Redraw main preview canvas whenever slide content changes
   useEffect(() => {
-    if (canvasRef.current && fontLoaded) draw(canvasRef.current, false);
-  }, [draw, fontLoaded]);
+    if (canvasRef.current && fontLoaded) drawSlide(canvasRef.current, currentSlide, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSlide, template, fontLoaded, imgCacheVersion]);
 
   // ========== ACTIONS ==========
-  const update = <K extends keyof Design>(key: K, value: Design[K]) => {
+  // Update a top-level design field (name, templateId, ...)
+  const updateDesign = <K extends keyof Design>(key: K, value: Design[K]) => {
     setDraft(prev => ({ ...prev, [key]: value, updatedAt: Date.now() }));
+  };
+
+  // Shortcut: update a current-slide field (common case)
+  const update = <K extends keyof Slide>(key: K, value: Slide[K]) => {
+    updateSlide({ [key]: value } as Partial<Slide>);
   };
 
   const startNew = (templateId?: string) => {
     setDraft(blankDesign(templateId));
     setCurrentId(null);
+    setCurrentSlideIndex(0);
+    setSelectedOverlayId(null);
   };
 
   const loadDesign = (id: string) => {
@@ -539,13 +737,14 @@ export default function EditorSection() {
     if (!d) return;
     setDraft(normalizeDesign(d));
     setCurrentId(id);
+    setCurrentSlideIndex(0);
     setSelectedOverlayId(null);
   };
 
   const saveDesign = async () => {
-    // Generate a small thumbnail from current canvas
+    // Generate a thumbnail of the FIRST slide for the saved-designs sidebar
     const tmp = document.createElement('canvas');
-    draw(tmp, false);
+    drawSlide(tmp, draft.slides[0], false);
     const thumbCanvas = document.createElement('canvas');
     const thumbW = 200;
     const scale = thumbW / template.w;
@@ -571,19 +770,200 @@ export default function EditorSection() {
 
   const deleteDesign = (id: string) => {
     setDesigns(prev => prev.filter(d => d.id !== id));
-    if (currentId === id) { setCurrentId(null); setDraft(blankDesign()); }
+    if (currentId === id) { setCurrentId(null); setDraft(blankDesign()); setCurrentSlideIndex(0); }
     toast('Suunnitelma poistettu', 'success');
   };
 
-  const exportPng = () => {
+  // Export a single slide as PNG
+  const exportSlide = (slide: Slide, suffix?: string) => {
     const canvas = document.createElement('canvas');
-    draw(canvas, true);
+    drawSlide(canvas, slide, true);
     const link = document.createElement('a');
-    const name = (draft.name || 'llff-julkaisu').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-    link.download = `${name}_${template.w}x${template.h}.png`;
+    const base = (draft.name || 'llff-julkaisu').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    const fname = suffix ? `${base}_${suffix}_${template.w}x${template.h}.png` : `${base}_${template.w}x${template.h}.png`;
+    link.download = fname;
     link.href = canvas.toDataURL('image/png');
     link.click();
+  };
+
+  // Export current slide only
+  const exportCurrent = () => {
+    exportSlide(currentSlide);
     toast(`Ladattu: ${template.w}×${template.h} PNG`, 'success');
+  };
+
+  // Batch export: all slides sequentially (for carousels)
+  const exportAll = async () => {
+    for (let i = 0; i < draft.slides.length; i++) {
+      exportSlide(draft.slides[i], String(i + 1).padStart(2, '0'));
+      await new Promise(r => setTimeout(r, 250)); // brief delay between downloads
+    }
+    toast(`Ladattu: ${draft.slides.length} slaidia`, 'success');
+  };
+
+  // Render first slide to a Blob for R2 upload (Firestore 1MB limit forbids embedding data URLs)
+  const renderFirstSlideBlob = (): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      drawSlide(canvas, draft.slides[0], true);
+      canvas.toBlob(
+        b => (b ? resolve(b) : reject(new Error('Canvas toBlob returned null'))),
+        'image/jpeg',
+        0.85
+      );
+    });
+  };
+
+  // Upload a Blob to R2 via the worker — returns the public URL
+  const uploadBlobToR2 = async (blob: Blob, filename: string, folder = 'julkaisut'): Promise<string> => {
+    if (!activeOrg) throw new Error('Ei aktiivista organisaatiota');
+    const form = new FormData();
+    form.append('file', blob, filename);
+    form.append('folder', folder);
+    const res = await fetch(WORKER_URL + '/media/upload', {
+      method: 'POST',
+      body: form,
+      headers: { 'X-Momentum-Org': activeOrg },
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => res.statusText);
+      throw new Error(`Upload failed (${res.status}): ${msg}`);
+    }
+    const data = await res.json();
+    return R2_CDN + '/' + data.key;
+  };
+
+  // Open the publish modal — prefill from draft, or from linked publication if provided
+  const openPublishModal = () => {
+    const firstSlide = draft.slides[0];
+    // If editing a linked publication, prefill from its existing fields
+    if (linkedPubId) {
+      const existing = (publications || []).find(p => p.id === linkedPubId);
+      if (existing) {
+        setPublishTitle(existing.title || '');
+        setPublishBody(existing.body || '');
+        setPublishChannels(existing.channels || []);
+        setPublishDate(existing.date || '');
+        setPublishCategory(existing.category || 'some');
+        setPublishStatus(existing.status === 'published' ? 'ready' : (existing.status || 'ready'));
+        setShowPublishModal(true);
+        return;
+      }
+    }
+    const defaultTitle = (firstSlide.title || firstSlide.caption || draft.name || 'LLFF-julkaisu').slice(0, 120);
+    const defaultBody = [firstSlide.title, firstSlide.subtitle, firstSlide.caption]
+      .filter(Boolean)
+      .join('\n\n');
+    setPublishTitle(defaultTitle);
+    setPublishBody(defaultBody);
+    setPublishChannels([]);
+    setPublishDate('');
+    setPublishCategory('some');
+    setPublishStatus('ready');
+    setShowPublishModal(true);
+  };
+
+  const togglePublishChannel = (name: string) => {
+    setPublishChannels(prev => prev.includes(name) ? prev.filter(c => c !== name) : [...prev, name]);
+  };
+
+  // Confirm publish: upload image to R2, create Publication + CalEvent, save design snapshot
+  const confirmPublish = async () => {
+    if (!publishTitle.trim()) { toast('Anna otsikko', 'error'); return; }
+    if (publishChannels.length === 0) { toast('Valitse vähintään yksi kanava', 'error'); return; }
+    if (!canEdit) { toast('Vierailijat eivät voi julkaista', 'error'); return; }
+    setPublishing(true);
+    try {
+      // 1) Render first slide and upload to R2
+      const blob = await renderFirstSlideBlob();
+      const safeName = (draft.name || 'llff-julkaisu').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+      const filename = `${Date.now()}_${safeName}.jpg`;
+      let imageUrl = '';
+      try {
+        imageUrl = await uploadBlobToR2(blob, filename, 'julkaisut');
+      } catch (uploadErr) {
+        console.error('R2 upload failed', uploadErr);
+        toast('Kuvan lataus R2:een epäonnistui — tarkista verkko', 'error');
+        setPublishing(false);
+        return;
+      }
+
+      // 2) Create or update Publication record
+      const nowIso = new Date().toISOString().slice(0, 10);
+      const nowMs = Date.now();
+      // If editor was opened from an existing publication (?pubId=...), update it in place.
+      // Otherwise create a new one.
+      const targetPubId = linkedPubId || ('pub_' + nowMs);
+
+      if (linkedPubId) {
+        setPublications(prev => (prev || []).map(p => p.id === linkedPubId ? normalizePublication({
+          ...p,
+          title: publishTitle.trim(),
+          body: publishBody.trim(),
+          channels: publishChannels,
+          date: publishDate || p.date || null,
+          image: imageUrl,
+          status: publishStatus,
+          category: publishCategory,
+          designId: draft.id,
+          updatedAt: nowMs,
+        }) : p));
+      } else {
+        const newPub = normalizePublication({
+          id: targetPubId,
+          title: publishTitle.trim(),
+          body: publishBody.trim(),
+          channels: publishChannels,
+          date: publishDate || null,
+          image: imageUrl,
+          status: publishStatus,
+          created: nowIso,
+          publishedChannels: [],
+          category: publishCategory,
+          designId: draft.id,
+          updatedAt: nowMs,
+        });
+        setPublications(prev => [newPub, ...(prev || [])]);
+      }
+
+      // 3) Create/update matching calendar event (only if date chosen)
+      if (publishDate) {
+        setCalEvents(prev => {
+          const list = (prev || []).filter(e => e.pubId !== targetPubId);
+          list.push({
+            id: nowMs,
+            t: publishTitle.trim(),
+            date: publishDate,
+            ch: publishChannels.join(', '),
+            st: publishStatus === 'ready' ? 'valmis' : 'suunniteltu',
+            pubId: targetPubId,
+            kind: 'publication',
+          });
+          return list;
+        });
+      }
+
+      // 4) Save the design draft too so it can be edited later (non-fatal)
+      try {
+        await saveDesign();
+      } catch (e) {
+        console.warn('saveDesign failed during publish', e);
+      }
+
+      setShowPublishModal(false);
+      toast(
+        publishDate
+          ? `Julkaisu tallennettu · ${publishDate}`
+          : 'Julkaisu tallennettu',
+        'success'
+      );
+    } catch (e) {
+      console.error('Publish failed', e);
+      const msg = e instanceof Error ? e.message : 'Tuntematon virhe';
+      toast(`Julkaisun tallennus epäonnistui: ${msg}`, 'error');
+    } finally {
+      setPublishing(false);
+    }
   };
 
   // === BACKGROUND UPLOAD (local file → data URL → background) ===
@@ -592,8 +972,7 @@ export default function EditorSection() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
-      update('bgType', 'image');
-      update('bgValue', ev.target!.result as string);
+      updateSlide({ bgType: 'image', bgValue: ev.target!.result as string });
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -614,8 +993,34 @@ export default function EditorSection() {
   // === MEDIA PICKER SELECTION (respects pickerTarget) ===
   const pickFromMedia = (file: MediaFile) => {
     if (pickerTarget === 'background') {
-      update('bgType', 'image');
-      update('bgValue', file.url);
+      // Preload image into bgCache so canvas renders it immediately.
+      // Track loading state for the spinner overlay.
+      const cached = bgCache.current.get(file.url);
+      if (cached && cached.complete && cached.naturalWidth > 0) {
+        updateSlide({ bgType: 'image', bgValue: file.url });
+      } else {
+        setImageLoadingCount(c => c + 1);
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        const finish = (el: HTMLImageElement) => {
+          bgCache.current.set(file.url, el);
+          setImgCacheVersion(v => v + 1);
+          updateSlide({ bgType: 'image', bgValue: file.url });
+          setImageLoadingCount(c => Math.max(0, c - 1));
+        };
+        img.onload = () => finish(img);
+        img.onerror = () => {
+          // Retry without CORS
+          const fallback = new Image();
+          fallback.onload = () => finish(fallback);
+          fallback.onerror = () => {
+            setImageLoadingCount(c => Math.max(0, c - 1));
+            toast('Taustakuvan lataus epäonnistui', 'error');
+          };
+          fallback.src = file.url;
+        };
+        img.src = file.url;
+      }
     } else {
       addOverlayFromSrc(file.url, file.name);
     }
@@ -623,59 +1028,174 @@ export default function EditorSection() {
   };
 
   // === OVERLAY HELPERS ===
+  // Cover-fit width calculator: given an image's natural size, returns the widthPct
+  // that makes the overlay fill (cover) the canvas frame.
+  const computeCoverWidthPct = (imgW: number, imgH: number): number => {
+    if (imgW <= 0 || imgH <= 0) return 100;
+    const coverScale = Math.max(template.w / imgW, template.h / imgH);
+    const displayW = imgW * coverScale;
+    return (displayW / template.w) * 100;
+  };
+
+  // Add overlay — loads image FIRST to compute cover-fit widthPct before adding
   const addOverlayFromSrc = (src: string, name?: string) => {
-    const maxZ = draft.overlays.reduce((m, o) => Math.max(m, o.z), 0);
-    const newOverlay: ImageOverlay = {
-      id: 'ov_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-      src, name,
-      x: 50, y: 50,       // center by default
-      widthPct: 40,
-      opacity: 1,
-      rotation: 0,
-      z: maxZ + 1,
+    // Track loading state — skip spinner if already cached
+    const cached = overlayCache.current.get(src);
+    const needsLoad = !cached || !cached.complete || cached.naturalWidth === 0;
+    if (needsLoad) setImageLoadingCount(c => c + 1);
+    const clearLoading = () => {
+      if (needsLoad) setImageLoadingCount(c => Math.max(0, c - 1));
     };
-    setDraft(prev => ({ ...prev, overlays: [...prev.overlays, newOverlay], updatedAt: Date.now() }));
-    setSelectedOverlayId(newOverlay.id);
-    toast('Kuva lisätty', 'success');
+    // Load the image to measure dimensions
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const finishAdding = (imgEl: HTMLImageElement) => {
+      const widthPct = computeCoverWidthPct(imgEl.naturalWidth || imgEl.width, imgEl.naturalHeight || imgEl.height);
+      const maxZ = currentSlide.overlays.reduce((m, o) => Math.max(m, o.z), 0);
+      const newOverlay: ImageOverlay = {
+        id: 'ov_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+        src, name,
+        x: 50, y: 50, // center
+        widthPct,     // fills the frame by default
+        opacity: 1,
+        rotation: 0,
+        z: maxZ + 1,
+      };
+      // Cache the image so it draws immediately
+      overlayCache.current.set(src, imgEl);
+      mutateSlide(s => ({ ...s, overlays: [...s.overlays, newOverlay] }));
+      setSelectedOverlayId(newOverlay.id);
+      setImgCacheVersion(v => v + 1);
+      clearLoading();
+      toast('Kuva lisätty', 'success');
+    };
+    img.onload = () => finishAdding(img);
+    img.onerror = () => {
+      // Retry without CORS for display
+      const fallback = new Image();
+      fallback.onload = () => finishAdding(fallback);
+      fallback.onerror = () => {
+        clearLoading();
+        toast('Kuvan lataus epäonnistui', 'error');
+      };
+      fallback.src = src;
+    };
+    img.src = src;
   };
 
   const updateOverlay = (id: string, patch: Partial<ImageOverlay>) => {
-    setDraft(prev => ({
-      ...prev,
-      overlays: prev.overlays.map(o => o.id === id ? { ...o, ...patch } : o),
-      updatedAt: Date.now(),
+    mutateSlide(s => ({
+      ...s,
+      overlays: s.overlays.map(o => o.id === id ? { ...o, ...patch } : o),
     }));
   };
 
   const removeOverlay = (id: string) => {
-    setDraft(prev => ({
-      ...prev,
-      overlays: prev.overlays.filter(o => o.id !== id),
-      updatedAt: Date.now(),
-    }));
+    mutateSlide(s => ({ ...s, overlays: s.overlays.filter(o => o.id !== id) }));
     if (selectedOverlayId === id) setSelectedOverlayId(null);
   };
 
   const moveOverlayZ = (id: string, direction: 'up' | 'down') => {
-    setDraft(prev => {
-      const sorted = [...prev.overlays].sort((a, b) => a.z - b.z);
+    mutateSlide(s => {
+      const sorted = [...s.overlays].sort((a, b) => a.z - b.z);
       const idx = sorted.findIndex(o => o.id === id);
-      if (idx === -1) return prev;
+      if (idx === -1) return s;
       const target = direction === 'up' ? idx + 1 : idx - 1;
-      if (target < 0 || target >= sorted.length) return prev;
-      // Swap z values
+      if (target < 0 || target >= sorted.length) return s;
       const a = sorted[idx];
       const b = sorted[target];
       return {
-        ...prev,
-        overlays: prev.overlays.map(o => {
+        ...s,
+        overlays: s.overlays.map(o => {
           if (o.id === a.id) return { ...o, z: b.z };
           if (o.id === b.id) return { ...o, z: a.z };
           return o;
         }),
-        updatedAt: Date.now(),
       };
     });
+  };
+
+  // =============================================================================
+  // MOUSE DRAG: click overlay on canvas to select, drag to move
+  // =============================================================================
+
+  // Convert client coordinates to % of canvas width/height
+  const clientToPct = (clientX: number, clientY: number): { xPct: number; yPct: number } | null => {
+    const wrapper = canvasWrapperRef.current;
+    if (!wrapper) return null;
+    const rect = wrapper.getBoundingClientRect();
+    const xPct = ((clientX - rect.left) / rect.width) * 100;
+    const yPct = ((clientY - rect.top) / rect.height) * 100;
+    return { xPct, yPct };
+  };
+
+  // Hit-test overlays at a given canvas-pct point.
+  // Returns the topmost (highest z) overlay under the point.
+  const hitTestOverlay = (xPct: number, yPct: number): ImageOverlay | null => {
+    const aspect = template.w / template.h;
+    // Convert pct to canvas-unit coordinates (where canvas is template.w × template.h)
+    const px = (xPct / 100) * template.w;
+    const py = (yPct / 100) * template.h;
+    // Iterate overlays in reverse z-order (topmost first)
+    const sorted = [...currentSlide.overlays].sort((a, b) => b.z - a.z);
+    for (const ov of sorted) {
+      const img = overlayCache.current.get(ov.src);
+      if (!img) continue;
+      const ovW = template.w * (ov.widthPct / 100);
+      const ovH = (img.height / img.width) * ovW;
+      const cx = template.w * (ov.x / 100);
+      const cy = template.h * (ov.y / 100);
+      // Inverse-transform point by rotation if any
+      let dx = px - cx;
+      let dy = py - cy;
+      if (ov.rotation) {
+        const rad = (-ov.rotation * Math.PI) / 180;
+        const cos = Math.cos(rad), sin = Math.sin(rad);
+        [dx, dy] = [dx * cos - dy * sin, dx * sin + dy * cos];
+      }
+      if (Math.abs(dx) <= ovW / 2 && Math.abs(dy) <= ovH / 2) {
+        return ov;
+      }
+    }
+    return null;
+  };
+
+  const onCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!canEdit) return;
+    const pct = clientToPct(e.clientX, e.clientY);
+    if (!pct) return;
+    const hit = hitTestOverlay(pct.xPct, pct.yPct);
+    if (hit) {
+      setSelectedOverlayId(hit.id);
+      dragState.current = {
+        id: hit.id,
+        startX: pct.xPct,
+        startY: pct.yPct,
+        origX: hit.x,
+        origY: hit.y,
+      };
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    } else {
+      setSelectedOverlayId(null);
+    }
+  };
+
+  const onCanvasPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragState.current;
+    if (!d) return;
+    const pct = clientToPct(e.clientX, e.clientY);
+    if (!pct) return;
+    const dx = pct.xPct - d.startX;
+    const dy = pct.yPct - d.startY;
+    updateOverlay(d.id, {
+      x: Math.max(-50, Math.min(150, d.origX + dx)),
+      y: Math.max(-50, Math.min(150, d.origY + dy)),
+    });
+  };
+
+  const onCanvasPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    dragState.current = null;
+    try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
   };
 
   // Open media picker with a specific target
@@ -693,7 +1213,7 @@ export default function EditorSection() {
   });
   const mediaFolders = Array.from(new Set(mediaFiles.map(f => f.folder))).sort();
 
-  const selectedOverlay = selectedOverlayId ? draft.overlays.find(o => o.id === selectedOverlayId) : null;
+  const selectedOverlay = selectedOverlayId ? currentSlide.overlays.find(o => o.id === selectedOverlayId) : null;
 
   // ========== RENDER ==========
   return (
@@ -707,7 +1227,7 @@ export default function EditorSection() {
           {TEMPLATES.filter(t => t.platform === 'instagram').map(t => {
             const active = draft.templateId === t.id;
             return (
-              <button key={t.id} onClick={() => update('templateId', t.id)} style={{
+              <button key={t.id} onClick={() => updateDesign('templateId', t.id)} style={{
                 display: 'block', width: '100%', textAlign: 'left',
                 padding: '.5rem .6rem', marginBottom: '.2rem',
                 background: active ? 'rgba(5,107,159,.12)' : 'transparent',
@@ -725,7 +1245,7 @@ export default function EditorSection() {
           {TEMPLATES.filter(t => t.platform === 'facebook').map(t => {
             const active = draft.templateId === t.id;
             return (
-              <button key={t.id} onClick={() => update('templateId', t.id)} style={{
+              <button key={t.id} onClick={() => updateDesign('templateId', t.id)} style={{
                 display: 'block', width: '100%', textAlign: 'left',
                 padding: '.5rem .6rem', marginBottom: '.2rem',
                 background: active ? 'rgba(5,107,159,.12)' : 'transparent',
@@ -778,25 +1298,40 @@ export default function EditorSection() {
             <input
               className="input"
               value={draft.name}
-              onChange={e => update('name', e.target.value)}
+              onChange={e => updateDesign('name', e.target.value)}
               placeholder="Suunnitelman nimi"
               style={{ fontSize: '.82rem', fontWeight: 600, border: 'none', background: 'transparent', padding: 0, minWidth: 160 }}
             />
             <div style={{ fontSize: '.65rem', color: 'var(--t3)' }}>
-              {template.label} {'·'} {template.w}×{template.h} px
-              {template.tip && <span style={{ marginLeft: '.4rem', color: 'var(--pri-l)' }}>{'·'} {template.tip}</span>}
+              {template.label} · {template.w}×{template.h} px
+              {draft.slides.length > 1 && <span style={{ marginLeft: '.4rem', color: 'var(--pri-l)', fontWeight: 600 }}>· Karuselli ({draft.slides.length} slaidia)</span>}
+              {template.tip && <span style={{ marginLeft: '.4rem', color: 'var(--pri-l)' }}>· {template.tip}</span>}
             </div>
           </div>
           <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
             <button className="btn btn-ghost btn-sm" onClick={() => openMediaPickerFor('overlay')} title="Lisää kuva editoriin mediapankista">
               Mediapankki
             </button>
-            {canEdit && <button className="btn btn-ghost btn-sm" onClick={saveDesign}>Tallenna</button>}
-            <button className="btn btn-primary btn-sm" onClick={exportPng}>Lataa PNG</button>
+            {canEdit && <button className="btn btn-ghost btn-sm" onClick={saveDesign} title="Tallenna luonnos (jää editoriin muokattavaksi)">Tallenna luonnos</button>}
+            {draft.slides.length > 1 ? (
+              <button className="btn btn-ghost btn-sm" onClick={exportAll} title="Lataa kaikki slaidit PNG-tiedostoina">Lataa PNG ({draft.slides.length})</button>
+            ) : (
+              <button className="btn btn-ghost btn-sm" onClick={exportCurrent} title="Lataa PNG-tiedostona">Lataa PNG</button>
+            )}
+            {canEdit && (
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={openPublishModal}
+                title="Tallenna Julkaisut-välilehdelle ja kalenteriin"
+                style={{ fontWeight: 700 }}
+              >
+                Julkaise →
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Canvas — aspect-ratio locked wrapper */}
+        {/* Canvas — aspect-ratio locked wrapper with pointer interaction */}
         <div style={{
           flex: 1,
           display: 'flex',
@@ -807,19 +1342,188 @@ export default function EditorSection() {
           padding: '1rem',
           minHeight: 400,
         }}>
-          <div style={{
-            maxWidth: '100%',
-            maxHeight: 560,
-            aspectRatio: `${template.w} / ${template.h}`,
-            width: template.w > template.h ? '100%' : 'auto',
-            height: template.h >= template.w ? '100%' : 'auto',
-            boxShadow: '0 8px 40px rgba(0,0,0,.4)',
-            borderRadius: 4,
-            overflow: 'hidden',
-          }}>
-            <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />
+          <div
+            ref={canvasWrapperRef}
+            onPointerDown={onCanvasPointerDown}
+            onPointerMove={onCanvasPointerMove}
+            onPointerUp={onCanvasPointerUp}
+            onPointerCancel={onCanvasPointerUp}
+            style={{
+              maxWidth: '100%',
+              maxHeight: 560,
+              aspectRatio: `${template.w} / ${template.h}`,
+              width: template.w > template.h ? '100%' : 'auto',
+              height: template.h >= template.w ? '100%' : 'auto',
+              boxShadow: '0 8px 40px rgba(0,0,0,.4)',
+              borderRadius: 4,
+              overflow: 'hidden',
+              position: 'relative',
+              cursor: dragState.current ? 'grabbing' : 'default',
+              touchAction: 'none',
+            }}
+          >
+            <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%', pointerEvents: 'none' }} />
+
+            {/* Image loading overlay — näkyy kun kuvaa ladataan mediapankista */}
+            {imageLoadingCount > 0 && (
+              <div
+                aria-live="polite"
+                aria-label="Ladataan kuvaa"
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '.75rem',
+                  background: 'rgba(10, 5, 25, .55)',
+                  backdropFilter: 'blur(3px)',
+                  WebkitBackdropFilter: 'blur(3px)',
+                  pointerEvents: 'none',
+                  zIndex: 20,
+                  animation: 'fadeIn .15s ease-out',
+                }}
+              >
+                <div
+                  style={{
+                    width: 52,
+                    height: 52,
+                    border: '4px solid rgba(255,255,255,.22)',
+                    borderTopColor: '#FBD1E4',
+                    borderRightColor: '#E8A5C5',
+                    borderRadius: '50%',
+                    animation: 'editorSpin .85s linear infinite',
+                  }}
+                />
+                <div
+                  style={{
+                    color: '#fff',
+                    fontSize: '.72rem',
+                    fontWeight: 600,
+                    letterSpacing: '.06em',
+                    textTransform: 'uppercase',
+                    fontFamily: "'DM Sans', sans-serif",
+                    textShadow: '0 1px 6px rgba(0,0,0,.6)',
+                  }}
+                >
+                  Ladataan kuvaa{imageLoadingCount > 1 ? ` (${imageLoadingCount})` : ''}
+                </div>
+              </div>
+            )}
+
+            {/* Selected overlay highlight — dashed border showing what's selected */}
+            {selectedOverlay && (() => {
+              const img = overlayCache.current.get(selectedOverlay.src);
+              if (!img) return null;
+              const ovAspect = img.width / img.height;
+              // Compute size in % of canvas
+              const widthPct = selectedOverlay.widthPct;
+              // Height in canvas pixels
+              const ovPxH = (img.height / img.width) * (template.w * widthPct / 100);
+              const heightPct = (ovPxH / template.h) * 100;
+              return (
+                <div style={{
+                  position: 'absolute',
+                  left: `${selectedOverlay.x - widthPct / 2}%`,
+                  top: `${selectedOverlay.y - heightPct / 2}%`,
+                  width: `${widthPct}%`,
+                  height: `${heightPct}%`,
+                  border: '2px dashed #3788b2',
+                  borderRadius: 2,
+                  pointerEvents: 'none',
+                  transform: selectedOverlay.rotation ? `rotate(${selectedOverlay.rotation}deg)` : undefined,
+                  transformOrigin: 'center',
+                }} />
+              );
+            })()}
           </div>
         </div>
+
+        {/* ============ KARUSELLI-STRIPI ============ */}
+        {canEdit && (
+          <div style={{
+            marginTop: '.75rem',
+            paddingTop: '.75rem',
+            borderTop: '1px solid var(--border)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.5rem' }}>
+              <div style={{ fontSize: '.62rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                Slaidit ({draft.slides.length}) — karuselli
+              </div>
+              <div style={{ display: 'flex', gap: '.3rem' }}>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => addSlide({ duplicate: true })}
+                  title="Monista nykyinen slaide"
+                  style={{ fontSize: '.64rem', padding: '.25rem .55rem' }}
+                >⎘ Monista</button>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => addSlide()}
+                  title="Lisää tyhjä slaide"
+                  style={{ fontSize: '.64rem', padding: '.25rem .55rem' }}
+                >+ Uusi slaide</button>
+              </div>
+            </div>
+            <div style={{
+              display: 'flex', gap: '.5rem',
+              overflowX: 'auto', padding: '.25rem .1rem',
+            }}>
+              {draft.slides.map((slide, idx) => {
+                const isActive = idx === safeSlideIndex;
+                return (
+                  <div
+                    key={slide.id}
+                    onClick={() => { setCurrentSlideIndex(idx); setSelectedOverlayId(null); }}
+                    style={{
+                      position: 'relative',
+                      width: 80,
+                      aspectRatio: `${template.w} / ${template.h}`,
+                      flexShrink: 0,
+                      background: slide.bgValue || '#000',
+                      border: isActive ? '2px solid var(--pri)' : '2px solid var(--border)',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      overflow: 'hidden',
+                      transition: 'border-color .15s',
+                    }}
+                  >
+                    {/* Mini thumbnail — uses a separate per-slide canvas */}
+                    <SlideThumb
+                      slide={slide}
+                      template={template}
+                      draw={drawSlide}
+                      version={imgCacheVersion}
+                    />
+                    <div style={{
+                      position: 'absolute', top: 2, left: 2,
+                      background: 'rgba(0,0,0,.7)', color: '#fff',
+                      fontSize: '.55rem', padding: '.1rem .35rem',
+                      borderRadius: 3, fontWeight: 700,
+                    }}>{idx + 1}</div>
+                    {draft.slides.length > 1 && isActive && (
+                      <button
+                        onClick={e => { e.stopPropagation(); removeSlide(idx); }}
+                        title="Poista slaide"
+                        style={{
+                          position: 'absolute', top: 2, right: 2,
+                          background: 'rgba(239,107,107,.9)', color: '#fff',
+                          border: 'none', borderRadius: 3,
+                          width: 16, height: 16,
+                          fontSize: '.6rem', fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          padding: 0,
+                        }}
+                      >×</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ========== RIGHT SIDEBAR: INSPECTOR ========== */}
@@ -833,7 +1537,7 @@ export default function EditorSection() {
             {DESIGN_PRESETS.map(p => (
               <button
                 key={p.id}
-                onClick={() => setDraft(prev => p.apply(prev))}
+                onClick={() => mutateSlide(s => p.apply(s))}
                 title={p.description}
                 style={{
                   padding: '.5rem .35rem',
@@ -860,10 +1564,10 @@ export default function EditorSection() {
         <div style={{ marginBottom: '1rem' }}>
           <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>Tausta</div>
           <div style={{ display: 'flex', gap: '.25rem', marginBottom: '.5rem' }}>
-            <button onClick={() => update('bgType', 'color')} className={`cal-view-btn ${draft.bgType === 'color' ? 'act' : ''}`} style={{ flex: 1, fontSize: '.68rem' }}>Väri</button>
-            <button onClick={() => update('bgType', 'image')} className={`cal-view-btn ${draft.bgType === 'image' ? 'act' : ''}`} style={{ flex: 1, fontSize: '.68rem' }}>Kuva</button>
+            <button onClick={() => update('bgType', 'color')} className={`cal-view-btn ${currentSlide.bgType === 'color' ? 'act' : ''}`} style={{ flex: 1, fontSize: '.68rem' }}>Väri</button>
+            <button onClick={() => update('bgType', 'image')} className={`cal-view-btn ${currentSlide.bgType === 'image' ? 'act' : ''}`} style={{ flex: 1, fontSize: '.68rem' }}>Kuva</button>
           </div>
-          {draft.bgType === 'color' && (
+          {currentSlide.bgType === 'color' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.25rem' }}>
               {LLFF_COLORS.map(c => (
                 <div key={c.value}
@@ -874,24 +1578,24 @@ export default function EditorSection() {
                     background: c.value,
                     borderRadius: 4,
                     cursor: 'pointer',
-                    border: draft.bgValue === c.value ? '2px solid var(--pri)' : '2px solid var(--border)',
+                    border: currentSlide.bgValue === c.value ? '2px solid var(--pri)' : '2px solid var(--border)',
                   }}
                 />
               ))}
-              <input type="color" value={draft.bgValue} onChange={e => update('bgValue', e.target.value)} style={{ width: '100%', height: 28, borderRadius: 4, gridColumn: 'span 4', border: '1px solid var(--border)', marginTop: '.25rem' }} />
+              <input type="color" value={currentSlide.bgValue} onChange={e => update('bgValue', e.target.value)} style={{ width: '100%', height: 28, borderRadius: 4, gridColumn: 'span 4', border: '1px solid var(--border)', marginTop: '.25rem' }} />
             </div>
           )}
-          {draft.bgType === 'image' && (
+          {currentSlide.bgType === 'image' && (
             <>
               <div style={{ display: 'flex', gap: '.25rem', marginBottom: '.4rem' }}>
                 <button className="btn btn-ghost btn-sm" onClick={() => openMediaPickerFor('background')} style={{ flex: 1, fontSize: '.66rem', padding: '.3rem' }}>Mediapankki</button>
                 <button className="btn btn-ghost btn-sm" onClick={() => uploadRef.current?.click()} style={{ flex: 1, fontSize: '.66rem', padding: '.3rem' }}>Lataa</button>
                 <input ref={uploadRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBgUpload} />
               </div>
-              {bgImg && (
+              {currentSlide.bgType === 'image' && currentSlide.bgValue && (
                 <div style={{ marginTop: '.4rem' }}>
-                  <label style={{ fontSize: '.62rem', color: 'var(--t3)' }}>Tummennus: {Math.round(draft.bgOpacity * 100)}%</label>
-                  <input type="range" min={0} max={0.8} step={0.05} value={draft.bgOpacity} onChange={e => update('bgOpacity', parseFloat(e.target.value))} style={{ width: '100%' }} />
+                  <label style={{ fontSize: '.62rem', color: 'var(--t3)' }}>Tummennus: {Math.round(currentSlide.bgOpacity * 100)}%</label>
+                  <input type="range" min={0} max={0.8} step={0.05} value={currentSlide.bgOpacity} onChange={e => update('bgOpacity', parseFloat(e.target.value))} style={{ width: '100%' }} />
                 </div>
               )}
             </>
@@ -903,42 +1607,42 @@ export default function EditorSection() {
           <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>
             Pikku-otsikko (yllä)
           </div>
-          <input className="input" value={draft.caption} onChange={e => update('caption', e.target.value)} placeholder="Esim. Muutos esityspaikkaan!" style={{ fontSize: '.78rem' }} />
+          <input className="input" value={currentSlide.caption} onChange={e => update('caption', e.target.value)} placeholder="Esim. Muutos esityspaikkaan!" style={{ fontSize: '.78rem' }} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.35rem', marginTop: '.35rem' }}>
             <div>
-              <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Koko: {draft.captionSizePct.toFixed(1)}%</label>
-              <input type="range" min={1.5} max={6} step={0.25} value={draft.captionSizePct} onChange={e => update('captionSizePct', parseFloat(e.target.value))} style={{ width: '100%' }} />
+              <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Koko: {currentSlide.captionSizePct.toFixed(1)}%</label>
+              <input type="range" min={1.5} max={6} step={0.25} value={currentSlide.captionSizePct} onChange={e => update('captionSizePct', parseFloat(e.target.value))} style={{ width: '100%' }} />
             </div>
             <div>
-              <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Y-sijainti: {draft.captionY}%</label>
-              <input type="range" min={2} max={95} step={1} value={draft.captionY} onChange={e => update('captionY', parseInt(e.target.value))} style={{ width: '100%' }} />
+              <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Y-sijainti: {currentSlide.captionY}%</label>
+              <input type="range" min={2} max={95} step={1} value={currentSlide.captionY} onChange={e => update('captionY', parseInt(e.target.value))} style={{ width: '100%' }} />
             </div>
           </div>
-          <input type="color" value={draft.captionColor} onChange={e => update('captionColor', e.target.value)} style={{ width: 36, height: 28, border: 'none', background: 'none', padding: 0, cursor: 'pointer', marginTop: '.35rem' }} />
+          <input type="color" value={currentSlide.captionColor} onChange={e => update('captionColor', e.target.value)} style={{ width: 36, height: 28, border: 'none', background: 'none', padding: 0, cursor: 'pointer', marginTop: '.35rem' }} />
         </div>
 
         {/* Title */}
         <div style={{ marginBottom: '1rem' }}>
           <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>Otsikko</div>
-          <textarea className="input" value={draft.title} onChange={e => update('title', e.target.value)} placeholder="Julkaisun otsikko" rows={2} style={{ fontSize: '.78rem', resize: 'vertical', minHeight: 44, fontFamily: '"DM Sans", system-ui, sans-serif' }} />
+          <textarea className="input" value={currentSlide.title} onChange={e => update('title', e.target.value)} placeholder="Julkaisun otsikko" rows={2} style={{ fontSize: '.78rem', resize: 'vertical', minHeight: 44, fontFamily: '"DM Sans", system-ui, sans-serif' }} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.35rem', marginTop: '.35rem' }}>
             <div>
-              <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Koko: {draft.titleSizePct.toFixed(1)}%</label>
-              <input type="range" min={2} max={14} step={0.25} value={draft.titleSizePct} onChange={e => update('titleSizePct', parseFloat(e.target.value))} style={{ width: '100%' }} />
+              <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Koko: {currentSlide.titleSizePct.toFixed(1)}%</label>
+              <input type="range" min={2} max={14} step={0.25} value={currentSlide.titleSizePct} onChange={e => update('titleSizePct', parseFloat(e.target.value))} style={{ width: '100%' }} />
             </div>
             <div>
-              <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Y-sijainti: {draft.titleY}%</label>
-              <input type="range" min={5} max={95} step={1} value={draft.titleY} onChange={e => update('titleY', parseInt(e.target.value))} style={{ width: '100%' }} />
+              <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Y-sijainti: {currentSlide.titleY}%</label>
+              <input type="range" min={5} max={95} step={1} value={currentSlide.titleY} onChange={e => update('titleY', parseInt(e.target.value))} style={{ width: '100%' }} />
             </div>
           </div>
           <div style={{ marginTop: '.35rem' }}>
-            <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Paksuus: {draft.titleWeight}</label>
-            <input type="range" min={400} max={800} step={100} value={draft.titleWeight} onChange={e => update('titleWeight', parseInt(e.target.value))} style={{ width: '100%' }} />
+            <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Paksuus: {currentSlide.titleWeight}</label>
+            <input type="range" min={400} max={800} step={100} value={currentSlide.titleWeight} onChange={e => update('titleWeight', parseInt(e.target.value))} style={{ width: '100%' }} />
           </div>
           <div style={{ display: 'flex', gap: '.25rem', marginTop: '.35rem' }}>
-            <input type="color" value={draft.titleColor} onChange={e => update('titleColor', e.target.value)} style={{ width: 36, height: 28, border: 'none', background: 'none', padding: 0, cursor: 'pointer' }} />
+            <input type="color" value={currentSlide.titleColor} onChange={e => update('titleColor', e.target.value)} style={{ width: 36, height: 28, border: 'none', background: 'none', padding: 0, cursor: 'pointer' }} />
             {(['left','center','right'] as const).map(a => (
-              <button key={a} onClick={() => update('titleAlign', a)} className={`cal-view-btn ${draft.titleAlign === a ? 'act' : ''}`} style={{ fontSize: '.62rem', padding: '.2rem .4rem', flex: 1 }}>
+              <button key={a} onClick={() => update('titleAlign', a)} className={`cal-view-btn ${currentSlide.titleAlign === a ? 'act' : ''}`} style={{ fontSize: '.62rem', padding: '.2rem .4rem', flex: 1 }}>
                 {a === 'left' ? 'Vas' : a === 'center' ? 'Kesk' : 'Oik'}
               </button>
             ))}
@@ -948,29 +1652,29 @@ export default function EditorSection() {
         {/* Subtitle */}
         <div style={{ marginBottom: '1rem' }}>
           <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>Alaotsikko</div>
-          <input className="input" value={draft.subtitle} onChange={e => update('subtitle', e.target.value)} placeholder="Alaotsikko" style={{ fontSize: '.78rem', fontFamily: '"DM Sans", system-ui, sans-serif' }} />
+          <input className="input" value={currentSlide.subtitle} onChange={e => update('subtitle', e.target.value)} placeholder="Alaotsikko" style={{ fontSize: '.78rem', fontFamily: '"DM Sans", system-ui, sans-serif' }} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.35rem', marginTop: '.35rem' }}>
             <div>
-              <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Koko: {draft.subtitleSizePct.toFixed(1)}%</label>
-              <input type="range" min={1} max={8} step={0.25} value={draft.subtitleSizePct} onChange={e => update('subtitleSizePct', parseFloat(e.target.value))} style={{ width: '100%' }} />
+              <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Koko: {currentSlide.subtitleSizePct.toFixed(1)}%</label>
+              <input type="range" min={1} max={8} step={0.25} value={currentSlide.subtitleSizePct} onChange={e => update('subtitleSizePct', parseFloat(e.target.value))} style={{ width: '100%' }} />
             </div>
             <div>
-              <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Y-sijainti: {draft.subtitleY}%</label>
-              <input type="range" min={5} max={95} step={1} value={draft.subtitleY} onChange={e => update('subtitleY', parseInt(e.target.value))} style={{ width: '100%' }} />
+              <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Y-sijainti: {currentSlide.subtitleY}%</label>
+              <input type="range" min={5} max={95} step={1} value={currentSlide.subtitleY} onChange={e => update('subtitleY', parseInt(e.target.value))} style={{ width: '100%' }} />
             </div>
           </div>
           <div style={{ marginTop: '.35rem' }}>
-            <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Paksuus: {draft.subtitleWeight}</label>
-            <input type="range" min={400} max={800} step={100} value={draft.subtitleWeight} onChange={e => update('subtitleWeight', parseInt(e.target.value))} style={{ width: '100%' }} />
+            <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Paksuus: {currentSlide.subtitleWeight}</label>
+            <input type="range" min={400} max={800} step={100} value={currentSlide.subtitleWeight} onChange={e => update('subtitleWeight', parseInt(e.target.value))} style={{ width: '100%' }} />
           </div>
-          <input type="color" value={draft.subtitleColor} onChange={e => update('subtitleColor', e.target.value)} style={{ width: 36, height: 28, border: 'none', background: 'none', padding: 0, cursor: 'pointer', marginTop: '.35rem' }} />
+          <input type="color" value={currentSlide.subtitleColor} onChange={e => update('subtitleColor', e.target.value)} style={{ width: 36, height: 28, border: 'none', background: 'none', padding: 0, cursor: 'pointer', marginTop: '.35rem' }} />
         </div>
 
         {/* Kuvat (overlays) — mediapankista tai local upload */}
         <div style={{ marginBottom: '1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.5rem' }}>
             <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-              Kuvat ({draft.overlays.length})
+              Kuvat ({currentSlide.overlays.length})
             </div>
           </div>
           <div style={{ display: 'flex', gap: '.25rem', marginBottom: '.5rem' }}>
@@ -980,9 +1684,9 @@ export default function EditorSection() {
           </div>
 
           {/* Overlay list */}
-          {draft.overlays.length > 0 && (
+          {currentSlide.overlays.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.2rem', marginBottom: '.5rem' }}>
-              {[...draft.overlays].sort((a, b) => b.z - a.z).map(ov => {
+              {[...currentSlide.overlays].sort((a, b) => b.z - a.z).map(ov => {
                 const active = selectedOverlayId === ov.id;
                 return (
                   <div key={ov.id} onClick={() => setSelectedOverlayId(ov.id)} style={{
@@ -1038,20 +1742,20 @@ export default function EditorSection() {
           <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>Logo</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '.25rem', marginBottom: '.4rem' }}>
             {LOGO_OPTIONS.map(l => (
-              <button key={l.id} onClick={() => update('logoId', l.id)} className={`cal-view-btn ${draft.logoId === l.id ? 'act' : ''}`} style={{ fontSize: '.62rem', padding: '.3rem' }}>
+              <button key={l.id} onClick={() => update('logoId', l.id)} className={`cal-view-btn ${currentSlide.logoId === l.id ? 'act' : ''}`} style={{ fontSize: '.62rem', padding: '.3rem' }}>
                 {l.label}
               </button>
             ))}
           </div>
-          {draft.logoId !== 'none' && (
+          {currentSlide.logoId !== 'none' && (
             <>
-              <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Koko: {draft.logoSizePct}%</label>
-              <input type="range" min={3} max={40} step={1} value={draft.logoSizePct} onChange={e => update('logoSizePct', parseInt(e.target.value))} style={{ width: '100%' }} />
+              <label style={{ fontSize: '.58rem', color: 'var(--t3)' }}>Koko: {currentSlide.logoSizePct}%</label>
+              <input type="range" min={3} max={40} step={1} value={currentSlide.logoSizePct} onChange={e => update('logoSizePct', parseInt(e.target.value))} style={{ width: '100%' }} />
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, marginTop: '.4rem' }}>
                 {(['top-left','top-center','top-right','center','center','center','bottom-left','bottom-center','bottom-right'] as LogoPosition[]).map((p, i) => {
                   // Only keep valid position buttons (not duplicates)
                   if ((i === 4 || i === 5) && p === 'center') return <div key={i} />;
-                  const active = draft.logoPos === p;
+                  const active = currentSlide.logoPos === p;
                   return (
                     <button key={i} onClick={() => update('logoPos', p)} style={{
                       aspectRatio: '1',
@@ -1159,7 +1863,7 @@ export default function EditorSection() {
                     borderRadius: 4,
                     overflow: 'hidden',
                     cursor: 'pointer',
-                    border: (pickerTarget === 'background' && draft.bgValue === f.url) ? '2px solid var(--pri)' : '2px solid transparent',
+                    border: (pickerTarget === 'background' && currentSlide.bgValue === f.url) ? '2px solid var(--pri)' : '2px solid transparent',
                     transition: 'transform .15s',
                   }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.02)'; }}
@@ -1182,6 +1886,209 @@ export default function EditorSection() {
           </div>
         </div>
       )}
+
+      {/* ========== PUBLISH MODAL ========== */}
+      {showPublishModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+          onClick={() => !publishing && setShowPublishModal(false)}
+        >
+          <div
+            style={{
+              background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+              padding: '1.75rem', width: 560, maxWidth: '95vw', maxHeight: '92vh', overflowY: 'auto',
+              animation: 'scaleIn .15s ease-out',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ marginBottom: '1.25rem' }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 500, marginBottom: '.3rem' }}>
+                Julkaise kuva
+              </h3>
+              <div style={{ fontSize: '.72rem', color: 'var(--t3)' }}>
+                Tallennetaan Julkaisut-välilehdelle ja lisätään viestinnän kalenteriin
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem' }}>
+              <div
+                style={{
+                  width: 120, aspectRatio: `${template.w} / ${template.h}`, flexShrink: 0,
+                  background: draft.slides[0]?.bgValue || '#000',
+                  borderRadius: 'var(--r)', overflow: 'hidden',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <SlideThumb
+                  slide={draft.slides[0]}
+                  template={template}
+                  draw={drawSlide}
+                  version={imgCacheVersion}
+                />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '.7rem', color: 'var(--t3)', marginBottom: '.2rem', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 600 }}>Sisältö</div>
+                <div style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: '.2rem' }}>
+                  {draft.name || 'Nimetön suunnitelma'}
+                </div>
+                <div style={{ fontSize: '.7rem', color: 'var(--t3)' }}>
+                  {template.label} · {template.w}×{template.h}px
+                  {draft.slides.length > 1 && ` · ${draft.slides.length} slaidia`}
+                </div>
+              </div>
+            </div>
+
+            {/* Category */}
+            <div className="field">
+              <label>Kategoria</label>
+              <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap' }}>
+                {[
+                  { id: 'some', label: 'Sosiaalinen media' },
+                  { id: 'press', label: 'Lehdistö' },
+                  { id: 'partner', label: 'Kumppanit' },
+                  { id: 'internal', label: 'Sisäinen' },
+                ].map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={`btn btn-sm ${publishCategory === c.id ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setPublishCategory(c.id)}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Title */}
+            <div className="field">
+              <label>Otsikko *</label>
+              <input
+                className="input"
+                value={publishTitle}
+                onChange={e => setPublishTitle(e.target.value)}
+                placeholder="Julkaisun otsikko"
+                autoFocus
+              />
+            </div>
+
+            {/* Body */}
+            <div className="field">
+              <label>Kuvateksti</label>
+              <textarea
+                className="input"
+                value={publishBody}
+                onChange={e => setPublishBody(e.target.value)}
+                placeholder="Julkaisun teksti (caption)…"
+                rows={4}
+                style={{ resize: 'vertical', minHeight: 80, fontFamily: 'inherit' }}
+              />
+            </div>
+
+            {/* Channels — fallback to default LLFF-some-kanavat jos orgissa ei ole omia */}
+            <div className="field">
+              <label>Missä julkaistaan? *</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem' }}>
+                {(() => {
+                  const orgChannels = (org.channels || []) as { name: string }[];
+                  const fallback = [
+                    { name: 'Instagram' },
+                    { name: 'Facebook' },
+                    { name: 'LinkedIn' },
+                    { name: 'TikTok' },
+                    { name: 'Uutiskirje' },
+                    { name: 'Nettisivut' },
+                  ];
+                  const list = orgChannels.length > 0 ? orgChannels : fallback;
+                  return list.map(ch => (
+                    <button
+                      key={ch.name}
+                      type="button"
+                      className={`btn btn-sm ${publishChannels.includes(ch.name) ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => togglePublishChannel(ch.name)}
+                    >
+                      {ch.name}
+                    </button>
+                  ));
+                })()}
+              </div>
+              {(org.channels || []).length === 0 && (
+                <div style={{ fontSize: '.62rem', color: 'var(--t3)', marginTop: '.35rem' }}>
+                  Oletuskanavat näkyvissä. Lisää omat kanavasi Viestintä › Kanavat -välilehdellä.
+                </div>
+              )}
+            </div>
+
+            {/* Date + status */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+              <div className="field">
+                <label>Milloin julkaistaan?</label>
+                <input
+                  type="date"
+                  className="input"
+                  value={publishDate}
+                  onChange={e => setPublishDate(e.target.value)}
+                />
+                <div style={{ fontSize: '.62rem', color: 'var(--t3)', marginTop: '.25rem' }}>
+                  Jätä tyhjäksi jos et tiedä vielä
+                </div>
+              </div>
+              <div className="field">
+                <label>Tila</label>
+                <select
+                  className="input"
+                  value={publishStatus}
+                  onChange={e => setPublishStatus(e.target.value as 'draft' | 'ready')}
+                >
+                  <option value="ready">Valmis</option>
+                  <option value="draft">Luonnos</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end', marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+              <button
+                className="btn btn-ghost"
+                onClick={() => setShowPublishModal(false)}
+                disabled={publishing}
+              >
+                Peruuta
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={confirmPublish}
+                disabled={publishing || !publishTitle.trim() || publishChannels.length === 0}
+              >
+                {publishing ? 'Tallennetaan…' : 'Tallenna julkaisu'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+// ===== SlideThumb: mini canvas joka renderöi yhden slaiden karuselli-stripin thumbnailiksi =====
+interface SlideThumbProps {
+  slide: Slide;
+  template: Template;
+  draw: (canvas: HTMLCanvasElement, slide: Slide, forExport?: boolean) => void;
+  version: number; // re-render trigger when image cache updates
+}
+
+function SlideThumb({ slide, template, draw, version }: SlideThumbProps) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (ref.current) draw(ref.current, slide, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slide, template, version]);
+  return (
+    <canvas
+      ref={ref}
+      style={{ display: 'block', width: '100%', height: '100%', pointerEvents: 'none' }}
+    />
   );
 }
