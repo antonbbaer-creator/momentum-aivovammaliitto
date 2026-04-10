@@ -62,6 +62,11 @@ export default {
         return handlePublish(request, env, orgId);
       }
 
+      // ── AI CHAT ──
+      if (path === '/api/chat' && request.method === 'POST') {
+        return handleChat(request, env, orgId);
+      }
+
       // ── MEDIA ROUTES ──
       if (path === '/media/upload' && request.method === 'POST') {
         return handleMediaUpload(request, env, orgId);
@@ -394,4 +399,64 @@ async function handleMediaDelete(request, env, path) {
   const key = path.replace('/media/delete/', '');
   await env.MEDIA_BUCKET.delete(key);
   return corsResponse(request, env, { deleted: true, key });
+}
+
+// ══════ AI CHAT (Anthropic Claude) ══════
+
+async function handleChat(request, env, orgId) {
+  const body = await request.json();
+  const { messages, systemContext } = body;
+
+  if (!messages || !Array.isArray(messages)) {
+    return corsResponse(request, env, { error: 'messages required' }, 400);
+  }
+
+  // Try Anthropic API first (if credits available), fallback to Workers AI
+  const apiKey = env.ANTHROPIC_API_KEY;
+
+  if (apiKey) {
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          system: systemContext || 'Olet viestinnän strateginen AI-kumppani. Vastaa suomeksi.',
+          messages: messages.slice(-20),
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const response = data.content?.[0]?.text || 'Ei vastausta.';
+        return corsResponse(request, env, { response });
+      }
+      // If Anthropic fails (no credits etc), fall through to Workers AI
+    } catch (e) { /* fall through */ }
+  }
+
+  // Fallback: Cloudflare Workers AI (free)
+  if (env.AI) {
+    try {
+      const prompt = (systemContext ? systemContext + '\n\n' : '') +
+        messages.slice(-10).map(m => `${m.role === 'user' ? 'Käyttäjä' : 'Avustaja'}: ${m.content}`).join('\n') +
+        '\nAvustaja:';
+
+      const aiRes = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+        prompt,
+        max_tokens: 800,
+      });
+
+      return corsResponse(request, env, { response: aiRes.response || 'Ei vastausta.' });
+    } catch (e) {
+      return corsResponse(request, env, { error: 'AI not available: ' + e.message }, 500);
+    }
+  }
+
+  return corsResponse(request, env, { error: 'No AI provider configured' }, 500);
 }

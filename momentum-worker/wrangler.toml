@@ -10,5 +10,8 @@ id = "f3e194adebdc4f1185cc428771cd9afd"
 binding = "MEDIA_BUCKET"
 bucket_name = "momentum-media"
 
+[ai]
+binding = "AI"
+
 [vars]
 ALLOWED_ORIGINS = "https://hetkimomentum.com,https://elegant-melba-ad4bcf.netlify.app,http://localhost:3000,http://localhost:8080"

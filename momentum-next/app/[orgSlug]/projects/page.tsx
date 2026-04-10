@@ -6,8 +6,9 @@ import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 
-interface Task { id: number; text: string; done: boolean; assignee: string; }
+interface Task { id: number; text: string; done: boolean; assignee: string; deadline: string; }
 interface TeamMember { name: string; role: string; avatar: string; }
+interface TeamDataMember { id: string; name: string; role: string; type: string; avatar: string; }
 interface Project { id: number; t: string; d: string; st: string; deadline: string; team: TeamMember[]; comments: any[]; tasks: Task[]; archived: boolean; createdAt: number; }
 
 const deadlineColor = (dl: string) => {
@@ -25,6 +26,7 @@ export default function ProjectsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [projects, setProjects] = useOrgData<Project[]>('projects', []);
+  const [teamData] = useOrgData<TeamDataMember[]>('teamMembers', []);
   const [mode, setMode] = useState<'kanban' | 'new' | 'detail'>('kanban');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showArchive, setShowArchive] = useState(false);
@@ -92,20 +94,51 @@ export default function ProjectsPage() {
           {progress > 0 && <div style={{ height: 4, background: 'var(--bg)', borderRadius: 2, marginBottom: '1rem', overflow: 'hidden' }}>
             <div style={{ height: '100%', width: progress + '%', background: progress === 100 ? 'var(--green)' : 'var(--pri)', borderRadius: 2, transition: 'width .3s' }} />
           </div>}
-          {(selected.tasks || []).map((task, i) => (
-            <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '.6rem', padding: '.5rem 0', borderBottom: '1px solid var(--border)' }}>
-              <input type="checkbox" checked={task.done} onChange={() => {
-                const tasks = [...selected.tasks]; tasks[i] = { ...tasks[i], done: !tasks[i].done }; updateProject(selected.id, { tasks });
-              }} />
-              <span style={{ flex: 1, fontSize: '.85rem', textDecoration: task.done ? 'line-through' : 'none', color: task.done ? 'var(--t3)' : 'var(--t1)' }}>{task.text}</span>
-              <button className="btn btn-ghost btn-sm" onClick={() => {
-                updateProject(selected.id, { tasks: selected.tasks.filter((_, j) => j !== i) });
-              }} style={{ color: 'var(--t3)', fontSize: '.7rem' }}>{'\u00d7'}</button>
+          {(selected.tasks || []).map((task, i) => {
+            const taskDlc = task.deadline ? deadlineColor(task.deadline) : null;
+            return (
+            <div key={task.id} style={{ padding: '.75rem', background: 'var(--elev)', border: '1px solid var(--border)', borderRadius: 'var(--r)', marginBottom: '.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
+                <input type="checkbox" checked={task.done} onChange={() => {
+                  const tasks = [...selected.tasks]; tasks[i] = { ...tasks[i], done: !tasks[i].done }; updateProject(selected.id, { tasks });
+                }} />
+                <span style={{ flex: 1, fontSize: '.85rem', textDecoration: task.done ? 'line-through' : 'none', color: task.done ? 'var(--t3)' : 'var(--t1)' }}>{task.text}</span>
+                <button className="btn btn-ghost btn-sm" onClick={() => {
+                  updateProject(selected.id, { tasks: selected.tasks.filter((_, j) => j !== i) });
+                }} style={{ color: 'var(--t3)', fontSize: '.7rem' }}>{'\u00d7'}</button>
+              </div>
+              <div style={{ display: 'flex', gap: '.5rem', marginTop: '.5rem', marginLeft: '1.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Tekijä */}
+                <select className="input" value={task.assignee || ''} onChange={e => {
+                  const tasks = [...selected.tasks]; tasks[i] = { ...tasks[i], assignee: e.target.value }; updateProject(selected.id, { tasks });
+                }} style={{ fontSize: '.72rem', padding: '.25rem .4rem', width: 'auto', minWidth: 120, background: 'var(--card)' }}>
+                  <option value="">Ei tekijää</option>
+                  {teamData.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                </select>
+                {/* Deadline */}
+                <input type="date" className="input" value={task.deadline || ''} onChange={e => {
+                  const tasks = [...selected.tasks]; tasks[i] = { ...tasks[i], deadline: e.target.value }; updateProject(selected.id, { tasks });
+                }} style={{ fontSize: '.72rem', padding: '.25rem .4rem', width: 'auto', background: 'var(--card)' }} />
+                {/* Deadline badge */}
+                {taskDlc && <span style={{ fontSize: '.62rem', padding: '.15rem .4rem', borderRadius: 9999, background: taskDlc.bg, color: taskDlc.color, fontWeight: 600 }}>{taskDlc.label}</span>}
+                {/* Assignee badge */}
+                {task.assignee && <span style={{ fontSize: '.62rem', padding: '.15rem .4rem', borderRadius: 9999, background: 'rgba(5,107,159,.1)', color: 'var(--pri-l)', fontWeight: 600 }}>{task.assignee}</span>}
+              </div>
             </div>
-          ))}
-          <form onSubmit={e => { e.preventDefault(); const input = (e.target as any).taskInput; if (!input.value.trim()) return; updateProject(selected.id, { tasks: [...(selected.tasks || []), { id: Date.now(), text: input.value.trim(), done: false, assignee: '' }] }); input.value = ''; }} style={{ marginTop: '.75rem', display: 'flex', gap: '.5rem' }}>
-            <input name="taskInput" className="input" placeholder="Lisää tehtävä..." style={{ flex: 1 }} />
-            <button type="submit" className="btn btn-primary btn-sm">Lisää</button>
+            );
+          })}
+          <form onSubmit={e => { e.preventDefault(); const f = e.target as any; if (!f.taskInput.value.trim()) return; updateProject(selected.id, { tasks: [...(selected.tasks || []), { id: Date.now(), text: f.taskInput.value.trim(), done: false, assignee: f.taskAssignee?.value || '', deadline: f.taskDeadline?.value || '' }] }); f.taskInput.value = ''; if(f.taskDeadline) f.taskDeadline.value = ''; if(f.taskAssignee) f.taskAssignee.selectedIndex = 0; }} style={{ marginTop: '.75rem' }}>
+            <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.5rem' }}>
+              <input name="taskInput" className="input" placeholder="Lisää tehtävä..." style={{ flex: 1 }} />
+              <button type="submit" className="btn btn-primary btn-sm">Lisää</button>
+            </div>
+            <div style={{ display: 'flex', gap: '.5rem' }}>
+              <select name="taskAssignee" className="input" style={{ fontSize: '.78rem', width: 'auto', minWidth: 140 }}>
+                <option value="">Tekijä (valinnainen)</option>
+                {teamData.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+              </select>
+              <input name="taskDeadline" type="date" className="input" style={{ fontSize: '.78rem', width: 'auto' }} />
+            </div>
           </form>
         </div>
 
@@ -177,8 +210,15 @@ export default function ProjectsPage() {
                       onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--pri)')} onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}>
                       <div style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: '.35rem' }}>{p.t}</div>
                       {dlc && <div style={{ fontSize: '.65rem', padding: '.15rem .4rem', borderRadius: 9999, background: dlc.bg, color: dlc.color, fontWeight: 600, display: 'inline-block', marginBottom: '.35rem' }}>{dlc.label}</div>}
-                      {prog > 0 && <div style={{ height: 3, background: 'var(--bg)', borderRadius: 2, overflow: 'hidden' }}><div style={{ height: '100%', width: prog + '%', background: prog === 100 ? 'var(--green)' : 'var(--pri)', borderRadius: 2 }} /></div>}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '.4rem' }}>
+                      {prog > 0 && <div style={{ height: 3, background: 'var(--bg)', borderRadius: 2, overflow: 'hidden', marginBottom: '.35rem' }}><div style={{ height: '100%', width: prog + '%', background: prog === 100 ? 'var(--green)' : 'var(--pri)', borderRadius: 2 }} /></div>}
+                      {/* Assignees on card */}
+                      {(() => { const assignees = [...new Set((p.tasks || []).filter(t => t.assignee).map(t => t.assignee))]; return assignees.length > 0 ? (
+                        <div style={{ display: 'flex', gap: '.2rem', flexWrap: 'wrap', marginBottom: '.35rem' }}>
+                          {assignees.slice(0, 3).map((a, ai) => <span key={ai} style={{ fontSize: '.58rem', padding: '.1rem .35rem', borderRadius: 9999, background: 'rgba(5,107,159,.1)', color: 'var(--pri-l)', fontWeight: 600 }}>{a}</span>)}
+                          {assignees.length > 3 && <span style={{ fontSize: '.58rem', color: 'var(--t3)' }}>+{assignees.length - 3}</span>}
+                        </div>
+                      ) : null; })()}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '.2rem' }}>
                         {col.k === 'done' && <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); archiveProject(p.id); }} style={{ fontSize: '.65rem' }}>Arkistoi</button>}
                       </div>
                     </div>

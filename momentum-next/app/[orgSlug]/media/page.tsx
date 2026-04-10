@@ -55,7 +55,7 @@ export default function MediaPage() {
           }));
         }
       })
-      .catch(() => { /* offline */ });
+      .catch(() => console.warn('R2 offline, using local files only'));
   }, [activeOrg]);
 
   // Combine local uploads + R2 cloud files (deduplicate by r2Key)

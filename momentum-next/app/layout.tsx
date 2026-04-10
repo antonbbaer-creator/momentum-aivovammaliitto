@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 import { ToastProvider } from "@/lib/toast";
+import ChatFAB from "@/components/ChatFAB";
 
 export const metadata: Metadata = {
   title: "Hetki \u2014 Momentum",
@@ -26,6 +27,7 @@ export default function RootLayout({
         <AuthProvider>
           <ToastProvider>
             {children}
+            <ChatFAB />
           </ToastProvider>
         </AuthProvider>
       </body>

@@ -20,10 +20,13 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   media:        { id: 'media',        label: 'Mediapankki',   icon: '\u25a3', path: '/media',        alwaysOn: false },
   budget:       { id: 'budget',       label: 'Budjetti',      icon: '\u20ac', path: '/budget',       alwaysOn: false },
   timeline:     { id: 'timeline',     label: 'Aikataulu',     icon: '\u25ac', path: '/timeline',     alwaysOn: false },
+  team:         { id: 'team',         label: 'Tiimi',         icon: '\u2261', path: '/team',         alwaysOn: false },
+  editor:       { id: 'editor',       label: 'Editori',       icon: '\u25ce', path: '/editor',       alwaysOn: false },
+  films:        { id: 'films',        label: 'Elokuvat',      icon: '\u25b7', path: '/films',        alwaysOn: false },
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'projects', 'publications', 'calendar', 'channels', 'media', 'budget', 'timeline'];
+export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'projects', 'publications', 'calendar', 'channels', 'media', 'editor', 'films', 'budget', 'timeline'];
 
 // Default modules for new orgs (all current ones on, new ones off)
 export const DEFAULT_MODULES: Record<string, boolean> = {
@@ -36,6 +39,9 @@ export const DEFAULT_MODULES: Record<string, boolean> = {
   media: true,
   budget: false,
   timeline: false,
+  team: true,
+  editor: true,
+  films: true,
 };
 
 export function useModules() {

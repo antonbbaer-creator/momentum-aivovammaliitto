@@ -45,6 +45,7 @@ export default function AdminPage() {
 
   // Module configs per org
   const [orgModules, setOrgModules] = useState<Record<string, Record<string, boolean>>>({});
+  const [aiProfiles, setAiProfiles] = useState<Record<string, any>>({});
 
   // Invite form
   const [inviteEmail, setInviteEmail] = useState('');
@@ -157,6 +158,19 @@ export default function AdminPage() {
           } catch { modulesMap[orgDoc.id] = { ...DEFAULT_MODULES }; }
         }
         setOrgModules(modulesMap);
+
+        // Fetch AI profiles per org
+        const profilesMap: Record<string, any> = {};
+        for (const orgDoc of orgsSnap.docs) {
+          try {
+            const dataSnap = await getDocs(collection(db, 'organizations', orgDoc.id, 'data'));
+            const profileDoc = dataSnap.docs.find(d => d.id === 'aiProfile');
+            if (profileDoc) {
+              profilesMap[orgDoc.id] = JSON.parse(profileDoc.data().v || '{}');
+            }
+          } catch {}
+        }
+        setAiProfiles(profilesMap);
 
         // Fetch all users
         const usersSnap = await getDocs(collection(db, 'users'));
@@ -423,6 +437,68 @@ export default function AdminPage() {
                       );
                     })}
                   </div>
+                </div>
+
+                {/* AI Profile */}
+                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+                  <h4 style={{ fontSize: '.82rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.5rem' }}>
+                    AI-profiili
+                  </h4>
+                  <p style={{ fontSize: '.72rem', color: 'var(--t3)', marginBottom: '1rem', lineHeight: 1.6 }}>
+                    Määrittelee miten AI toimii tässä asiakkuudessa. Rooli, fokus, painopisteet ja konteksti.
+                  </p>
+
+                  <div className="field">
+                    <label>AI:n rooli</label>
+                    <select className="input" value={aiProfiles[selectedOrgData.id]?.role || 'comms'} onChange={async (e) => {
+                      const updated = { ...(aiProfiles[selectedOrgData.id] || {}), role: e.target.value };
+                      setAiProfiles(prev => ({ ...prev, [selectedOrgData.id]: updated }));
+                      await setDoc(doc(db, 'organizations', selectedOrgData.id, 'data', 'aiProfile'), { v: JSON.stringify(updated), ts: Date.now(), updatedBy: user!.uid });
+                      toast('AI-rooli päivitetty', 'success');
+                    }}>
+                      <option value="comms">Viestinnän strateginen kumppani</option>
+                      <option value="marketing">Markkinoinnin avustaja</option>
+                      <option value="project">Projektipäällikkö-avustaja</option>
+                      <option value="production">Tuotannon hallinta-avustaja</option>
+                      <option value="custom">Räätälöity rooli</option>
+                    </select>
+                  </div>
+
+                  <div className="field">
+                    <label>AI:n fokus ja painopisteet</label>
+                    <textarea className="input textarea" value={aiProfiles[selectedOrgData.id]?.focus || ''} onChange={e => {
+                      setAiProfiles(prev => ({ ...prev, [selectedOrgData.id]: { ...(prev[selectedOrgData.id] || {}), focus: e.target.value } }));
+                    }} placeholder="Esim: Keskity viestinnän strategiseen suunnitteluun. Painota saavutettavuutta ja selkokielisyyttä. Tunne STEA-rahoituksen vaatimukset."
+                      style={{ minHeight: 80 }} />
+                  </div>
+
+                  <div className="field">
+                    <label>Organisaation konteksti AI:lle</label>
+                    <textarea className="input textarea" value={aiProfiles[selectedOrgData.id]?.context || ''} onChange={e => {
+                      setAiProfiles(prev => ({ ...prev, [selectedOrgData.id]: { ...(prev[selectedOrgData.id] || {}), context: e.target.value } }));
+                    }} placeholder="Organisaation tausta, missio, erityispiirteet, kohderyhmät, toimintaympäristö..."
+                      style={{ minHeight: 120 }} />
+                  </div>
+
+                  <div className="field">
+                    <label>AI:n sävyohje</label>
+                    <input className="input" value={aiProfiles[selectedOrgData.id]?.tone || ''} onChange={e => {
+                      setAiProfiles(prev => ({ ...prev, [selectedOrgData.id]: { ...(prev[selectedOrgData.id] || {}), tone: e.target.value } }));
+                    }} placeholder="Esim: Asiallinen, empaattinen, rohkaiseva, selkeä" />
+                  </div>
+
+                  <div className="field">
+                    <label>Kielletyt aiheet / rajoitukset</label>
+                    <input className="input" value={aiProfiles[selectedOrgData.id]?.restrictions || ''} onChange={e => {
+                      setAiProfiles(prev => ({ ...prev, [selectedOrgData.id]: { ...(prev[selectedOrgData.id] || {}), restrictions: e.target.value } }));
+                    }} placeholder="Esim: Älä anna lääketieteellisiä neuvoja, älä spekuloi rahoituksesta" />
+                  </div>
+
+                  <button className="btn btn-primary btn-sm" onClick={async () => {
+                    const profile = aiProfiles[selectedOrgData.id] || {};
+                    await setDoc(doc(db, 'organizations', selectedOrgData.id, 'data', 'aiProfile'), { v: JSON.stringify(profile), ts: Date.now(), updatedBy: user!.uid });
+                    toast('AI-profiili tallennettu', 'success');
+                  }}>Tallenna AI-profiili</button>
                 </div>
 
                 {/* Members */}
