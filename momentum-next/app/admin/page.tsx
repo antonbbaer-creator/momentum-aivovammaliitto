@@ -349,7 +349,7 @@ export default function AdminPage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '.95rem', fontWeight: 700 }}>{org.name}</div>
                     <div style={{ fontSize: '.72rem', color: 'var(--t3)' }}>
-                      {org.members.length} jäsentä {'\u00b7'} Luotu {org.createdAt ? new Date(org.createdAt).toLocaleDateString('fi-FI') : '-'}
+                      {org.members.length} jäsentä {'·'} Luotu {org.createdAt ? new Date(org.createdAt).toLocaleDateString('fi-FI') : '-'}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '-4px' }}>
@@ -363,7 +363,7 @@ export default function AdminPage() {
                     ))}
                     {org.members.length > 4 && <span style={{ fontSize: '.65rem', color: 'var(--t3)', alignSelf: 'center', marginLeft: '.3rem' }}>+{org.members.length - 4}</span>}
                   </div>
-                  <span style={{ color: 'var(--t3)', fontSize: '.9rem' }}>{'\u203a'}</span>
+                  <span style={{ color: 'var(--t3)', fontSize: '.9rem' }}>{'›'}</span>
                 </div>
               ))}
               {orgs.length === 0 && (
@@ -378,7 +378,7 @@ export default function AdminPage() {
           {tab === 'orgs' && selectedOrgData && (
             <div>
               <button className="btn btn-ghost" onClick={() => setSelectedOrg(null)} style={{ marginBottom: '1rem' }}>
-                {'\u2190'} Takaisin organisaatioihin
+                {'←'} Takaisin organisaatioihin
               </button>
 
               <div className="bcard" style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', marginBottom: '1.5rem' }}>
@@ -386,7 +386,7 @@ export default function AdminPage() {
                   <div>
                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 500 }}>{selectedOrgData.name}</h3>
                     <p style={{ fontSize: '.78rem', color: 'var(--t3)', marginTop: '.15rem' }}>
-                      {selectedOrgData.shortName} {'\u00b7'} {selectedOrgData.plan} {'\u00b7'} ID: {selectedOrgData.id.slice(0, 8)}...
+                      {selectedOrgData.shortName} {'·'} {selectedOrgData.plan} {'·'} ID: {selectedOrgData.id.slice(0, 8)}...
                     </p>
                   </div>
                   <button className="btn btn-sm" onClick={() => deleteOrg(selectedOrgData.id)}

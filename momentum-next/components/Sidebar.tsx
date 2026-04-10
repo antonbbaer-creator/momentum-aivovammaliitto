@@ -20,9 +20,28 @@ export default function Sidebar() {
         <div className="logo-text"><img src="/brand/hetki-logo-white.png" alt="Hetki" /> Momentum</div>
       </div>
 
-      <div className="ws-box" onClick={() => router.push(`/${orgSlug}/settings`)}>
-        <div className="ws-name">{currentOrg?.name || 'Organisaatio'}</div>
-        <div className="ws-plan">Free Plan</div>
+      <div
+        className="ws-box"
+        onClick={() => router.push(`/${orgSlug}/settings`)}
+        style={orgSlug === 'llff' ? { padding: 0, overflow: 'hidden' } : undefined}
+      >
+        {orgSlug === 'llff' ? (
+          <img
+            src="/brand/llff-banner-2026.png"
+            alt={currentOrg?.name || 'Lapinlahti Film Festival 2026'}
+            style={{
+              width: '100%',
+              height: 'auto',
+              display: 'block',
+            }}
+            onError={(e) => {
+              // Fallback if file is missing — hide gracefully
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        ) : (
+          <div className="ws-name">{currentOrg?.name || 'Organisaatio'}</div>
+        )}
       </div>
 
       <nav style={{ flex: 1, padding: '.5rem 0', overflowY: 'auto' }}>
@@ -44,7 +63,7 @@ export default function Sidebar() {
               className={`nav-i ${pathname === '/admin' ? 'act' : ''}`}
               onClick={() => router.push('/admin')}
             >
-              <span className="nav-ic">{'\u2699'}</span>
+              <span className="nav-ic">{'⚙'}</span>
               <span>Hallintapaneeli</span>
             </div>
           </>

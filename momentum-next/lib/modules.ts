@@ -11,37 +11,27 @@ export interface ModuleDef {
 }
 
 export const MODULE_REGISTRY: Record<string, ModuleDef> = {
-  dashboard:    { id: 'dashboard',    label: 'Koti',          icon: '\u25c9', path: '/dashboard',    alwaysOn: true },
-  strategy:     { id: 'strategy',     label: 'Strategia',     icon: '\u25c8', path: '/strategy',     alwaysOn: false },
-  projects:     { id: 'projects',     label: 'Projektit',     icon: '\u2630', path: '/projects',     alwaysOn: false },
-  publications: { id: 'publications', label: 'Julkaisut',     icon: '\u25b6', path: '/publications', alwaysOn: false },
-  calendar:     { id: 'calendar',     label: 'Kalenteri',     icon: '\u25a6', path: '/calendar',     alwaysOn: false },
-  channels:     { id: 'channels',     label: 'Kanavat',       icon: '\u25c7', path: '/channels',     alwaysOn: false },
-  media:        { id: 'media',        label: 'Mediapankki',   icon: '\u25a3', path: '/media',        alwaysOn: false },
-  budget:       { id: 'budget',       label: 'Budjetti',      icon: '\u20ac', path: '/budget',       alwaysOn: false },
-  timeline:     { id: 'timeline',     label: 'Aikataulu',     icon: '\u25ac', path: '/timeline',     alwaysOn: false },
-  team:         { id: 'team',         label: 'Tiimi',         icon: '\u2261', path: '/team',         alwaysOn: false },
-  editor:       { id: 'editor',       label: 'Editori',       icon: '\u25ce', path: '/editor',       alwaysOn: false },
-  films:        { id: 'films',        label: 'Elokuvat',      icon: '\u25b7', path: '/films',        alwaysOn: false },
+  dashboard:  { id: 'dashboard',  label: 'Koti',       icon: '◉', path: '/dashboard',  alwaysOn: true },
+  strategy:   { id: 'strategy',   label: 'Strategia',  icon: '◈', path: '/strategy',   alwaysOn: false },
+  team:       { id: 'team',       label: 'Tiimi',      icon: '≡', path: '/team',       alwaysOn: false },
+  aikataulut: { id: 'aikataulut', label: 'Aikataulut', icon: '◌', path: '/aikataulut', alwaysOn: false },
+  viestinta:  { id: 'viestinta',  label: 'Viestintä',  icon: '▶', path: '/viestinta',  alwaysOn: false },
+  ohjelmisto: { id: 'ohjelmisto', label: 'Ohjelmisto', icon: '▷', path: '/ohjelmisto', alwaysOn: false },
+  budget:     { id: 'budget',     label: 'Apurahat',   icon: '€', path: '/budget',     alwaysOn: false },
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'projects', 'publications', 'calendar', 'channels', 'media', 'editor', 'films', 'budget', 'timeline'];
+export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'aikataulut', 'viestinta', 'ohjelmisto', 'budget'];
 
-// Default modules for new orgs (all current ones on, new ones off)
+// Default modules for new orgs
 export const DEFAULT_MODULES: Record<string, boolean> = {
   dashboard: true,
   strategy: true,
-  projects: true,
-  publications: true,
-  calendar: true,
-  channels: true,
-  media: true,
-  budget: false,
-  timeline: false,
   team: true,
-  editor: true,
-  films: true,
+  aikataulut: true,
+  viestinta: true,
+  ohjelmisto: true,
+  budget: true,  // Apurahat — aktiivinen LLFF:lle, tärkein 100k tavoitteen seurantaan
 };
 
 export function useModules() {

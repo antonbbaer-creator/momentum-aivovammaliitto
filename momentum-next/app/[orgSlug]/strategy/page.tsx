@@ -232,7 +232,7 @@ export default function StrategyPage() {
               <div style={{ padding: '1.25rem 1.5rem' }}>
                 {submitted ? (
                   <div style={{ textAlign: 'center', padding: '1rem' }}>
-                    <div style={{ color: 'var(--green)', fontSize: '1.2rem', marginBottom: '.5rem' }}>{'\u2713'}</div>
+                    <div style={{ color: 'var(--green)', fontSize: '1.2rem', marginBottom: '.5rem' }}>{'✓'}</div>
                     <p style={{ fontSize: '.85rem', fontWeight: 600 }}>Lähetetty!</p>
                     <button className="btn btn-ghost btn-sm" onClick={() => setSubmitted(false)} style={{ marginTop: '.5rem' }}>Lähetä uusi</button>
                   </div>

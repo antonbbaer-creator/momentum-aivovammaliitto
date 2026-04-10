@@ -5,8 +5,8 @@ import { ToastProvider } from "@/lib/toast";
 import ChatFAB from "@/components/ChatFAB";
 
 export const metadata: Metadata = {
-  title: "Hetki \u2014 Momentum",
-  description: "Viestinn\u00e4n suunnittelu- ja strategiaty\u00f6kalu",
+  title: "Hetki — Momentum",
+  description: "Viestinnän suunnittelu- ja strategiatyökalu",
   icons: { icon: '/favicon.png', apple: '/favicon.png' },
   openGraph: {
     title: 'Hetki — Momentum',

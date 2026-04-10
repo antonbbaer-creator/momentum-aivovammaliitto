@@ -245,7 +245,7 @@ export default function ChatFAB() {
               <button onClick={() => setOpen(false)} style={{
                 background: 'none', border: 'none', color: 'var(--t3)', fontSize: '1.2rem',
                 cursor: 'pointer', padding: '.25rem',
-              }}>{'\u2715'}</button>
+              }}>{'✕'}</button>
             </div>
 
             {/* Messages */}
@@ -329,7 +329,7 @@ export default function ChatFAB() {
                 borderRadius: 'var(--r)', padding: '.5rem 1rem', fontSize: '.85rem',
                 fontWeight: 600, cursor: 'pointer', opacity: !input.trim() || loading ? .5 : 1,
               }}>
-                {'\u2192'}
+                {'→'}
               </button>
             </div>
           </div>

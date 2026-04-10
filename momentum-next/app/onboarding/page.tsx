@@ -152,7 +152,7 @@ export default function OnboardingPage() {
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '.7rem', fontWeight: 700, color: done || active ? '#fff' : 'var(--t3)',
                   }}>
-                    {done ? '\u2713' : i + 1}
+                    {done ? '✓' : i + 1}
                   </div>
                   <span style={{ fontSize: '.82rem', fontWeight: active ? 700 : 500, color: active ? 'var(--t1)' : done ? 'var(--green)' : 'var(--t3)' }}>{s.l}</span>
                 </div>

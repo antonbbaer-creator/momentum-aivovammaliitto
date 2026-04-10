@@ -1,0 +1,392 @@
+'use client';
+
+import { useState } from 'react';
+import { useOrgData } from '@/lib/firestore';
+import { useAuth } from '@/lib/auth';
+import { useToast } from '@/lib/toast';
+import { OrgTeam, OrgTeamMember, DEFAULT_LLFF_TEAMS, DEFAULT_LLFF_TEAM_MEMBERS } from '@/lib/team-shared';
+import { YearPhase, defaultLlffYearwheel, normalizePhase } from '@/lib/yearwheel-shared';
+
+interface Task { id: number; text: string; done: boolean; assignee: string; deadline: string; }
+interface TeamMember { name: string; role: string; avatar: string; }
+interface TeamDataMember { id: string; name: string; role: string; type: string; avatar: string; }
+export interface Project {
+  id: number;
+  t: string;
+  d: string;
+  st: string;
+  deadline: string;
+  team: TeamMember[];
+  comments: any[];
+  tasks: Task[];
+  archived: boolean;
+  createdAt: number;
+  teamId?: string;   // NEW: organizational team id (executive/elokuva/viestinta/tekninen)
+  phaseId?: string;  // NEW: optional link to a yearwheel phase
+}
+
+interface Props {
+  // If provided, shows only projects for this team and auto-assigns new projects to it
+  teamId?: string;
+}
+
+const deadlineColor = (dl: string) => {
+  if (!dl) return null;
+  const diff = new Date(dl).getTime() - Date.now();
+  const day = 86400000;
+  if (diff < 0) return { color: 'var(--red)', bg: 'rgba(239,68,68,.1)', label: 'Myöhässä' };
+  if (diff < 7 * day) return { color: 'var(--red)', bg: 'rgba(239,68,68,.1)', label: Math.ceil(diff / day) + ' pv jäljellä' };
+  if (diff < 30 * day) return { color: 'var(--yellow)', bg: 'rgba(245,197,66,.1)', label: Math.ceil(diff / day) + ' pv jäljellä' };
+  return { color: 'var(--green)', bg: 'rgba(45,212,160,.1)', label: Math.ceil(diff / day) + ' pv jäljellä' };
+};
+const taskProgress = (tasks: Task[]) => tasks?.length ? Math.round(tasks.filter(t => t.done).length / tasks.length * 100) : 0;
+
+export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [projects, setProjects] = useOrgData<Project[]>('projects', []);
+  const [teamData] = useOrgData<TeamDataMember[]>('teamMembers', []);
+  const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', DEFAULT_LLFF_TEAMS);
+  const [rawPhases] = useOrgData<YearPhase[]>('yearwheel', defaultLlffYearwheel);
+  const phases = rawPhases.map(normalizePhase);
+
+  const [mode, setMode] = useState<'kanban' | 'new' | 'detail'>('kanban');
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [showArchive, setShowArchive] = useState(false);
+  const [dragItem, setDragItem] = useState<number | null>(null);
+  const [teamFilter, setTeamFilter] = useState<string>(fixedTeamId || 'all');
+
+  const [title, setTitle] = useState('');
+  const [desc, setDesc] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [newTeamId, setNewTeamId] = useState<string>(fixedTeamId || '');
+  const [newPhaseId, setNewPhaseId] = useState<string>('');
+
+  const cols = [{ k: 'idea', t: 'Ideat' }, { k: 'active', t: 'Työstössä' }, { k: 'done', t: 'Valmiit' }];
+
+  // If parent passed a fixed team, always filter by it (no override)
+  const effectiveFilter = fixedTeamId || teamFilter;
+  const filteredByTeam = effectiveFilter === 'all'
+    ? projects
+    : projects.filter(p => p.teamId === effectiveFilter);
+  const active = filteredByTeam.filter(p => !p.archived);
+  const archived = filteredByTeam.filter(p => p.archived);
+
+  const createProject = () => {
+    if (!title.trim()) return;
+    const exists = projects.some(p => p.t.toLowerCase() === title.trim().toLowerCase());
+    if (exists) { toast('Samanniminen projekti on jo olemassa', 'error'); return; }
+    const p: Project = {
+      id: Date.now(), t: title.trim(), d: desc.trim(), st: 'idea', deadline,
+      team: [], comments: [], tasks: [], archived: false, createdAt: Date.now(),
+      teamId: newTeamId || fixedTeamId || undefined,
+      phaseId: newPhaseId || undefined,
+    };
+    setProjects(prev => [...prev, p]);
+    setTitle(''); setDesc(''); setDeadline(''); setNewPhaseId('');
+    if (!fixedTeamId) setNewTeamId('');
+    setMode('kanban');
+    toast('Projekti luotu', 'success');
+  };
+
+  const moveProject = (id: number, newSt: string) => setProjects(prev => prev.map(p => p.id === id ? { ...p, st: newSt } : p));
+  const archiveProject = (id: number) => setProjects(prev => prev.map(p => p.id === id ? { ...p, archived: true } : p));
+  const unarchiveProject = (id: number) => setProjects(prev => prev.map(p => p.id === id ? { ...p, archived: false } : p));
+  const deleteProject = (id: number) => setProjects(prev => prev.filter(p => p.id !== id));
+  const updateProject = (id: number, updates: Partial<Project>) => setProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+
+  const selected = selectedId ? projects.find(p => p.id === selectedId) : null;
+
+  if (mode === 'detail' && selected) {
+    const progress = taskProgress(selected.tasks);
+    const dlc = deadlineColor(selected.deadline);
+    const selectedTeam = selected.teamId ? orgTeams.find(t => t.id === selected.teamId) : null;
+    const selectedPhase = selected.phaseId ? phases.find(ph => ph.id === selected.phaseId) : null;
+    return (
+      <>
+        <button className="btn btn-ghost" onClick={() => setMode('kanban')} style={{ marginBottom: '1rem' }}>{'←'} Takaisin projekteihin</button>
+
+        <div style={{
+          background: 'var(--card)', border: '1px solid var(--border)',
+          borderLeft: selectedTeam ? `4px solid ${selectedTeam.color}` : undefined,
+          borderRadius: 'var(--rl)', padding: '1.5rem', marginBottom: '1.5rem',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginBottom: '.35rem', alignItems: 'center' }}>
+                {selectedTeam && (
+                  <span style={{ fontSize: '.6rem', padding: '.18rem .55rem', borderRadius: 9999, background: selectedTeam.color, color: '#fff', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                    {selectedTeam.icon} {selectedTeam.name}
+                  </span>
+                )}
+                {selectedPhase && (
+                  <span style={{ fontSize: '.6rem', padding: '.18rem .55rem', borderRadius: 9999, background: 'var(--elev)', color: 'var(--t2)', fontWeight: 600, border: '1px solid var(--border)' }}>
+                    {'◌'} {selectedPhase.name}
+                  </span>
+                )}
+              </div>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{selected.t}</h3>
+              {dlc && <span style={{ fontSize: '.72rem', padding: '.2rem .5rem', borderRadius: 9999, background: dlc.bg, color: dlc.color, fontWeight: 600, marginTop: '.35rem', display: 'inline-block' }}>{dlc.label}</span>}
+            </div>
+            <select className="input" style={{ width: 'auto', fontSize: '.8rem' }} value={selected.st} onChange={e => updateProject(selected.id, { st: e.target.value })}>
+              <option value="idea">Idea</option><option value="active">Työstössä</option><option value="done">Valmis</option>
+            </select>
+          </div>
+          {selected.d && <p style={{ color: 'var(--t2)', marginTop: '.75rem', lineHeight: 1.7, fontSize: '.9rem' }}>{selected.d}</p>}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '.75rem', marginTop: '1rem' }}>
+            <div>
+              <label style={{ fontSize: '.7rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Deadline</label>
+              <input type="date" className="input" value={selected.deadline || ''} onChange={e => updateProject(selected.id, { deadline: e.target.value })} style={{ marginTop: '.25rem' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '.7rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Tiimi</label>
+              <select className="input" value={selected.teamId || ''} onChange={e => updateProject(selected.id, { teamId: e.target.value || undefined })} style={{ marginTop: '.25rem' }}>
+                <option value="">Ei tiimiä</option>
+                {orgTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '.7rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Vuosikellon vaihe</label>
+              <select className="input" value={selected.phaseId || ''} onChange={e => updateProject(selected.id, { phaseId: e.target.value || undefined })} style={{ marginTop: '.25rem' }}>
+                <option value="">Ei linkitettyä vaihetta</option>
+                {phases.map(ph => <option key={ph.id} value={ph.id}>{ph.name}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.5rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase' }}>Tehtävät</h3>
+            {selected.tasks.length > 0 && <span style={{ fontSize: '.75rem', color: 'var(--t3)' }}>{progress}% valmis</span>}
+          </div>
+          {progress > 0 && <div style={{ height: 4, background: 'var(--bg)', borderRadius: 2, marginBottom: '1rem', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: progress + '%', background: progress === 100 ? 'var(--green)' : 'var(--pri)', borderRadius: 2, transition: 'width .3s' }} />
+          </div>}
+          {(selected.tasks || []).map((task, i) => {
+            const taskDlc = task.deadline ? deadlineColor(task.deadline) : null;
+            return (
+              <div key={task.id} style={{ padding: '.75rem', background: 'var(--elev)', border: '1px solid var(--border)', borderRadius: 'var(--r)', marginBottom: '.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
+                  <input type="checkbox" checked={task.done} onChange={() => {
+                    const tasks = [...selected.tasks]; tasks[i] = { ...tasks[i], done: !tasks[i].done }; updateProject(selected.id, { tasks });
+                  }} />
+                  <span style={{ flex: 1, fontSize: '.85rem', textDecoration: task.done ? 'line-through' : 'none', color: task.done ? 'var(--t3)' : 'var(--t1)' }}>{task.text}</span>
+                  <button className="btn btn-ghost btn-sm" onClick={() => {
+                    updateProject(selected.id, { tasks: selected.tasks.filter((_, j) => j !== i) });
+                  }} style={{ color: 'var(--t3)', fontSize: '.7rem' }}>{'×'}</button>
+                </div>
+                <div style={{ display: 'flex', gap: '.5rem', marginTop: '.5rem', marginLeft: '1.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select className="input" value={task.assignee || ''} onChange={e => {
+                    const tasks = [...selected.tasks]; tasks[i] = { ...tasks[i], assignee: e.target.value }; updateProject(selected.id, { tasks });
+                  }} style={{ fontSize: '.72rem', padding: '.25rem .4rem', width: 'auto', minWidth: 120, background: 'var(--card)' }}>
+                    <option value="">Ei tekijää</option>
+                    {teamData.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                  </select>
+                  <input type="date" className="input" value={task.deadline || ''} onChange={e => {
+                    const tasks = [...selected.tasks]; tasks[i] = { ...tasks[i], deadline: e.target.value }; updateProject(selected.id, { tasks });
+                  }} style={{ fontSize: '.72rem', padding: '.25rem .4rem', width: 'auto', background: 'var(--card)' }} />
+                  {taskDlc && <span style={{ fontSize: '.62rem', padding: '.15rem .4rem', borderRadius: 9999, background: taskDlc.bg, color: taskDlc.color, fontWeight: 600 }}>{taskDlc.label}</span>}
+                  {task.assignee && <span style={{ fontSize: '.62rem', padding: '.15rem .4rem', borderRadius: 9999, background: 'rgba(5,107,159,.1)', color: 'var(--pri-l)', fontWeight: 600 }}>{task.assignee}</span>}
+                </div>
+              </div>
+            );
+          })}
+          <form onSubmit={e => { e.preventDefault(); const f = e.target as any; if (!f.taskInput.value.trim()) return; updateProject(selected.id, { tasks: [...(selected.tasks || []), { id: Date.now(), text: f.taskInput.value.trim(), done: false, assignee: f.taskAssignee?.value || '', deadline: f.taskDeadline?.value || '' }] }); f.taskInput.value = ''; if (f.taskDeadline) f.taskDeadline.value = ''; if (f.taskAssignee) f.taskAssignee.selectedIndex = 0; }} style={{ marginTop: '.75rem' }}>
+            <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.5rem' }}>
+              <input name="taskInput" className="input" placeholder="Lisää tehtävä..." style={{ flex: 1 }} />
+              <button type="submit" className="btn btn-primary btn-sm">Lisää</button>
+            </div>
+            <div style={{ display: 'flex', gap: '.5rem' }}>
+              <select name="taskAssignee" className="input" style={{ fontSize: '.78rem', width: 'auto', minWidth: 140 }}>
+                <option value="">Tekijä (valinnainen)</option>
+                {teamData.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+              </select>
+              <input name="taskDeadline" type="date" className="input" style={{ fontSize: '.78rem', width: 'auto' }} />
+            </div>
+          </form>
+        </div>
+
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.5rem' }}>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase', marginBottom: '1rem' }}>Keskustelu ({(selected.comments || []).length})</h3>
+          {(selected.comments || []).map((c: any) => (
+            <div key={c.id} style={{ display: 'flex', gap: '.6rem', marginBottom: '.75rem' }}>
+              <div className="ava" style={{ width: 32, height: 32, fontSize: '.7rem', background: 'var(--pri)', flexShrink: 0 }}>{(c.author || 'A')[0]}</div>
+              <div style={{ flex: 1, background: 'var(--elev)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '.75rem 1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.25rem' }}>
+                  <span style={{ fontSize: '.8rem', fontWeight: 600 }}>{c.author}</span>
+                  <span style={{ fontSize: '.65rem', color: 'var(--t3)' }}>{c.timestamp ? new Date(c.timestamp).toLocaleDateString('fi-FI') : ''}</span>
+                </div>
+                <p style={{ fontSize: '.85rem', color: 'var(--t2)', lineHeight: 1.6 }}>{c.text}</p>
+              </div>
+            </div>
+          ))}
+          <form onSubmit={e => { e.preventDefault(); const input = (e.target as any).commentInput; if (!input.value.trim()) return; updateProject(selected.id, { comments: [...(selected.comments || []), { id: Date.now(), author: user?.displayName || 'Käyttäjä', text: input.value.trim(), timestamp: new Date().toISOString() }] }); input.value = ''; }} style={{ display: 'flex', gap: '.5rem' }}>
+            <input name="commentInput" className="input" placeholder="Kirjoita kommentti..." style={{ flex: 1 }} />
+            <button type="submit" className="btn btn-primary btn-sm">Lähetä</button>
+          </form>
+        </div>
+      </>
+    );
+  }
+
+  if (mode === 'new') {
+    return (
+      <>
+        <button className="btn btn-ghost" onClick={() => setMode('kanban')} style={{ marginBottom: '1rem' }}>{'←'} Takaisin</button>
+        <div style={{ maxWidth: 560, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem' }}>
+          <div className="field"><label>Projektin nimi *</label><input className="input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Esim. Kevään somekampanja" autoFocus /></div>
+          <div className="field"><label>Kuvaus</label><textarea className="input textarea" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Kuvaile projektia..." /></div>
+          {!fixedTeamId && (
+            <div className="field">
+              <label>Tiimi *</label>
+              <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap' }}>
+                {orgTeams.map(t => {
+                  const isActive = newTeamId === t.id;
+                  return (
+                    <button key={t.id} type="button" onClick={() => setNewTeamId(t.id)} style={{
+                      fontSize: '.72rem', padding: '.45rem .75rem', borderRadius: 9999,
+                      background: isActive ? t.color : 'var(--elev)',
+                      color: isActive ? '#fff' : 'var(--t2)',
+                      border: `1px solid ${isActive ? t.color : 'var(--border)'}`,
+                      fontWeight: 600, cursor: 'pointer',
+                      display: 'inline-flex', alignItems: 'center', gap: '.35rem',
+                    }}>
+                      <span style={{ fontSize: '.88rem', lineHeight: 1 }}>{t.icon}</span>
+                      {t.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <div className="field">
+            <label>Vuosikellon vaihe (valinnainen)</label>
+            <select className="input" value={newPhaseId} onChange={e => setNewPhaseId(e.target.value)}>
+              <option value="">Ei linkitettyä vaihetta</option>
+              {phases.map(ph => (
+                <option key={ph.id} value={ph.id}>{ph.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="field"><label>Deadline</label><input type="date" className="input" value={deadline} onChange={e => setDeadline(e.target.value)} style={{ maxWidth: 200 }} /></div>
+          <button className="btn btn-primary" onClick={createProject} disabled={!title.trim() || (!fixedTeamId && !newTeamId)}>Luo projekti</button>
+        </div>
+      </>
+    );
+  }
+
+  const currentTeam = orgTeams.find(t => t.id === effectiveFilter);
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '.5rem' }}>
+        <button className="btn btn-primary" onClick={() => setMode('new')}>+ Uusi projekti{currentTeam ? ` (${currentTeam.name})` : ''}</button>
+        {archived.length > 0 && <button className="btn btn-ghost btn-sm" onClick={() => setShowArchive(!showArchive)}>{showArchive ? 'Piilota arkisto' : `Arkisto (${archived.length})`}</button>}
+      </div>
+
+      {/* Team filter chips — hidden when parent forces a team */}
+      {!fixedTeamId && (
+        <div style={{ display: 'flex', gap: '.4rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+          <button onClick={() => setTeamFilter('all')} style={{
+            fontSize: '.72rem', padding: '.4rem .75rem', borderRadius: 9999,
+            background: teamFilter === 'all' ? 'var(--t1)' : 'var(--elev)',
+            color: teamFilter === 'all' ? 'var(--bg)' : 'var(--t2)',
+            border: '1px solid var(--border)', fontWeight: 600, cursor: 'pointer',
+          }}>Kaikki tiimit ({projects.filter(p => !p.archived).length})</button>
+          {orgTeams.map(t => {
+            const count = projects.filter(p => !p.archived && p.teamId === t.id).length;
+            const isActive = teamFilter === t.id;
+            return (
+              <button key={t.id} onClick={() => setTeamFilter(t.id)} style={{
+                fontSize: '.72rem', padding: '.4rem .75rem', borderRadius: 9999,
+                background: isActive ? t.color : 'var(--elev)',
+                color: isActive ? '#fff' : 'var(--t2)',
+                border: `1px solid ${isActive ? t.color : 'var(--border)'}`,
+                fontWeight: 600, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: '.35rem',
+              }}>
+                <span style={{ fontSize: '.88rem', lineHeight: 1 }}>{t.icon}</span>
+                {t.name} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+        {cols.map(col => {
+          const items = active.filter(p => p.st === col.k);
+          return (
+            <div key={col.k} onDragOver={e => e.preventDefault()} onDrop={() => { if (dragItem) moveProject(dragItem, col.k); setDragItem(null); }}
+              style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', minHeight: 300 }}>
+              <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.82rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.03em' }}>{col.t}</h3>
+                <span style={{ fontSize: '.72rem', color: 'var(--t3)' }}>{items.length}</span>
+              </div>
+              <div style={{ padding: '.75rem', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+                {items.map(p => {
+                  const dlc = deadlineColor(p.deadline);
+                  const prog = taskProgress(p.tasks);
+                  const projectTeam = p.teamId ? orgTeams.find(t => t.id === p.teamId) : null;
+                  const projectPhase = p.phaseId ? phases.find(ph => ph.id === p.phaseId) : null;
+                  return (
+                    <div key={p.id} draggable onDragStart={() => setDragItem(p.id)}
+                      onClick={() => { setSelectedId(p.id); setMode('detail'); }}
+                      style={{
+                        background: 'var(--elev)', border: '1px solid var(--border)',
+                        borderLeft: projectTeam ? `3px solid ${projectTeam.color}` : '1px solid var(--border)',
+                        borderRadius: 'var(--r)', padding: '.85rem', cursor: 'pointer', transition: 'border-color .15s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--pri)')} onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}>
+                      <div style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: '.35rem' }}>{p.t}</div>
+                      {projectTeam && !fixedTeamId && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', marginBottom: '.35rem', marginRight: '.3rem' }}>
+                          <span style={{ fontSize: '.58rem', padding: '.12rem .4rem', borderRadius: 9999, background: `${projectTeam.color}20`, color: projectTeam.color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                            {projectTeam.icon} {projectTeam.name}
+                          </span>
+                        </div>
+                      )}
+                      {projectPhase && (
+                        <div style={{ fontSize: '.6rem', color: 'var(--t3)', marginBottom: '.35rem' }}>
+                          {'·'} Vaihe: {projectPhase.name}
+                        </div>
+                      )}
+                      {dlc && <div style={{ fontSize: '.65rem', padding: '.15rem .4rem', borderRadius: 9999, background: dlc.bg, color: dlc.color, fontWeight: 600, display: 'inline-block', marginBottom: '.35rem' }}>{dlc.label}</div>}
+                      {prog > 0 && <div style={{ height: 3, background: 'var(--bg)', borderRadius: 2, overflow: 'hidden', marginBottom: '.35rem' }}><div style={{ height: '100%', width: prog + '%', background: prog === 100 ? 'var(--green)' : 'var(--pri)', borderRadius: 2 }} /></div>}
+                      {(() => { const assignees = [...new Set((p.tasks || []).filter(t => t.assignee).map(t => t.assignee))]; return assignees.length > 0 ? (
+                        <div style={{ display: 'flex', gap: '.2rem', flexWrap: 'wrap', marginBottom: '.35rem' }}>
+                          {assignees.slice(0, 3).map((a, ai) => <span key={ai} style={{ fontSize: '.58rem', padding: '.1rem .35rem', borderRadius: 9999, background: 'rgba(5,107,159,.1)', color: 'var(--pri-l)', fontWeight: 600 }}>{a}</span>)}
+                          {assignees.length > 3 && <span style={{ fontSize: '.58rem', color: 'var(--t3)' }}>+{assignees.length - 3}</span>}
+                        </div>
+                      ) : null; })()}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '.2rem' }}>
+                        {col.k === 'done' && <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); archiveProject(p.id); }} style={{ fontSize: '.65rem' }}>Arkistoi</button>}
+                      </div>
+                    </div>
+                  );
+                })}
+                {items.length === 0 && <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--t3)', fontSize: '.82rem' }}>Ei projekteja</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {showArchive && archived.length > 0 && (
+        <div style={{ marginTop: '1.5rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1rem 1.25rem' }}>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.82rem', fontWeight: 500, marginBottom: '.75rem', textTransform: 'uppercase' }}>Arkisto</h3>
+          {archived.map(p => (
+            <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '.5rem 0', borderBottom: '1px solid var(--border)' }}>
+              <span style={{ fontSize: '.85rem', color: 'var(--t2)' }}>{p.t}</span>
+              <div style={{ display: 'flex', gap: '.3rem' }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => unarchiveProject(p.id)} style={{ fontSize: '.7rem' }}>Palauta</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => { if (window.confirm('Poistetaanko?')) deleteProject(p.id); }} style={{ fontSize: '.7rem', color: 'var(--red)' }}>Poista</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}

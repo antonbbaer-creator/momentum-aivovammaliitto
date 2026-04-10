@@ -164,7 +164,7 @@ export default function DashboardPage() {
                 <div className="ava" style={{ width: 28, height: 28, fontSize: '.6rem', background: 'var(--yellow)', color: '#000', flexShrink: 0 }}>{msg.from[0]}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '.82rem', fontWeight: 600 }}>{msg.text}</div>
-                  <div style={{ fontSize: '.65rem', color: 'var(--t3)', marginTop: '.1rem' }}>{msg.from} {'\u00b7'} {new Date(msg.timestamp).toLocaleDateString('fi-FI')}</div>
+                  <div style={{ fontSize: '.65rem', color: 'var(--t3)', marginTop: '.1rem' }}>{msg.from} {'·'} {new Date(msg.timestamp).toLocaleDateString('fi-FI')}</div>
                 </div>
                 <button className="btn btn-ghost btn-sm" onClick={() => setTeamMessages(prev => prev.map((m: any) => m.id === msg.id ? { ...m, done: true } : m))}
                   style={{ fontSize: '.68rem', color: 'var(--green)' }}>Tehty</button>
@@ -205,7 +205,7 @@ export default function DashboardPage() {
       {unassignedTasks.length > 0 && (
         <div style={{ background: 'rgba(241,180,52,.04)', border: '1px solid rgba(241,180,52,.2)', borderRadius: 'var(--rl)', padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem' }}>
-            <span style={{ color: 'var(--yellow)', fontSize: '1rem' }}>{'\u26a0'}</span>
+            <span style={{ color: 'var(--yellow)', fontSize: '1rem' }}>{'⚠'}</span>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.82rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em', color: 'var(--yellow)' }}>
               {unassignedTasks.length} tehtävää ilman tekijää
             </h3>
@@ -236,14 +236,14 @@ export default function DashboardPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: aiResponse || aiLoading ? '1rem' : 0 }}>
         <div onClick={() => { const ap = projects.filter(p => p.st === 'active' && !p.archived).map(p => p.t).join(', ') || 'ei aktiivisia'; askAI('Anna tilannekatsaus ' + (org.name || 'organisaation') + ' viestinnästä juuri nyt. Mitä on meneillään? Aktiiviset projektit: ' + ap + '. Avoimia tehtäviä: ' + myTasks.length + '.'); }}
           style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.25rem', cursor: 'pointer', transition: 'border-color .15s' }}>
-          <div style={{ fontSize: '1.1rem', marginBottom: '.35rem' }}>{'\u25c8'}</div>
+          <div style={{ fontSize: '1.1rem', marginBottom: '.35rem' }}>{'◈'}</div>
           <div style={{ fontSize: '.88rem', fontWeight: 700 }}>Tilannekatsaus</div>
           <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.15rem' }}>Mitä viestinnässä tapahtuu juuri nyt?</div>
         </div>
         <div onClick={() => askAI('Etsi yksi inspiroiva esimerkki maailmaa muuttavasta järjestöviestinnästä. Kerro mikä järjestö, mikä kampanja, miksi se toimi ja mitä voimme oppia siitä. Anna konkreettinen idea miten voisimme soveltaa vastaavaa.')}
           style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.25rem', cursor: 'pointer', transition: 'border-color .15s' }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--green)')} onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}>
-          <div style={{ fontSize: '1.1rem', marginBottom: '.35rem' }}>{'\u2606'}</div>
+          <div style={{ fontSize: '1.1rem', marginBottom: '.35rem' }}>{'☆'}</div>
           <div style={{ fontSize: '.88rem', fontWeight: 700 }}>Inspiraatiota</div>
           <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.15rem' }}>Maailmaa muuttavaa viestintää</div>
         </div>

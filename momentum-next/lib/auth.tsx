@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useRef, ReactNode } fro
 import { User, onAuthStateChanged, signInWithPopup, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider, persistenceReady } from './firebase';
+import { isOrgEnabled } from './enabled-orgs';
 
 export type OrgRole = 'owner' | 'admin' | 'member' | 'visitor';
 
@@ -59,7 +60,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const snap = await getDoc(doc(db, 'userOrgs', uid));
     if (snap.exists()) {
       const data = snap.data();
-      return (data.orgs || []) as UserOrg[];
+      const allOrgs = (data.orgs || []) as UserOrg[];
+      // Suodata pois ei-aktiiviset orgit (vain LLFF tällä hetkellä)
+      // Data Firestoressa säilyy — rajoitus on pelkästään asiakaspään näkyvyydessä
+      return allOrgs.filter(o => isOrgEnabled(o.orgId));
     }
     return [];
   };
