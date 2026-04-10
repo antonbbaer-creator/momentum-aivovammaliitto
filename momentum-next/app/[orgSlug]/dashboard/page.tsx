@@ -6,6 +6,17 @@ import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useRouter, useParams } from 'next/navigation';
+import {
+  Grant,
+  LLFF_GRANTS_DEFAULT,
+  STATUS_DEFS,
+  normalizeGrant,
+  daysUntilDeadline,
+} from '@/lib/grants-shared';
+import {
+  OrgTeamMember,
+  DEFAULT_LLFF_TEAM_MEMBERS,
+} from '@/lib/team-shared';
 
 const WORKER_URL = 'https://momentum-worker.anton-4f9.workers.dev';
 
@@ -18,6 +29,26 @@ export default function DashboardPage() {
   const [org] = useOrgData<any>('org', {});
   const [projects, setProjects] = useOrgData<any[]>('projects', []);
   const [teamMessages, setTeamMessages] = useOrgData<any[]>('teamMessages', []);
+  const [rawGrants] = useOrgData<Grant[]>('llff_grants', LLFF_GRANTS_DEFAULT);
+  const [orgMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', DEFAULT_LLFF_TEAM_MEMBERS);
+  const grants = rawGrants.map(normalizeGrant);
+
+  // Match currently-logged-in user to their OrgTeamMember record
+  // Prio: email → displayName → first name
+  const myMember = orgMembers.find(m => {
+    if (user?.email && m.email && m.email.toLowerCase() === user.email.toLowerCase()) return true;
+    if (user?.displayName && m.name === user.displayName) return true;
+    return false;
+  });
+
+  // Grants assigned to me (exclude rejected)
+  const myGrants = myMember ? grants
+    .filter(g => g.responsibleId === myMember.id && g.status !== 'rejected')
+    .sort((a, b) => {
+      const da = daysUntilDeadline(a) ?? 999999;
+      const db = daysUntilDeadline(b) ?? 999999;
+      return da - db;
+    }) : [];
 
   const [aiResponse, setAiResponse] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -106,13 +137,16 @@ export default function DashboardPage() {
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em' }}>Sinun tehtäväsi</h3>
             <p style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.15rem' }}>Mitä tänään työstetään?</p>
           </div>
-          <span style={{ fontSize: '.75rem', color: myTasks.length > 0 ? 'var(--pri-l)' : 'var(--t3)' }}>{myTasks.length} avointa</span>
+          <span style={{ fontSize: '.75rem', color: myTasks.length > 0 ? 'var(--pri-l)' : 'var(--t3)' }}>{myTasks.length} avointa{myGrants.length > 0 && ` · ${myGrants.length} apurahaa`}</span>
         </div>
         <div style={{ padding: '1.25rem 1.5rem' }}>
           {myTasks.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--t3)' }}>
-              <p style={{ fontSize: '.88rem', marginBottom: '.5rem' }}>Ei avoimia tehtäviä sinulle.</p>
-              <p style={{ fontSize: '.75rem' }}>Tehtäviä voi määritellä Projektit-sivulta.</p>
+              <p style={{ fontSize: '.88rem', marginBottom: '.5rem' }}>Ei avoimia projektitehtäviä sinulle.</p>
+              <p style={{ fontSize: '.75rem' }}>
+                Tehtäviä voi määritellä Projektit-sivulta.
+                {myGrants.length > 0 && ' Sinulla on kuitenkin vastuuapurahoja (katso alta).'}
+              </p>
             </div>
           ) : (
             myTasks.map((task: any, i: number) => {
@@ -149,6 +183,88 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Vastuuapurahat — apurahat joissa vastuuhenkilöksi on merkitty minut */}
+      {myMember && myGrants.length > 0 && (
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', marginBottom: '1.5rem' }}>
+          <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em' }}>Vastuuapurahat</h3>
+              <p style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.15rem' }}>Apurahat joissa vastuuhenkilönä olet sinä ({myMember.name})</p>
+            </div>
+            <span style={{ fontSize: '.75rem', color: 'var(--pri-l)', fontWeight: 600 }}>{myGrants.length} {myGrants.length === 1 ? 'apuraha' : 'apurahaa'}</span>
+          </div>
+          <div style={{ padding: '.85rem 1rem', display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+            {myGrants.slice(0, 8).map(g => {
+              const sd = STATUS_DEFS[g.status];
+              const days = daysUntilDeadline(g);
+              const urgent = days !== null && days >= 0 && days <= 14;
+              const warn = days !== null && days >= 0 && days <= 30;
+              const past = days !== null && days < 0;
+              const dlColor = urgent ? 'var(--red)' : warn ? 'var(--yellow)' : 'var(--green)';
+              return (
+                <div key={g.id} onClick={() => router.push(`/${orgSlug}/budget`)} style={{
+                  display: 'flex', alignItems: 'center', gap: '.75rem',
+                  padding: '.65rem .85rem',
+                  background: 'var(--elev)',
+                  border: '1px solid var(--border)',
+                  borderLeft: `3px solid ${sd.color}`,
+                  borderRadius: 'var(--r)',
+                  cursor: 'pointer',
+                  opacity: past ? .55 : 1,
+                }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: '50%',
+                    background: sd.color, color: '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '.7rem', fontWeight: 800, flexShrink: 0,
+                  }}>{sd.icon}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '.85rem', fontWeight: 700, color: 'var(--t1)' }}>
+                      {g.funder}
+                    </div>
+                    <div style={{ fontSize: '.68rem', color: 'var(--t3)', marginTop: '.1rem' }}>
+                      {g.grantName} · {g.year} · {sd.label}
+                      {g.amount > 0 && <> · {g.amount >= 1000 ? `${(g.amount / 1000).toFixed(g.amount % 1000 === 0 ? 0 : 1)}k €` : `${g.amount} €`}</>}
+                    </div>
+                  </div>
+                  {g.deadlineText && (
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: '.7rem', fontWeight: 700, color: 'var(--t2)' }}>{g.deadlineText}</div>
+                      {days !== null && days >= 0 && (
+                        <div style={{ fontSize: '.6rem', fontWeight: 700, color: dlColor, marginTop: '.1rem' }}>
+                          {days === 0 ? 'TÄNÄÄN' : `${days} pv jäljellä`}
+                        </div>
+                      )}
+                      {days !== null && days < 0 && (
+                        <div style={{ fontSize: '.6rem', fontWeight: 700, color: 'var(--t3)', marginTop: '.1rem' }}>
+                          Mennyt
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {myGrants.length > 8 && (
+              <div style={{ fontSize: '.7rem', color: 'var(--t3)', textAlign: 'center', padding: '.5rem' }}>
+                + {myGrants.length - 8} muuta — <button onClick={() => router.push(`/${orgSlug}/budget`)} style={{ background: 'transparent', border: 'none', color: 'var(--pri-l)', fontWeight: 700, cursor: 'pointer', fontSize: '.7rem' }}>Avaa Apurahat →</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Ei merkittyä team-member-rekordia — vihje käyttäjälle */}
+      {!myMember && myGrants.length === 0 && orgMembers.length > 0 && (
+        <div style={{ background: 'rgba(241,180,52,.04)', border: '1px solid rgba(241,180,52,.2)', borderRadius: 'var(--rl)', padding: '.85rem 1.25rem', marginBottom: '1.5rem' }}>
+          <div style={{ fontSize: '.78rem', color: 'var(--t2)', lineHeight: 1.5 }}>
+            <strong style={{ color: 'var(--yellow)' }}>Tietoa puuttuu:</strong> Käyttäjätiliäsi ({user?.displayName || user?.email}) ei ole linkitetty tiimiläistietoihin.
+            Apurahat ja vastuut näkyvät täällä kun tiimissäsi on tiimiläinen jonka nimi tai sähköposti vastaa sinua.
+            <button onClick={() => router.push(`/${orgSlug}/team`)} style={{ marginLeft: '.5rem', background: 'transparent', border: 'none', color: 'var(--pri-l)', cursor: 'pointer', fontWeight: 700 }}>Avaa Tiimi →</button>
+          </div>
+        </div>
+      )}
 
       {/* Requests to me */}
       {(() => {
