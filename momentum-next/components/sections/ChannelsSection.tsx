@@ -50,6 +50,35 @@ export default function ChannelsSection({ onOpenDetail, onOpenEditor }: Props) {
     [rawPubs]
   );
 
+  // Kaikki ready-tilaiset julkaisut järjestettynä tulevan julkaisuajan mukaan.
+  // Käyttäjän toive: "näkyvät aikajanalla jolloin seuraavan julkaisu on tulossa".
+  // Päivämäärättömät tulevat viimeiseksi.
+  const upcomingReady = useMemo(() => {
+    const ready = pubs.filter(p => p.status === 'ready');
+    return [...ready].sort((a, b) => {
+      if (!a.date && !b.date) return (b.updatedAt || 0) - (a.updatedAt || 0);
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return a.date.localeCompare(b.date);
+    });
+  }, [pubs]);
+
+  // Relatiivinen päivämäärälabel aikajanalle
+  const relativeDateLabel = (dateStr: string | null): { label: string; days: number | null; color: string } => {
+    if (!dateStr) return { label: 'Ei päivää', days: null, color: 'var(--t3)' };
+    const target = new Date(dateStr).getTime();
+    const now = Date.now();
+    const day = 86400000;
+    const days = Math.round((target - now) / day);
+    if (days < -1) return { label: `${Math.abs(days)} pv sitten`, days, color: 'var(--red)' };
+    if (days === -1) return { label: 'Eilen', days, color: 'var(--red)' };
+    if (days === 0) return { label: 'Tänään', days, color: 'var(--red)' };
+    if (days === 1) return { label: 'Huomenna', days, color: '#f5c542' };
+    if (days <= 7) return { label: `${days} pv`, days, color: '#f5c542' };
+    if (days <= 30) return { label: `${days} pv`, days, color: 'var(--green)' };
+    return { label: `${days} pv`, days, color: 'var(--t3)' };
+  };
+
   // Yksittäinen julkaisu voi kuulua useaan kanavaan — laske kanavakohtaiset listat
   const byChannel = useMemo(() => {
     const out: Record<string, { ready: Publication[]; published: Publication[] }> = {};
@@ -343,6 +372,175 @@ export default function ChannelsSection({ onOpenDetail, onOpenEditor }: Props) {
           </button>
         )}
       </div>
+
+      {/* ====== AIKAJANA: valmiit julkaisut tulevassa järjestyksessä ====== */}
+      {upcomingReady.length > 0 && (
+        <div
+          style={{
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--rl)',
+            padding: '1rem 1.1rem',
+            marginBottom: '1rem',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '.75rem',
+            }}
+          >
+            <h3
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '.72rem',
+                fontWeight: 700,
+                color: 'var(--t2)',
+                textTransform: 'uppercase',
+                letterSpacing: '.06em',
+              }}
+            >
+              Seuraavaksi julkaistavat
+            </h3>
+            <span style={{ fontSize: '.64rem', color: 'var(--t3)' }}>
+              {upcomingReady.length} valmista julkaisua
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {upcomingReady.map((p, i) => {
+              const rel = relativeDateLabel(p.date);
+              const isLast = i === upcomingReady.length - 1;
+              const fullDate = p.date
+                ? new Date(p.date).toLocaleDateString('fi-FI', { day: 'numeric', month: 'short' })
+                : '—';
+              return (
+                <div
+                  key={p.id}
+                  onClick={() => onOpenDetail?.(p.id)}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '86px 14px 1fr',
+                    alignItems: 'stretch',
+                    cursor: 'pointer',
+                    padding: '.55rem 0',
+                    borderBottom: isLast ? 'none' : '1px solid var(--border-soft, rgba(255,255,255,.04))',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.02)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  {/* Vasen: päivämäärä + relative label */}
+                  <div style={{ textAlign: 'right', paddingRight: '.6rem' }}>
+                    <div
+                      style={{
+                        fontSize: '.72rem',
+                        fontWeight: 700,
+                        color: rel.color,
+                        lineHeight: 1.1,
+                      }}
+                    >
+                      {rel.label}
+                    </div>
+                    <div style={{ fontSize: '.6rem', color: 'var(--t3)', marginTop: 2 }}>
+                      {fullDate}
+                    </div>
+                  </div>
+
+                  {/* Keski: aikajanan pystyviiva + piste */}
+                  <div
+                    style={{
+                      position: 'relative',
+                      display: 'flex',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        bottom: 0,
+                        left: '50%',
+                        width: 2,
+                        marginLeft: -1,
+                        background: 'var(--border)',
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: 'relative',
+                        marginTop: 4,
+                        width: 10,
+                        height: 10,
+                        borderRadius: '50%',
+                        background: rel.color,
+                        border: '2px solid var(--card)',
+                        zIndex: 1,
+                      }}
+                    />
+                  </div>
+
+                  {/* Oikea: otsikko + kanavat */}
+                  <div style={{ paddingLeft: '.6rem', minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: '.82rem',
+                        fontWeight: 600,
+                        color: 'var(--t1)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {p.title || '(nimetön)'}
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: '.3rem',
+                        marginTop: 3,
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      {(p.channels || []).map(chName => {
+                        const pm = PLATFORM_META[chName];
+                        const publishedHere = (p.publishedChannels || []).includes(chName);
+                        return (
+                          <span
+                            key={chName}
+                            style={{
+                              fontSize: '.56rem',
+                              fontWeight: 600,
+                              padding: '.1rem .4rem',
+                              borderRadius: 9999,
+                              background: publishedHere
+                                ? 'rgba(45,212,160,.12)'
+                                : (pm?.color ? `${pm.color}22` : 'rgba(255,255,255,.06)'),
+                              color: publishedHere
+                                ? 'var(--green)'
+                                : (pm?.color || 'var(--t2)'),
+                              border: `1px solid ${publishedHere ? 'rgba(45,212,160,.3)' : (pm?.color ? `${pm.color}55` : 'var(--border)')}`,
+                              textTransform: 'uppercase',
+                              letterSpacing: '.03em',
+                            }}
+                            title={publishedHere ? `Julkaistu ${chName}:ssa` : chName}
+                          >
+                            {pm?.ic || chName.slice(0, 2)}
+                          </span>
+                        );
+                      })}
+                      {(p.channels || []).length === 0 && (
+                        <span style={{ fontSize: '.56rem', color: 'var(--t3)' }}>Ei kanavia</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
         {channels.map((ch: any) => {
