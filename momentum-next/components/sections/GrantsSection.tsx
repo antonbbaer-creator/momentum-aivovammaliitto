@@ -51,7 +51,14 @@ export default function GrantsSection() {
   const [members] = useOrgData<OrgTeamMember[]>('orgTeamMembers', DEFAULT_LLFF_TEAM_MEMBERS);
 
   // Normalize for backward compat with old saves
-  const grants = rawGrants.map(normalizeGrant);
+  const allGrants = rawGrants.map(normalizeGrant);
+  // Aktiiviset apurahat (ei roskakorissa) — kaikki näkymät käyttävät tätä
+  const grants = allGrants.filter(g => !g.deletedAt);
+  // Roskakorin sisältö (soft-deleted)
+  const trashedGrants = allGrants.filter(g => !!g.deletedAt).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+  // Oletusapurahat joita ei löydy nykyisestä listasta (esim. aiemmin kovalla poistolla poistetut) —
+  // ne voi palauttaa roskakorin "Palauta oletuksista" -osiosta
+  const missingFromDefaults = LLFF_GRANTS_DEFAULT.filter(def => !allGrants.some(g => g.id === def.id));
   const settings = normalizeGrantsSettings(rawSettings);
 
   const [tab, setTab] = useState<Tab>('wheel');
@@ -59,6 +66,7 @@ export default function GrantsSection() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [showTrash, setShowTrash] = useState(false);
 
   // Form state
   const [fYear, setFYear] = useState<number>(2026);
@@ -160,10 +168,42 @@ export default function GrantsSection() {
     toast(editId ? 'Apuraha päivitetty' : 'Apuraha lisätty', 'success');
   };
 
+  // Pehmeä poisto — apuraha siirtyy roskakoriin, josta sen voi palauttaa
   const removeGrant = (id: string) => {
-    setGrants(prev => prev.filter(g => g.id !== id));
+    setGrants(prev => prev.map(g => g.id === id ? { ...g, deletedAt: Date.now() } : g));
     if (selectedId === id) setSelectedId(null);
-    toast('Apuraha poistettu', 'success');
+    toast('Apuraha siirretty roskakoriin', 'success');
+  };
+
+  // Palauta roskakorista — pyyhi deletedAt
+  const restoreGrant = (id: string) => {
+    setGrants(prev => prev.map(g => {
+      if (g.id !== id) return g;
+      const { deletedAt, ...rest } = g;
+      return rest as Grant;
+    }));
+    toast('Apuraha palautettu', 'success');
+  };
+
+  // Lopullinen poisto — kokonaan pois listalta
+  const purgeGrant = (id: string) => {
+    if (typeof window !== 'undefined' && !window.confirm('Poistetaanko lopullisesti? Tätä ei voi perua.')) return;
+    setGrants(prev => prev.filter(g => g.id !== id));
+    toast('Apuraha poistettu lopullisesti', 'success');
+  };
+
+  // Tyhjennä roskakori kokonaan
+  const emptyTrash = () => {
+    if (trashedGrants.length === 0) return;
+    if (typeof window !== 'undefined' && !window.confirm(`Tyhjennetäänkö roskakori (${trashedGrants.length} apurahaa)? Tätä ei voi perua.`)) return;
+    setGrants(prev => prev.filter(g => !g.deletedAt));
+    toast('Roskakori tyhjennetty', 'success');
+  };
+
+  // Palauta oletusapuraha jota ei enää löydy listalta (kovalla poistolla poistetut)
+  const restoreFromDefault = (defGrant: Grant) => {
+    setGrants(prev => [...prev, { ...defGrant }]);
+    toast(`Palautettu oletuksista: ${defGrant.funder}`, 'success');
   };
 
   const updateStatus = (id: string, status: GrantStatus) => {
@@ -228,6 +268,34 @@ export default function GrantsSection() {
             />
           )}
           {canEdit && <button className="btn btn-primary btn-sm" onClick={openNew}>+ Apuraha</button>}
+          {canEdit && (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setShowTrash(true)}
+              title={`Roskakori · ${trashedGrants.length} apurahaa${missingFromDefaults.length ? ` + ${missingFromDefaults.length} oletuksista puuttuu` : ''}`}
+              style={{ position: 'relative' }}
+            >
+              ⌫ Roskakori
+              {(trashedGrants.length + missingFromDefaults.length) > 0 && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: 18,
+                  height: 18,
+                  padding: '0 .3rem',
+                  marginLeft: '.35rem',
+                  borderRadius: 9999,
+                  background: 'var(--pri)',
+                  color: '#fff',
+                  fontSize: '.62rem',
+                  fontWeight: 800,
+                }}>
+                  {trashedGrants.length + missingFromDefaults.length}
+                </span>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -971,6 +1039,160 @@ export default function GrantsSection() {
 
       {renderDetail()}
       {renderForm()}
+      {renderTrashModal()}
     </>
   );
+
+  // =============================================================================
+  // TRASH MODAL — roskakori: palauta tai poista lopullisesti
+  // =============================================================================
+  function renderTrashModal() {
+    if (!showTrash) return null;
+    const fmtTs = (ms?: number) => {
+      if (!ms) return '';
+      const d = new Date(ms);
+      return d.toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric', year: 'numeric' }) +
+        ' · ' + d.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' });
+    };
+    return (
+      <div
+        onClick={() => setShowTrash(false)}
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+        }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+            width: '100%', maxWidth: 680, maxHeight: '90vh', overflowY: 'auto',
+            padding: '1.25rem 1.4rem',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '.25rem' }}>Roskakori</h2>
+              <p style={{ fontSize: '.75rem', color: 'var(--t3)', margin: 0 }}>
+                Poistetut apurahat säilyvät täällä, kunnes ne palautetaan tai tyhjennetään.
+              </p>
+            </div>
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowTrash(false)}>✕</button>
+          </div>
+
+          {/* Soft-deleted grants */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              marginBottom: '.5rem',
+            }}>
+              <h3 style={{
+                fontSize: '.7rem', fontWeight: 700, textTransform: 'uppercase',
+                letterSpacing: '.06em', color: 'var(--t3)',
+              }}>
+                Roskakorissa ({trashedGrants.length})
+              </h3>
+              {trashedGrants.length > 0 && canEdit && (
+                <button className="btn btn-ghost btn-sm" onClick={emptyTrash} style={{ color: 'var(--red)', fontSize: '.7rem' }}>
+                  Tyhjennä roskakori
+                </button>
+              )}
+            </div>
+            {trashedGrants.length === 0 ? (
+              <div style={{
+                padding: '.8rem', background: 'var(--elev)', borderRadius: 'var(--r)',
+                fontSize: '.78rem', color: 'var(--t3)', fontStyle: 'italic', textAlign: 'center',
+              }}>
+                Roskakori on tyhjä.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.45rem' }}>
+                {trashedGrants.map(g => {
+                  const def = STATUS_DEFS[g.status];
+                  return (
+                    <div key={g.id} style={{
+                      display: 'flex', alignItems: 'center', gap: '.75rem',
+                      padding: '.6rem .8rem',
+                      background: 'var(--elev)', border: '1px solid var(--border)',
+                      borderLeft: `3px solid ${def.color}`,
+                      borderRadius: 'var(--r)',
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '.82rem', fontWeight: 700, color: 'var(--t1)' }}>
+                          {g.funder} <span style={{ color: 'var(--t3)', fontWeight: 500 }}>· {g.year}</span>
+                        </div>
+                        <div style={{ fontSize: '.68rem', color: 'var(--t3)', marginTop: 2 }}>
+                          {g.grantName} · {g.amount > 0 ? fmtEur(g.amount) : (g.amountText || '—')}
+                          {g.deletedAt && <> · poistettu {fmtTs(g.deletedAt)}</>}
+                        </div>
+                      </div>
+                      {canEdit && (
+                        <div style={{ display: 'flex', gap: '.3rem' }}>
+                          <button className="btn btn-primary btn-sm" onClick={() => restoreGrant(g.id)} title="Palauta">
+                            ↺ Palauta
+                          </button>
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => purgeGrant(g.id)}
+                            style={{ color: 'var(--red)' }}
+                            title="Poista lopullisesti"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Missing from defaults — hard-deleted seed grants that can be restored */}
+          {missingFromDefaults.length > 0 && (
+            <div>
+              <h3 style={{
+                fontSize: '.7rem', fontWeight: 700, textTransform: 'uppercase',
+                letterSpacing: '.06em', color: 'var(--t3)', marginBottom: '.5rem',
+              }}>
+                Palauta oletuksista ({missingFromDefaults.length})
+              </h3>
+              <p style={{ fontSize: '.7rem', color: 'var(--t3)', margin: '0 0 .55rem 0' }}>
+                Nämä apurahat kuuluvat LLFF-oletuslistaan, mutta niitä ei löydy nykyisestä listastasi — palauta ne tarvittaessa.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.45rem' }}>
+                {missingFromDefaults.map(g => {
+                  const def = STATUS_DEFS[g.status];
+                  return (
+                    <div key={g.id} style={{
+                      display: 'flex', alignItems: 'center', gap: '.75rem',
+                      padding: '.6rem .8rem',
+                      background: 'var(--elev)', border: '1px dashed var(--border)',
+                      borderLeft: `3px dashed ${def.color}`,
+                      borderRadius: 'var(--r)',
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '.82rem', fontWeight: 700, color: 'var(--t1)' }}>
+                          {g.funder} <span style={{ color: 'var(--t3)', fontWeight: 500 }}>· {g.year}</span>
+                        </div>
+                        <div style={{ fontSize: '.68rem', color: 'var(--t3)', marginTop: 2 }}>
+                          {g.grantName} · {g.amount > 0 ? fmtEur(g.amount) : (g.amountText || '—')}
+                          {g.deadlineText && <> · DL {g.deadlineText}</>}
+                        </div>
+                      </div>
+                      {canEdit && (
+                        <button className="btn btn-secondary btn-sm" onClick={() => restoreFromDefault(g)} title="Palauta oletuksista">
+                          ↺ Palauta
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 }

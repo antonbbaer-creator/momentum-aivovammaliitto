@@ -29,6 +29,7 @@ export interface Grant {
   responsibleId?: string;    // OrgTeamMember id
   url?: string;
   notes?: string;
+  deletedAt?: number;        // ms since epoch — jos asetettu, apuraha on roskakorissa
 }
 
 export interface GrantsSettings {
@@ -48,6 +49,7 @@ export const DEFAULT_GRANTS_SETTINGS: GrantsSettings = {
 export const normalizeGrant = (g: Grant): Grant => ({
   ...g,
   year: g.year || 2026,
+  deletedAt: typeof g.deletedAt === 'number' ? g.deletedAt : undefined,
 });
 
 // Normalize settings — handle migration from old single-yearTarget shape
