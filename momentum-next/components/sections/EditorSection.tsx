@@ -1085,6 +1085,64 @@ export default function EditorSection() {
     img.src = src;
   };
 
+  // ── MediaSection handoff ──
+  // When the user selects images in MediaSection and clicks "Vie editoriin" or the
+  // AI modal's "Vie editoriin", we land here. Read the handoff once, then clear it.
+  const handoffApplied = useRef(false);
+  useEffect(() => {
+    if (handoffApplied.current) return;
+    if (typeof window === 'undefined') return;
+    let raw: string | null = null;
+    try { raw = sessionStorage.getItem('momentum_editor_handoff'); } catch {}
+    if (!raw) return;
+    handoffApplied.current = true;
+    try { sessionStorage.removeItem('momentum_editor_handoff'); } catch {}
+
+    let handoff: { images?: Array<{ url: string; name?: string; id?: string }>; text?: string } | null = null;
+    try { handoff = JSON.parse(raw); } catch { return; }
+    if (!handoff) return;
+
+    const imgs = Array.isArray(handoff.images) ? handoff.images : [];
+    if (imgs.length === 0 && !handoff.text) return;
+
+    // First image → background of current slide, rest → overlays
+    if (imgs.length > 0) {
+      const [first, ...rest] = imgs;
+      // Load bg image into cache so the canvas draws it immediately
+      const bgImg = new Image();
+      bgImg.crossOrigin = 'anonymous';
+      const setBg = (el: HTMLImageElement) => {
+        bgCache.current.set(first.url, el);
+        setImgCacheVersion(v => v + 1);
+        updateSlide({ bgType: 'image', bgValue: first.url });
+      };
+      bgImg.onload = () => setBg(bgImg);
+      bgImg.onerror = () => {
+        const fb = new Image();
+        fb.onload = () => setBg(fb);
+        fb.src = first.url;
+      };
+      bgImg.src = first.url;
+
+      // Queue remaining images as overlays
+      rest.forEach((f, i) => {
+        window.setTimeout(() => addOverlayFromSrc(f.url, f.name), 120 * (i + 1));
+      });
+    }
+
+    // Prefill publish text if provided (from AI post generation)
+    if (handoff.text && handoff.text.trim()) {
+      setPublishBody(handoff.text.trim());
+      // Give a helpful generic title if empty
+      setPublishTitle(prev => prev || 'AI-luonnos');
+      toast('Kuvat ja teksti tuotu mediapankista', 'success');
+    } else if (imgs.length > 0) {
+      toast(`${imgs.length} kuvaa tuotu mediapankista`, 'success');
+    }
+  // Intentionally empty deps: handoff is a one-shot on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const updateOverlay = (id: string, patch: Partial<ImageOverlay>) => {
     mutateSlide(s => ({
       ...s,

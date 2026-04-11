@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -10,9 +11,15 @@ const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
 
 interface MediaFile { id: string; name: string; size: number; type: string; ext: string; path: string; thumb: string; folder: string; source: string; r2Key?: string; added?: string; }
 
+// sessionStorage handoff key read by EditorSection on mount
+export const EDITOR_HANDOFF_KEY = 'momentum_editor_handoff';
+
 export default function MediaSection() {
   const { activeOrg, canEdit } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
+  const params = useParams();
+  const orgSlug = (params?.orgSlug as string) || '';
   const [mediaMeta, setMediaMeta] = useOrgData<Record<string, { tags: string[]; desc: string; title: string }>>('media_meta', {});
   const [uploadedFiles, setUploadedFiles] = useOrgData<MediaFile[]>('media_uploaded', []);
   const [collections, setCollections] = useOrgData<{ id: string; name: string; fileIds: string[]; color: string }[]>('media_collections', []);
@@ -26,6 +33,16 @@ export default function MediaSection() {
   const [dragging, setDragging] = useState(false);
   const dragCounter = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // ── Selection mode: pick multiple images for editor/AI handoff ──
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiChannel, setAiChannel] = useState('Instagram Feed');
+  const [aiTone, setAiTone] = useState('Lämmin ja innostunut');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiResult, setAiResult] = useState('');
 
   useEffect(() => {
     if (!activeOrg) return;
@@ -113,6 +130,103 @@ export default function MediaSection() {
     });
     return arr;
   }, [allFiles, search, sortBy, getMeta]);
+
+  // ── Selection helpers ──
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds([]);
+    setSelectMode(false);
+    setAiOpen(false);
+    setAiResult('');
+  }, []);
+
+  const selectedFiles = useMemo(
+    () => selectedIds.map(id => allFiles.find(f => f.id === id)).filter((f): f is MediaFile => !!f && f.type === 'image'),
+    [selectedIds, allFiles]
+  );
+
+  // Persist selection to sessionStorage and navigate to editor.
+  // EditorSection reads EDITOR_HANDOFF_KEY on mount and loads the images as overlays.
+  const sendToEditor = useCallback((aiText?: string) => {
+    if (selectedFiles.length === 0) { toast('Valitse vähintään yksi kuva', 'error'); return; }
+    const handoff = {
+      images: selectedFiles.map(f => ({
+        url: f.path || f.thumb,
+        name: f.name,
+        id: f.id,
+      })),
+      text: aiText || '',
+      timestamp: Date.now(),
+    };
+    try {
+      sessionStorage.setItem(EDITOR_HANDOFF_KEY, JSON.stringify(handoff));
+    } catch (e) {
+      toast('Handoff-tallennus epäonnistui', 'error');
+      return;
+    }
+    toast(`${selectedFiles.length} kuvaa viety editoriin`, 'success');
+    clearSelection();
+    if (orgSlug) router.push(`/${orgSlug}/editor`);
+  }, [selectedFiles, toast, clearSelection, orgSlug, router]);
+
+  // Generate a social post draft using the selected images' metadata as context.
+  const generateAiPost = useCallback(async () => {
+    if (selectedFiles.length === 0) { toast('Valitse kuvat ensin', 'error'); return; }
+    setAiBusy(true);
+    setAiResult('');
+
+    // Build image context from tags/title/desc so the AI has something concrete to work with
+    const imageContext = selectedFiles.map((f, i) => {
+      const m = mediaMeta[f.id] || { tags: [], desc: '', title: '' };
+      const parts = [`Kuva ${i + 1}: ${m.title || f.name}`];
+      if (m.desc) parts.push(`Kuvaus: ${m.desc}`);
+      if (m.tags?.length) parts.push(`Avainsanat: ${m.tags.join(', ')}`);
+      return parts.join(' — ');
+    }).join('\n');
+
+    const systemPrompt = [
+      'Olet LLFF-festivaalin viestintäassistentti. Kirjoitat suomeksi sosiaalisen median postauksia.',
+      'Noudata LLFF-äänensävyä: rohkea, lämmin, taiteellinen mutta tavoitettava.',
+      'Älä käytä emojeja. Pidä teksti konkreettisena ja kuvaa tukevana.',
+      `Kanava: ${aiChannel}. Säädä pituus ja tyyli kanavan mukaan (IG Feed ~100-180 sanaa, Stories lyhyt, LinkedIn asiallisempi, Facebook keskipitkä).`,
+      `Tunnelma: ${aiTone}.`,
+      'Palauta VAIN postauksen teksti ilman otsikoita, selityksiä tai lainausmerkkejä.',
+    ].join(' ');
+
+    const userMessage = [
+      `Kirjoita postaus seuraavien ${selectedFiles.length} kuvan pohjalta:`,
+      '',
+      imageContext,
+      '',
+      aiPrompt.trim() ? `Lisäohje: ${aiPrompt.trim()}` : '',
+    ].filter(Boolean).join('\n');
+
+    try {
+      const res = await fetch(WORKER_URL + '/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Momentum-Org': activeOrg || '' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: userMessage }],
+          system: systemPrompt,
+          max_tokens: 800,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        toast('AI-virhe: ' + data.error, 'error');
+        setAiBusy(false);
+        return;
+      }
+      setAiResult((data.response || '').trim());
+    } catch (e: any) {
+      toast('AI-kutsu epäonnistui: ' + (e?.message || 'verkkovirhe'), 'error');
+    } finally {
+      setAiBusy(false);
+    }
+  }, [selectedFiles, mediaMeta, aiPrompt, aiChannel, aiTone, activeOrg, toast]);
 
   const formatSize = (bytes: number) => {
     if (!bytes) return '';
@@ -254,6 +368,13 @@ export default function MediaSection() {
             <select className="input" value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ width: 'auto', fontSize: '.78rem' }}>
               <option value="name">Nimi</option><option value="size">Koko</option><option value="date">Päivämäärä</option>
             </select>
+            <button
+              className={`btn btn-sm ${selectMode ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => { setSelectMode(m => !m); if (selectMode) setSelectedIds([]); }}
+              title="Valintatila: valitse useita kuvia"
+            >
+              {selectMode ? `Valinta (${selectedIds.length})` : 'Valitse'}
+            </button>
             {canEdit && (
               <>
                 <button className="btn btn-primary btn-sm" onClick={() => fileRef.current?.click()}>+ Lisää tiedostoja</button>
@@ -289,15 +410,41 @@ export default function MediaSection() {
           </div>
         )}
 
-        <div className="mb-grid">
+        <div className="mb-grid" style={{ paddingBottom: selectedIds.length > 0 ? 90 : 0 }}>
           {sorted.map((f, i) => {
             const m = getMeta(f.id);
+            const isSelected = selectedIds.includes(f.id);
+            const cardClick = () => {
+              if (selectMode && f.type === 'image') {
+                toggleSelect(f.id);
+              } else {
+                setDetailIdx(i);
+              }
+            };
             return (
-              <div key={f.id} className="mb-item" onClick={() => setDetailIdx(i)}>
+              <div
+                key={f.id}
+                className="mb-item"
+                onClick={cardClick}
+                style={isSelected ? { outline: '3px solid var(--pri)', outlineOffset: -3 } : undefined}
+              >
                 <div className="mb-thumb">
                   {f.type === 'image' && (f.thumb || f.path) ? <img src={f.thumb || f.path} alt={m.title || f.name} loading="lazy" decoding="async" width={200} height={160} /> : <div className="mb-thumb-icon">{'□'}</div>}
                   <span className="mb-badge">{f.ext}</span>
                   {f.source === 'r2' && <span className="mb-badge" style={{ left: '.5rem', right: 'auto', bottom: '.5rem', top: 'auto', background: 'rgba(26,143,196,.85)', fontSize: '.55rem' }}>Pilvi</span>}
+                  {selectMode && f.type === 'image' && (
+                    <div style={{
+                      position: 'absolute', top: '.5rem', left: '.5rem',
+                      width: 26, height: 26, borderRadius: '50%',
+                      background: isSelected ? 'var(--pri)' : 'rgba(0,0,0,.55)',
+                      border: '2px solid #fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', fontSize: '.85rem', fontWeight: 700,
+                      backdropFilter: 'blur(8px)',
+                    }}>
+                      {isSelected ? '✓' : ''}
+                    </div>
+                  )}
                 </div>
                 <div className="mb-meta">
                   <h4>{m.title || f.name}</h4>
@@ -312,6 +459,55 @@ export default function MediaSection() {
             );
           })}
         </div>
+
+        {/* ── SELECTION ACTION BAR ── */}
+        {selectedIds.length > 0 && (
+          <div style={{
+            position: 'fixed',
+            left: '50%',
+            bottom: '1.5rem',
+            transform: 'translateX(-50%)',
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 9999,
+            padding: '.55rem .65rem .55rem 1.1rem',
+            boxShadow: '0 10px 40px rgba(0,0,0,.45)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '.6rem',
+            zIndex: 80,
+            backdropFilter: 'blur(12px)',
+          }}>
+            <span style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--t1)' }}>
+              {selectedIds.length} valittu
+            </span>
+            <span style={{ width: 1, height: 22, background: 'var(--border)' }} />
+            <button
+              className="btn btn-sm btn-secondary"
+              onClick={() => sendToEditor()}
+              style={{ fontSize: '.72rem', fontWeight: 600 }}
+            >
+              Vie editoriin
+            </button>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={() => { setAiOpen(true); setAiResult(''); }}
+              style={{ fontSize: '.72rem', fontWeight: 600 }}
+            >
+              Luo AI-postaus
+            </button>
+            <button
+              onClick={clearSelection}
+              style={{
+                background: 'transparent', border: 'none', color: 'var(--t3)',
+                cursor: 'pointer', fontSize: '1rem', padding: '.25rem .5rem',
+              }}
+              title="Tyhjennä valinta"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {sorted.length === 0 && !uploading && (
           <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--t3)' }}>
@@ -367,6 +563,172 @@ export default function MediaSection() {
                 <button className="btn btn-sm btn-secondary" onClick={() => { navigator.clipboard.writeText(detail.path || detail.thumb || ''); toast('Linkki kopioitu', 'success'); }} style={{ marginTop: '.4rem', width: '100%', fontSize: '.75rem', fontWeight: 600 }}>Kopioi linkki</button>
                 {canEdit && (
                   <button className="btn btn-sm" onClick={() => deleteFile(detail)} style={{ marginTop: '.4rem', width: '100%', color: 'var(--red)', border: '1px solid rgba(239,68,68,.3)', background: 'rgba(239,68,68,.05)', fontSize: '.75rem', fontWeight: 600 }}>Poista tiedosto</button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── AI POST MODAL ── */}
+      {aiOpen && (
+        <div
+          onClick={() => !aiBusy && setAiOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.72)',
+            zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '1rem', backdropFilter: 'blur(6px)',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--card)', border: '1px solid var(--border)',
+              borderRadius: 'var(--rl)', width: 720, maxWidth: '95vw',
+              maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+              boxShadow: '0 20px 80px rgba(0,0,0,.6)',
+            }}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '1.1rem 1.4rem', borderBottom: '1px solid var(--border)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+            }}>
+              <div>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 500 }}>
+                  Luo postaus tekoälyllä
+                </h3>
+                <p style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.2rem' }}>
+                  {selectedFiles.length} kuvaa valittu · AI käyttää kuvien avainsanoja ja kuvauksia kontekstina
+                </p>
+              </div>
+              <button
+                onClick={() => setAiOpen(false)}
+                disabled={aiBusy}
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: '1rem' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body — scrollable */}
+            <div style={{ padding: '1.1rem 1.4rem', overflowY: 'auto', flex: 1 }}>
+              {/* Selected image thumbs */}
+              <div style={{
+                display: 'flex', gap: '.45rem', marginBottom: '1rem',
+                flexWrap: 'wrap', paddingBottom: '.75rem',
+                borderBottom: '1px solid var(--border)',
+              }}>
+                {selectedFiles.map(f => (
+                  <div
+                    key={f.id}
+                    style={{
+                      width: 56, height: 56, borderRadius: 'var(--r)',
+                      overflow: 'hidden', position: 'relative',
+                      border: '1px solid var(--border)', flexShrink: 0,
+                    }}
+                  >
+                    <img src={f.thumb || f.path} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                ))}
+              </div>
+
+              {/* Channel + tone */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem', marginBottom: '.75rem' }}>
+                <div>
+                  <label style={{ fontSize: '.7rem', color: 'var(--t3)', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: '.3rem' }}>Kanava</label>
+                  <select className="input" value={aiChannel} onChange={e => setAiChannel(e.target.value)} style={{ width: '100%', fontSize: '.8rem' }}>
+                    <option>Instagram Feed</option>
+                    <option>Instagram Stories</option>
+                    <option>Instagram Reels</option>
+                    <option>Facebook</option>
+                    <option>TikTok</option>
+                    <option>LinkedIn</option>
+                    <option>Uutiskirje</option>
+                    <option>Verkkosivut</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '.7rem', color: 'var(--t3)', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: '.3rem' }}>Tunnelma</label>
+                  <select className="input" value={aiTone} onChange={e => setAiTone(e.target.value)} style={{ width: '100%', fontSize: '.8rem' }}>
+                    <option>Lämmin ja innostunut</option>
+                    <option>Rohkea ja taiteellinen</option>
+                    <option>Informoiva ja selkeä</option>
+                    <option>Leikkisä ja kutsuva</option>
+                    <option>Arvokas ja vakaa</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Context / prompt */}
+              <label style={{ fontSize: '.7rem', color: 'var(--t3)', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: '.3rem' }}>
+                Lisäohje (valinnainen)
+              </label>
+              <textarea
+                value={aiPrompt}
+                onChange={e => setAiPrompt(e.target.value)}
+                placeholder="Esim. 'Ilmoita Nordic Frames -sarjan avajaisista, mukana ohjaaja Maria Kallio'"
+                className="input"
+                rows={3}
+                style={{ width: '100%', fontSize: '.82rem', resize: 'vertical', marginBottom: '1rem' }}
+              />
+
+              {/* Result */}
+              {aiResult && (
+                <div style={{
+                  padding: '1rem 1.15rem',
+                  background: 'var(--elev)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--r)',
+                  fontSize: '.85rem',
+                  lineHeight: 1.6,
+                  whiteSpace: 'pre-wrap',
+                  marginBottom: '.5rem',
+                  color: 'var(--t1)',
+                }}>
+                  {aiResult}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '.9rem 1.4rem', borderTop: '1px solid var(--border)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              gap: '.5rem', flexWrap: 'wrap',
+            }}>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setAiOpen(false)}
+                disabled={aiBusy}
+              >
+                Peruuta
+              </button>
+              <div style={{ display: 'flex', gap: '.5rem' }}>
+                {aiResult && (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => { navigator.clipboard.writeText(aiResult); toast('Teksti kopioitu', 'success'); }}
+                  >
+                    Kopioi teksti
+                  </button>
+                )}
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={generateAiPost}
+                  disabled={aiBusy}
+                >
+                  {aiBusy ? 'Kirjoitetaan...' : aiResult ? 'Luo uusi versio' : 'Luo postaus'}
+                </button>
+                {aiResult && (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => sendToEditor(aiResult)}
+                    disabled={aiBusy}
+                  >
+                    Vie editoriin
+                  </button>
                 )}
               </div>
             </div>
