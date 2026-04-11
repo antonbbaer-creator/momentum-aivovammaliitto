@@ -380,6 +380,10 @@ export default function EditorSection() {
   const overlayUploadRef = useRef<HTMLInputElement>(null);
   // Tracks which linkedPubId we have already auto-loaded so user edits aren't overwritten
   const loadedFromPubRef = useRef<string | null>(null);
+  // ── Canva-tyylinen vasemman sivupalkin välilehtimalli ──
+  type SidebarTab = 'templates' | 'elements' | 'text' | 'brand' | 'uploads';
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('templates');
+  const sidebarMediaFetched = useRef(false);
 
   // Auto-load linked publication into the editor (design + media), so the user sees the
   // existing slides immediately and can edit them in place. Runs once per linkedPubId.
@@ -1085,6 +1089,31 @@ export default function EditorSection() {
     img.src = src;
   };
 
+  // Lisää muoto overlayna — generoi SVG data-URLin ja käyttää olemassa olevaa kuvapolkua
+  const insertShape = (
+    shape: 'rectangle' | 'rounded' | 'circle' | 'line' | 'triangle' | 'arrow' | 'star'
+  ) => {
+    const color = '#FFFFFF';
+    let svg = '';
+    if (shape === 'rectangle')
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240"><rect width="400" height="240" fill="${color}"/></svg>`;
+    else if (shape === 'rounded')
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240"><rect width="400" height="240" rx="40" ry="40" fill="${color}"/></svg>`;
+    else if (shape === 'circle')
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><circle cx="200" cy="200" r="196" fill="${color}"/></svg>`;
+    else if (shape === 'line')
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 12"><rect width="400" height="12" fill="${color}"/></svg>`;
+    else if (shape === 'triangle')
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 346"><polygon points="200,4 396,342 4,342" fill="${color}"/></svg>`;
+    else if (shape === 'arrow')
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120"><path d="M0 45 H300 V10 L395 60 L300 110 V75 H0 Z" fill="${color}"/></svg>`;
+    else if (shape === 'star')
+      svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 380"><polygon fill="${color}" points="200,10 250,140 390,150 285,240 320,375 200,300 80,375 115,240 10,150 150,140"/></svg>`;
+    const dataUrl = 'data:image/svg+xml;base64,' + btoa(svg);
+    addOverlayFromSrc(dataUrl, `Muoto · ${shape}`);
+  };
+
   // ── MediaSection handoff ──
   // When the user selects images in MediaSection and clicks "Vie editoriin" or the
   // AI modal's "Vie editoriin", we land here. Read the handoff once, then clear it.
@@ -1275,79 +1304,606 @@ export default function EditorSection() {
 
   const selectedOverlay = selectedOverlayId ? currentSlide.overlays.find(o => o.id === selectedOverlayId) : null;
 
+  // Kun käyttäjä avaa "Lataukset"-välilehden ensimmäistä kertaa, hae mediapankki automaattisesti
+  useEffect(() => {
+    if (sidebarTab !== 'uploads') return;
+    if (sidebarMediaFetched.current) return;
+    if (mediaFiles.length > 0) { sidebarMediaFetched.current = true; return; }
+    sidebarMediaFetched.current = true;
+    fetchMedia();
+  }, [sidebarTab, mediaFiles.length, fetchMedia]);
+
+  // Yksi-klikkauksen apuri: valitun tekstikentän (otsikko/alaotsikko/kuvaus) koon ja tyylin presetti
+  const applyTextPreset = (
+    field: 'title' | 'subtitle' | 'caption',
+    preset: { sizePct?: number; weight?: number; align?: 'left' | 'center' | 'right'; text?: string }
+  ) => {
+    const patch: Partial<Slide> = {};
+    if (field === 'title') {
+      if (preset.sizePct !== undefined) patch.titleSizePct = preset.sizePct;
+      if (preset.weight !== undefined) patch.titleWeight = preset.weight;
+      if (preset.align !== undefined) patch.titleAlign = preset.align;
+      if (preset.text !== undefined && !currentSlide.title) patch.title = preset.text;
+    } else if (field === 'subtitle') {
+      if (preset.sizePct !== undefined) patch.subtitleSizePct = preset.sizePct;
+      if (preset.weight !== undefined) patch.subtitleWeight = preset.weight;
+      if (preset.text !== undefined && !currentSlide.subtitle) patch.subtitle = preset.text;
+    } else if (field === 'caption') {
+      if (preset.sizePct !== undefined) patch.captionSizePct = preset.sizePct;
+      if (preset.text !== undefined && !currentSlide.caption) patch.caption = preset.text;
+    }
+    updateSlide(patch);
+  };
+
   // ========== RENDER ==========
+  // Canva-tyylinen vasen rail — 56 px ikoninauha + 224 px paneeli = 280 px yhteensä
+  const SIDEBAR_TABS: Array<{ id: SidebarTab; label: string; icon: string }> = [
+    { id: 'templates', label: 'Mallit', icon: '▦' },
+    { id: 'elements',  label: 'Elementit', icon: '◇' },
+    { id: 'text',      label: 'Teksti', icon: 'T' },
+    { id: 'brand',     label: 'Brändi', icon: '◉' },
+    { id: 'uploads',   label: 'Lataukset', icon: '▲' },
+  ];
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr 320px', gap: '1rem', minHeight: 600 }}>
-      {/* ========== LEFT SIDEBAR: TEMPLATES + SAVED DESIGNS ========== */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {/* Template picker */}
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '.85rem' }}>
-          <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>Template</div>
-          <div style={{ fontSize: '.62rem', color: 'var(--t3)', marginBottom: '.5rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>Instagram</div>
-          {TEMPLATES.filter(t => t.platform === 'instagram').map(t => {
-            const active = draft.templateId === t.id;
+    <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr 320px', gap: '1rem', minHeight: 600 }}>
+      {/* ========== LEFT SIDEBAR: Canva-tyylinen tab rail + panel ========== */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '56px 1fr',
+          background: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--rl)',
+          overflow: 'hidden',
+          minHeight: 560,
+          alignSelf: 'start',
+          maxHeight: 'calc(100vh - 140px)',
+        }}
+      >
+        {/* Tab rail — vertikaali ikoninauha */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            borderRight: '1px solid var(--border)',
+            background: 'var(--bg)',
+            padding: '.4rem 0',
+            gap: '.1rem',
+          }}
+        >
+          {SIDEBAR_TABS.map(t => {
+            const active = sidebarTab === t.id;
             return (
-              <button key={t.id} onClick={() => updateDesign('templateId', t.id)} style={{
-                display: 'block', width: '100%', textAlign: 'left',
-                padding: '.5rem .6rem', marginBottom: '.2rem',
-                background: active ? 'rgba(5,107,159,.12)' : 'transparent',
-                border: '1px solid', borderColor: active ? 'var(--pri)' : 'transparent',
-                borderRadius: 'var(--r)', cursor: 'pointer',
-                fontSize: '.72rem', fontWeight: active ? 700 : 500,
-                color: active ? 'var(--pri-l)' : 'var(--t2)',
-              }}>
-                <div>{t.label}</div>
-                <div style={{ fontSize: '.58rem', color: 'var(--t3)', marginTop: '.1rem' }}>{t.w}×{t.h}</div>
-              </button>
-            );
-          })}
-          <div style={{ fontSize: '.62rem', color: 'var(--t3)', marginTop: '.5rem', marginBottom: '.25rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>Facebook</div>
-          {TEMPLATES.filter(t => t.platform === 'facebook').map(t => {
-            const active = draft.templateId === t.id;
-            return (
-              <button key={t.id} onClick={() => updateDesign('templateId', t.id)} style={{
-                display: 'block', width: '100%', textAlign: 'left',
-                padding: '.5rem .6rem', marginBottom: '.2rem',
-                background: active ? 'rgba(5,107,159,.12)' : 'transparent',
-                border: '1px solid', borderColor: active ? 'var(--pri)' : 'transparent',
-                borderRadius: 'var(--r)', cursor: 'pointer',
-                fontSize: '.72rem', fontWeight: active ? 700 : 500,
-                color: active ? 'var(--pri-l)' : 'var(--t2)',
-              }}>
-                <div>{t.label}</div>
-                <div style={{ fontSize: '.58rem', color: 'var(--t3)', marginTop: '.1rem' }}>{t.w}×{t.h}</div>
+              <button
+                key={t.id}
+                onClick={() => setSidebarTab(t.id)}
+                title={t.label}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '.2rem',
+                  padding: '.65rem .25rem',
+                  background: active ? 'var(--card)' : 'transparent',
+                  border: 'none',
+                  borderLeft: active ? '2px solid var(--pri-l)' : '2px solid transparent',
+                  color: active ? 'var(--pri-l)' : 'var(--t2)',
+                  cursor: 'pointer',
+                  transition: 'background .15s, color .15s',
+                }}
+                onMouseEnter={e => {
+                  if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'var(--elev)';
+                }}
+                onMouseLeave={e => {
+                  if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                }}
+              >
+                <span style={{ fontSize: '1rem', fontWeight: 700, lineHeight: 1 }}>{t.icon}</span>
+                <span style={{ fontSize: '.58rem', fontWeight: 600, letterSpacing: '.02em' }}>{t.label}</span>
               </button>
             );
           })}
         </div>
 
-        {/* Saved designs */}
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '.85rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.5rem' }}>
-            <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Tallennetut ({designs.length})</div>
-            {canEdit && <button className="btn btn-ghost btn-sm" onClick={() => startNew(draft.templateId)} style={{ fontSize: '.62rem', padding: '.15rem .4rem' }}>+ Uusi</button>}
-          </div>
-          {designs.length === 0 && <div style={{ fontSize: '.65rem', color: 'var(--t3)', textAlign: 'center', padding: '.5rem' }}>Ei tallennettuja</div>}
-          {designs.map(d => (
-            <div key={d.id} onClick={() => loadDesign(d.id)} style={{
-              display: 'flex', alignItems: 'center', gap: '.4rem',
-              padding: '.35rem', marginBottom: '.2rem',
-              background: currentId === d.id ? 'rgba(5,107,159,.12)' : 'transparent',
-              border: '1px solid', borderColor: currentId === d.id ? 'var(--pri)' : 'transparent',
-              borderRadius: 'var(--r)', cursor: 'pointer',
-            }}>
-              {d.thumbnail ? (
-                <img src={d.thumbnail} alt="" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }} />
-              ) : (
-                <div style={{ width: 36, height: 36, background: 'var(--elev)', borderRadius: 3, flexShrink: 0 }} />
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '.7rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--t1)' }}>{d.name}</div>
-                <div style={{ fontSize: '.55rem', color: 'var(--t3)' }}>{TEMPLATES.find(t => t.id === d.templateId)?.label || d.templateId}</div>
+        {/* Panel content */}
+        <div style={{ overflowY: 'auto', padding: '.85rem', minHeight: 0 }}>
+          {sidebarTab === 'templates' && (
+            <div>
+              <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>
+                Mallipohjat
               </div>
-              {canEdit && <button onClick={e => { e.stopPropagation(); deleteDesign(d.id); }} style={{ background: 'transparent', border: 'none', color: 'var(--t3)', cursor: 'pointer', fontSize: '.72rem', padding: '.1rem .25rem' }}>×</button>}
+              <div style={{ fontSize: '.62rem', color: 'var(--t3)', marginBottom: '.25rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                Instagram
+              </div>
+              {TEMPLATES.filter(t => t.platform === 'instagram').map(t => {
+                const active = draft.templateId === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => updateDesign('templateId', t.id)}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left',
+                      padding: '.5rem .6rem', marginBottom: '.2rem',
+                      background: active ? 'rgba(5,107,159,.12)' : 'transparent',
+                      border: '1px solid', borderColor: active ? 'var(--pri)' : 'transparent',
+                      borderRadius: 'var(--r)', cursor: 'pointer',
+                      fontSize: '.72rem', fontWeight: active ? 700 : 500,
+                      color: active ? 'var(--pri-l)' : 'var(--t2)',
+                    }}
+                  >
+                    <div>{t.label}</div>
+                    <div style={{ fontSize: '.58rem', color: 'var(--t3)', marginTop: '.1rem' }}>{t.w}×{t.h}</div>
+                  </button>
+                );
+              })}
+              <div style={{ fontSize: '.62rem', color: 'var(--t3)', marginTop: '.5rem', marginBottom: '.25rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                Facebook
+              </div>
+              {TEMPLATES.filter(t => t.platform === 'facebook').map(t => {
+                const active = draft.templateId === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => updateDesign('templateId', t.id)}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left',
+                      padding: '.5rem .6rem', marginBottom: '.2rem',
+                      background: active ? 'rgba(5,107,159,.12)' : 'transparent',
+                      border: '1px solid', borderColor: active ? 'var(--pri)' : 'transparent',
+                      borderRadius: 'var(--r)', cursor: 'pointer',
+                      fontSize: '.72rem', fontWeight: active ? 700 : 500,
+                      color: active ? 'var(--pri-l)' : 'var(--t2)',
+                    }}
+                  >
+                    <div>{t.label}</div>
+                    <div style={{ fontSize: '.58rem', color: 'var(--t3)', marginTop: '.1rem' }}>{t.w}×{t.h}</div>
+                  </button>
+                );
+              })}
+
+              {/* Saved designs */}
+              <div style={{
+                marginTop: '1rem', paddingTop: '.75rem', borderTop: '1px solid var(--border)',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.5rem',
+              }}>
+                <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                  Tallennetut ({designs.length})
+                </div>
+                {canEdit && (
+                  <button className="btn btn-ghost btn-sm" onClick={() => startNew(draft.templateId)} style={{ fontSize: '.62rem', padding: '.15rem .4rem' }}>
+                    + Uusi
+                  </button>
+                )}
+              </div>
+              {designs.length === 0 && (
+                <div style={{ fontSize: '.65rem', color: 'var(--t3)', textAlign: 'center', padding: '.5rem' }}>
+                  Ei tallennettuja
+                </div>
+              )}
+              {designs.map(d => (
+                <div
+                  key={d.id}
+                  onClick={() => loadDesign(d.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '.4rem',
+                    padding: '.35rem', marginBottom: '.2rem',
+                    background: currentId === d.id ? 'rgba(5,107,159,.12)' : 'transparent',
+                    border: '1px solid', borderColor: currentId === d.id ? 'var(--pri)' : 'transparent',
+                    borderRadius: 'var(--r)', cursor: 'pointer',
+                  }}
+                >
+                  {d.thumbnail ? (
+                    <img src={d.thumbnail} alt="" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }} />
+                  ) : (
+                    <div style={{ width: 36, height: 36, background: 'var(--elev)', borderRadius: 3, flexShrink: 0 }} />
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '.7rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--t1)' }}>
+                      {d.name}
+                    </div>
+                    <div style={{ fontSize: '.55rem', color: 'var(--t3)' }}>
+                      {TEMPLATES.find(t => t.id === d.templateId)?.label || d.templateId}
+                    </div>
+                  </div>
+                  {canEdit && (
+                    <button
+                      onClick={e => { e.stopPropagation(); deleteDesign(d.id); }}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--t3)', cursor: 'pointer', fontSize: '.72rem', padding: '.1rem .25rem' }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
+          )}
+
+          {/* =========== ELEMENTIT — shapes, lines, logos ============ */}
+          {sidebarTab === 'elements' && (
+            <div>
+              <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>
+                Muodot
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.4rem', marginBottom: '1rem' }}>
+                {([
+                  { id: 'rectangle', label: 'Suorakaide', svg: <rect x="4" y="10" width="32" height="20" fill="currentColor" /> },
+                  { id: 'rounded',   label: 'Pyöristetty', svg: <rect x="4" y="10" width="32" height="20" rx="5" ry="5" fill="currentColor" /> },
+                  { id: 'circle',    label: 'Ympyrä',     svg: <circle cx="20" cy="20" r="14" fill="currentColor" /> },
+                  { id: 'triangle',  label: 'Kolmio',     svg: <polygon points="20,6 36,34 4,34" fill="currentColor" /> },
+                  { id: 'line',      label: 'Viiva',      svg: <rect x="4" y="18" width="32" height="3" fill="currentColor" /> },
+                  { id: 'arrow',     label: 'Nuoli',      svg: <path d="M4 17 H26 V11 L36 20 L26 29 V23 H4 Z" fill="currentColor" /> },
+                  { id: 'star',      label: 'Tähti',      svg: <polygon points="20,4 25,15 36,16 27,24 30,36 20,30 10,36 13,24 4,16 15,15" fill="currentColor" /> },
+                ] as const).map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => canEdit && insertShape(s.id as any)}
+                    disabled={!canEdit}
+                    title={s.label}
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      gap: '.25rem', padding: '.55rem .3rem',
+                      background: 'var(--elev)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--r)', cursor: canEdit ? 'pointer' : 'not-allowed',
+                      opacity: canEdit ? 1 : .5,
+                      color: 'var(--t1)',
+                    }}
+                    onMouseEnter={e => { if (canEdit) (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--pri)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)'; }}
+                  >
+                    <svg width="40" height="40" viewBox="0 0 40 40">{s.svg}</svg>
+                    <span style={{ fontSize: '.58rem', color: 'var(--t3)', fontWeight: 600 }}>{s.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>
+                Logot
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                {LOGO_OPTIONS.map(l => {
+                  const active = currentSlide.logoId === l.id;
+                  return (
+                    <button
+                      key={l.id}
+                      onClick={() => canEdit && updateSlide({ logoId: l.id })}
+                      disabled={!canEdit}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '.5rem',
+                        padding: '.5rem .6rem',
+                        background: active ? 'rgba(5,107,159,.12)' : 'var(--elev)',
+                        border: '1px solid', borderColor: active ? 'var(--pri)' : 'var(--border)',
+                        borderRadius: 'var(--r)', cursor: canEdit ? 'pointer' : 'not-allowed',
+                        opacity: canEdit ? 1 : .5,
+                        fontSize: '.72rem', color: 'var(--t1)', textAlign: 'left',
+                      }}
+                    >
+                      {l.src ? (
+                        <img src={l.src} alt={l.label} style={{ width: 28, height: 20, objectFit: 'contain', flexShrink: 0 }} />
+                      ) : (
+                        <div style={{ width: 28, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)', fontSize: '.85rem' }}>∅</div>
+                      )}
+                      <span style={{ flex: 1 }}>{l.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* =========== TEKSTI — quick inserts + style presets =========== */}
+          {sidebarTab === 'text' && (
+            <div>
+              <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>
+                Tekstityylit
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.45rem', marginBottom: '1rem' }}>
+                <button
+                  onClick={() => canEdit && applyTextPreset('title', { sizePct: 9, weight: 800, align: 'center', text: 'Otsikko tähän' })}
+                  disabled={!canEdit}
+                  style={{
+                    padding: '.95rem .75rem', background: 'var(--elev)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--r)', cursor: canEdit ? 'pointer' : 'not-allowed', textAlign: 'left',
+                    fontSize: '1.15rem', fontWeight: 800, color: 'var(--t1)', fontFamily: 'var(--font-display)',
+                  }}
+                >
+                  Lisää otsikko
+                </button>
+                <button
+                  onClick={() => canEdit && applyTextPreset('subtitle', { sizePct: 5, weight: 600, text: 'Alaotsikko' })}
+                  disabled={!canEdit}
+                  style={{
+                    padding: '.75rem .75rem', background: 'var(--elev)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--r)', cursor: canEdit ? 'pointer' : 'not-allowed', textAlign: 'left',
+                    fontSize: '.92rem', fontWeight: 600, color: 'var(--t2)',
+                  }}
+                >
+                  Lisää alaotsikko
+                </button>
+                <button
+                  onClick={() => canEdit && applyTextPreset('caption', { sizePct: 3.2, text: 'Kuvaus' })}
+                  disabled={!canEdit}
+                  style={{
+                    padding: '.65rem .75rem', background: 'var(--elev)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--r)', cursor: canEdit ? 'pointer' : 'not-allowed', textAlign: 'left',
+                    fontSize: '.75rem', fontWeight: 500, color: 'var(--t3)',
+                  }}
+                >
+                  Lisää kuvaus / pikkuteksti
+                </button>
+              </div>
+
+              <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.45rem' }}>
+                Otsikon tasaus
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '.3rem', marginBottom: '1rem' }}>
+                {(['left', 'center', 'right'] as const).map(a => {
+                  const active = currentSlide.titleAlign === a;
+                  return (
+                    <button
+                      key={a}
+                      onClick={() => canEdit && updateSlide({ titleAlign: a })}
+                      disabled={!canEdit}
+                      style={{
+                        padding: '.45rem', background: active ? 'var(--pri)' : 'var(--elev)',
+                        color: active ? '#fff' : 'var(--t2)',
+                        border: '1px solid', borderColor: active ? 'var(--pri)' : 'var(--border)',
+                        borderRadius: 'var(--r)', cursor: canEdit ? 'pointer' : 'not-allowed',
+                        fontSize: '.7rem', fontWeight: 600,
+                      }}
+                    >
+                      {a === 'left' ? 'Vasen' : a === 'center' ? 'Keskitä' : 'Oikea'}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.45rem' }}>
+                Otsikon paksuus
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '.3rem' }}>
+                {[400, 600, 700, 800].map(w => {
+                  const active = currentSlide.titleWeight === w;
+                  return (
+                    <button
+                      key={w}
+                      onClick={() => canEdit && updateSlide({ titleWeight: w })}
+                      disabled={!canEdit}
+                      style={{
+                        padding: '.45rem', background: active ? 'var(--pri)' : 'var(--elev)',
+                        color: active ? '#fff' : 'var(--t2)',
+                        border: '1px solid', borderColor: active ? 'var(--pri)' : 'var(--border)',
+                        borderRadius: 'var(--r)', cursor: canEdit ? 'pointer' : 'not-allowed',
+                        fontSize: '.7rem', fontWeight: w,
+                      }}
+                    >
+                      {w === 400 ? 'Ohut' : w === 600 ? 'Med' : w === 700 ? 'Bold' : 'Xbold'}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* =========== BRÄNDI — LLFF colors + logos =========== */}
+          {sidebarTab === 'brand' && (
+            <div>
+              <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>
+                LLFF-värit
+              </div>
+              <div style={{ fontSize: '.6rem', color: 'var(--t3)', marginBottom: '.5rem' }}>Napauta → taustaväri</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '.35rem', marginBottom: '1rem' }}>
+                {LLFF_COLORS.map(c => {
+                  const active = currentSlide.bgType === 'color' && currentSlide.bgValue === c.value;
+                  return (
+                    <button
+                      key={c.value}
+                      onClick={() => canEdit && updateSlide({ bgType: 'color', bgValue: c.value })}
+                      disabled={!canEdit}
+                      title={`${c.name}\n${c.value}`}
+                      style={{
+                        aspectRatio: '1 / 1',
+                        background: c.value,
+                        border: '2px solid',
+                        borderColor: active ? 'var(--pri-l)' : 'var(--border)',
+                        borderRadius: 'var(--r)',
+                        cursor: canEdit ? 'pointer' : 'not-allowed',
+                        padding: 0,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+
+              <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>
+                Tekstivärit
+              </div>
+              <div style={{ fontSize: '.6rem', color: 'var(--t3)', marginBottom: '.5rem' }}>Napauta → otsikon väri</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '.35rem', marginBottom: '1rem' }}>
+                {LLFF_COLORS.map(c => {
+                  const active = currentSlide.titleColor === c.value;
+                  return (
+                    <button
+                      key={c.value}
+                      onClick={() => canEdit && updateSlide({ titleColor: c.value })}
+                      disabled={!canEdit}
+                      title={`${c.name}`}
+                      style={{
+                        aspectRatio: '1 / 1',
+                        background: c.value,
+                        border: '2px solid',
+                        borderColor: active ? 'var(--pri-l)' : 'var(--border)',
+                        borderRadius: '50%',
+                        cursor: canEdit ? 'pointer' : 'not-allowed',
+                        padding: 0,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+
+              <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>
+                Logot
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem', marginBottom: '1rem' }}>
+                {LOGO_OPTIONS.map(l => {
+                  const active = currentSlide.logoId === l.id;
+                  return (
+                    <button
+                      key={l.id}
+                      onClick={() => canEdit && updateSlide({ logoId: l.id })}
+                      disabled={!canEdit}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '.5rem',
+                        padding: '.5rem .6rem',
+                        background: active ? 'rgba(5,107,159,.12)' : 'var(--elev)',
+                        border: '1px solid', borderColor: active ? 'var(--pri)' : 'var(--border)',
+                        borderRadius: 'var(--r)', cursor: canEdit ? 'pointer' : 'not-allowed',
+                        opacity: canEdit ? 1 : .5,
+                        fontSize: '.72rem', color: 'var(--t1)', textAlign: 'left',
+                      }}
+                    >
+                      {l.src ? (
+                        <img src={l.src} alt={l.label} style={{ width: 28, height: 20, objectFit: 'contain', flexShrink: 0 }} />
+                      ) : (
+                        <div style={{ width: 28, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)', fontSize: '.85rem' }}>∅</div>
+                      )}
+                      <span style={{ flex: 1 }}>{l.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>
+                Preset-tyylit
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                {DESIGN_PRESETS.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => canEdit && mutateSlide(s => p.apply(s))}
+                    disabled={!canEdit}
+                    title={p.description}
+                    style={{
+                      padding: '.55rem .65rem', background: 'var(--elev)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--r)', cursor: canEdit ? 'pointer' : 'not-allowed', textAlign: 'left',
+                      fontSize: '.72rem', color: 'var(--t1)', fontWeight: 600,
+                    }}
+                    onMouseEnter={e => { if (canEdit) (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--pri)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)'; }}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* =========== LATAUKSET — inline mediapankki =========== */}
+          {sidebarTab === 'uploads' && (
+            <div>
+              <div style={{ display: 'flex', gap: '.3rem', marginBottom: '.5rem' }}>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => canEdit && uploadRef.current?.click()}
+                  disabled={!canEdit}
+                  style={{ flex: 1, fontSize: '.7rem' }}
+                  title="Lataa tiedosto kansioon"
+                >
+                  ▲ Lataa tiedosto
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => fetchMedia()}
+                  title="Päivitä lista"
+                  style={{ fontSize: '.7rem' }}
+                >
+                  ↻
+                </button>
+              </div>
+
+              <input
+                className="input"
+                placeholder="Hae kuvia..."
+                value={mediaSearch}
+                onChange={e => setMediaSearch(e.target.value)}
+                style={{ fontSize: '.75rem', padding: '.45rem .6rem', marginBottom: '.45rem' }}
+              />
+
+              {mediaFolders.length > 0 && (
+                <select
+                  className="input"
+                  value={mediaFolderFilter}
+                  onChange={e => setMediaFolderFilter(e.target.value)}
+                  style={{ fontSize: '.72rem', padding: '.4rem .55rem', marginBottom: '.6rem' }}
+                >
+                  <option value="all">Kaikki kansiot</option>
+                  {mediaFolders.map(f => (
+                    <option key={f} value={f}>{f}</option>
+                  ))}
+                </select>
+              )}
+
+              <div style={{
+                fontSize: '.58rem', color: 'var(--t3)', marginBottom: '.4rem',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}>
+                <span>{filteredMedia.length} kuvaa</span>
+                <span>▤ Klikkaa → lisää · ⇧ Klikkaa → tausta</span>
+              </div>
+
+              {mediaLoading && mediaFiles.length === 0 && (
+                <div style={{ fontSize: '.68rem', color: 'var(--t3)', textAlign: 'center', padding: '1rem' }}>
+                  Ladataan mediapankkia...
+                </div>
+              )}
+
+              {!mediaLoading && filteredMedia.length === 0 && mediaFiles.length > 0 && (
+                <div style={{ fontSize: '.68rem', color: 'var(--t3)', textAlign: 'center', padding: '1rem' }}>
+                  Ei hakutuloksia
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.35rem' }}>
+                {filteredMedia.slice(0, 120).map(f => (
+                  <button
+                    key={f.key}
+                    onClick={e => {
+                      if (!canEdit) return;
+                      // Shift-click → background, plain click → overlay
+                      if (e.shiftKey) {
+                        setPickerTarget('background');
+                        pickFromMedia(f);
+                      } else {
+                        addOverlayFromSrc(f.url, f.name);
+                      }
+                    }}
+                    disabled={!canEdit}
+                    title={`${f.name}\nKlikkaa: lisää kuvaksi\nShift+klikkaa: aseta taustaksi`}
+                    style={{
+                      aspectRatio: '1 / 1',
+                      background: `center/cover url("${f.url}")`,
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--r)',
+                      cursor: canEdit ? 'pointer' : 'not-allowed',
+                      padding: 0,
+                      position: 'relative',
+                      overflow: 'hidden',
+                    }}
+                    onMouseEnter={e => { if (canEdit) (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--pri-l)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)'; }}
+                  />
+                ))}
+              </div>
+
+              {filteredMedia.length > 120 && (
+                <div style={{ fontSize: '.6rem', color: 'var(--t3)', textAlign: 'center', marginTop: '.5rem' }}>
+                  Näytetään 120 / {filteredMedia.length} — tarkenna hakua
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
