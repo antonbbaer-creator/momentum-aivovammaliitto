@@ -60,11 +60,16 @@ const LLFF_COLORS = [
   { name: 'Valkoinen',      value: '#FFFFFF' },
 ];
 
+// 2025-logoversiot: värimaailma (violetti + pinkki + pinkki sydän) istuu
+// LLFF:n viestintäkontekstiin paremmin kuin 2026-versioiden värit.
+// Banner on sama tiedosto molemmissa vuosissa.
 const LOGO_OPTIONS = [
-  { id: 'none',    label: 'Ei logoa',   src: '' },
-  { id: 'banner',  label: 'Banner',     src: '/brand/llff-banner-2026.png' },
-  { id: 'logo',    label: 'Logo + nimi', src: '/brand/llff-logo-2026.png' },
-  { id: 'symbol',  label: 'Pelkkä silmä', src: '/brand/llff-symbol-2026.png' },
+  { id: 'none',          label: 'Ei logoa',        src: '' },
+  { id: 'banner',        label: 'Banner',          src: '/brand/llff-banner-2026.png' },
+  { id: 'logo',          label: 'Logo + nimi',     src: '/brand/llff-logo-2025-fi.png' },
+  { id: 'logo-en',       label: 'Logo + nimi EN',  src: '/brand/llff-logo-2025-en.png' },
+  { id: 'symbol',        label: 'Silmä — pinkki',  src: '/brand/llff-symbol-2025.png' },
+  { id: 'symbol-violet', label: 'Silmä — violetti', src: '/brand/llff-symbol-2025-violet.png' },
 ];
 
 type LogoPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'top-center' | 'bottom-center' | 'center';
