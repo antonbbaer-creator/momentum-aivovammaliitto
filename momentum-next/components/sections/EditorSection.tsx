@@ -20,6 +20,19 @@ import { CommsPlan, DEFAULT_LLFF_2026_PLAN, normalizeCommsPlan, unifiedChannels 
 
 const WORKER_URL = 'https://momentum-worker.anton-4f9.workers.dev';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
+// Worker-proxy kuville — R2_CDN ei lähetä CORS-headereitä, mikä saastuttaa
+// canvasin eikä julkaisua voi viedä toBlob:lla. Worker lähettää
+// access-control-allow-origin: *, joten käytetään sitä aina kuvien lataukseen.
+const MEDIA_FILE_URL = WORKER_URL + '/media/file/';
+// Muuntaa mahdollisen R2-CDN- tai worker-URL:n aina CORS-ystävälliseksi
+// worker-URL:ksi. Säilyttää localit (/brand/*) ja data:-URL:t ennallaan.
+const toCorsSafeUrl = (src: string): string => {
+  if (!src) return src;
+  if (src.startsWith('data:') || src.startsWith('blob:')) return src;
+  if (src.startsWith('/')) return src; // paikallinen /public asset
+  if (src.startsWith(R2_CDN + '/')) return MEDIA_FILE_URL + src.slice(R2_CDN.length + 1);
+  return src;
+};
 
 // ========== TEMPLATES (from 2026 IG/FB specs) ==========
 interface Template {
@@ -553,24 +566,24 @@ export default function EditorSection() {
     })).finally(() => setFontLoaded(true));
   }, []);
 
-  // Helper: load any image into a cache with CORS fallback
-  const loadImageIntoCache = (src: string, cache: Map<string, HTMLImageElement>) => {
-    if (!src || cache.has(src)) return;
+  // Helper: load any image into a cache. AINA CORS-moodissa — muuten canvasista
+  // ei voi tehdä toBlob():a julkaisun tallennuksessa. Fallback ilman CORSia
+  // poistettu tarkoituksella, vaikka kuva ehkä näkyisi, se saastuttaisi canvasin.
+  const loadImageIntoCache = (rawSrc: string, cache: Map<string, HTMLImageElement>) => {
+    if (!rawSrc) return;
+    const src = toCorsSafeUrl(rawSrc);
+    // Tallennetaan sekä alkuperäisellä että korjattulla avaimella, jotta
+    // hit-test ja draw-loop löytävät kuvan riippumatta lähtö-URL:sta
+    if (cache.has(rawSrc) || cache.has(src)) return;
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      cache.set(src, img);
+      cache.set(rawSrc, img);
+      if (src !== rawSrc) cache.set(src, img);
       setImgCacheVersion(v => v + 1);
     };
     img.onerror = () => {
-      // Retry without CORS (export may be tainted but display works)
-      const fallback = new Image();
-      fallback.onload = () => {
-        cache.set(src, fallback);
-        setImgCacheVersion(v => v + 1);
-      };
-      fallback.onerror = () => console.warn('[EditorSection] Image failed to load:', src);
-      fallback.src = src;
+      console.warn('[EditorSection] Image failed to load (CORS?):', src);
     };
     img.src = src;
   };
@@ -610,7 +623,8 @@ export default function EditorSection() {
         .map((f: any) => ({
           key: f.key,
           name: (f.name || '').replace(/^\d+_/, ''),
-          url: R2_CDN + '/' + f.key,
+          // Käytetään worker-proxyä (CORS-ystävällinen), ei R2_CDN:ää
+          url: MEDIA_FILE_URL + f.key,
           folder: (f.key || '').split('/')[1] || 'uploaded',
         }));
       setMediaFiles(files);
@@ -1021,37 +1035,32 @@ export default function EditorSection() {
 
   // === MEDIA PICKER SELECTION (respects pickerTarget) ===
   const pickFromMedia = (file: MediaFile) => {
+    // Varmistetaan että käytetään CORS-ystävällistä URL:ia (worker-proxy)
+    const safeUrl = toCorsSafeUrl(file.url);
     if (pickerTarget === 'background') {
       // Preload image into bgCache so canvas renders it immediately.
       // Track loading state for the spinner overlay.
-      const cached = bgCache.current.get(file.url);
+      const cached = bgCache.current.get(safeUrl);
       if (cached && cached.complete && cached.naturalWidth > 0) {
-        updateSlide({ bgType: 'image', bgValue: file.url });
+        updateSlide({ bgType: 'image', bgValue: safeUrl });
       } else {
         setImageLoadingCount(c => c + 1);
         const img = new Image();
         img.crossOrigin = 'anonymous';
-        const finish = (el: HTMLImageElement) => {
-          bgCache.current.set(file.url, el);
+        img.onload = () => {
+          bgCache.current.set(safeUrl, img);
           setImgCacheVersion(v => v + 1);
-          updateSlide({ bgType: 'image', bgValue: file.url });
+          updateSlide({ bgType: 'image', bgValue: safeUrl });
           setImageLoadingCount(c => Math.max(0, c - 1));
         };
-        img.onload = () => finish(img);
         img.onerror = () => {
-          // Retry without CORS
-          const fallback = new Image();
-          fallback.onload = () => finish(fallback);
-          fallback.onerror = () => {
-            setImageLoadingCount(c => Math.max(0, c - 1));
-            toast('Taustakuvan lataus epäonnistui', 'error');
-          };
-          fallback.src = file.url;
+          setImageLoadingCount(c => Math.max(0, c - 1));
+          toast('Taustakuvan lataus epäonnistui', 'error');
         };
-        img.src = file.url;
+        img.src = safeUrl;
       }
     } else {
-      addOverlayFromSrc(file.url, file.name);
+      addOverlayFromSrc(safeUrl, file.name);
     }
     setShowMediaPicker(false);
   };
@@ -1067,7 +1076,9 @@ export default function EditorSection() {
   };
 
   // Add overlay — loads image FIRST to compute cover-fit widthPct before adding
-  const addOverlayFromSrc = (src: string, name?: string) => {
+  const addOverlayFromSrc = (rawSrc: string, name?: string) => {
+    // Muunna aina CORS-ystävälliseksi URL:ksi (worker-proxy jos R2)
+    const src = toCorsSafeUrl(rawSrc);
     // Track loading state — skip spinner if already cached
     const cached = overlayCache.current.get(src);
     const needsLoad = !cached || !cached.complete || cached.naturalWidth === 0;
@@ -1075,39 +1086,32 @@ export default function EditorSection() {
     const clearLoading = () => {
       if (needsLoad) setImageLoadingCount(c => Math.max(0, c - 1));
     };
-    // Load the image to measure dimensions
+    // Load the image to measure dimensions (aina CORS-moodissa)
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    const finishAdding = (imgEl: HTMLImageElement) => {
-      const widthPct = computeCoverWidthPct(imgEl.naturalWidth || imgEl.width, imgEl.naturalHeight || imgEl.height);
+    img.onload = () => {
+      const widthPct = computeCoverWidthPct(img.naturalWidth || img.width, img.naturalHeight || img.height);
       const maxZ = currentSlide.overlays.reduce((m, o) => Math.max(m, o.z), 0);
       const newOverlay: ImageOverlay = {
         id: 'ov_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
         src, name,
-        x: 50, y: 50, // center
-        widthPct,     // fills the frame by default
+        x: 50, y: 50,
+        widthPct,
         opacity: 1,
         rotation: 0,
         z: maxZ + 1,
       };
-      // Cache the image so it draws immediately
-      overlayCache.current.set(src, imgEl);
+      overlayCache.current.set(src, img);
       mutateSlide(s => ({ ...s, overlays: [...s.overlays, newOverlay] }));
       setSelectedOverlayId(newOverlay.id);
       setImgCacheVersion(v => v + 1);
       clearLoading();
       toast('Kuva lisätty', 'success');
     };
-    img.onload = () => finishAdding(img);
     img.onerror = () => {
-      // Retry without CORS for display
-      const fallback = new Image();
-      fallback.onload = () => finishAdding(fallback);
-      fallback.onerror = () => {
-        clearLoading();
-        toast('Kuvan lataus epäonnistui', 'error');
-      };
-      fallback.src = src;
+      clearLoading();
+      toast('Kuvan lataus epäonnistui (CORS?)', 'error');
+      console.warn('[EditorSection] addOverlayFromSrc failed:', src);
     };
     img.src = src;
   };
@@ -1160,25 +1164,23 @@ export default function EditorSection() {
     // First image → background of current slide, rest → overlays
     if (imgs.length > 0) {
       const [first, ...rest] = imgs;
+      const firstUrl = toCorsSafeUrl(first.url);
       // Load bg image into cache so the canvas draws it immediately
       const bgImg = new Image();
       bgImg.crossOrigin = 'anonymous';
-      const setBg = (el: HTMLImageElement) => {
-        bgCache.current.set(first.url, el);
+      bgImg.onload = () => {
+        bgCache.current.set(firstUrl, bgImg);
         setImgCacheVersion(v => v + 1);
-        updateSlide({ bgType: 'image', bgValue: first.url });
+        updateSlide({ bgType: 'image', bgValue: firstUrl });
       };
-      bgImg.onload = () => setBg(bgImg);
       bgImg.onerror = () => {
-        const fb = new Image();
-        fb.onload = () => setBg(fb);
-        fb.src = first.url;
+        console.warn('[EditorSection] handoff bg failed:', firstUrl);
       };
-      bgImg.src = first.url;
+      bgImg.src = firstUrl;
 
       // Queue remaining images as overlays
       rest.forEach((f, i) => {
-        window.setTimeout(() => addOverlayFromSrc(f.url, f.name), 120 * (i + 1));
+        window.setTimeout(() => addOverlayFromSrc(toCorsSafeUrl(f.url), f.name), 120 * (i + 1));
       });
     }
 
