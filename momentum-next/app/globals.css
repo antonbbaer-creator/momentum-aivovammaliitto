@@ -364,6 +364,38 @@
     .modal-x:hover{color:var(--t1)}
     .modal-b{padding:1.5rem}.modal-f{padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:.75rem}
 
+    /* ─── USER GUIDE — kelluva paneeli, ei blokkaa taustaa ─── */
+    /* Sijoitettu sivupalkin viereen vasempaan alareunaan jotta se ei osu ChatFAB-nappiin oikeassa alareunassa */
+    .ug-panel{position:fixed;left:calc(264px + 1.5rem);bottom:1.5rem;width:400px;max-width:calc(100vw - 264px - 3rem);background:var(--card);border:1px solid var(--border);border-radius:var(--rxl);box-shadow:0 24px 64px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.03);overflow:hidden;z-index:150;animation:fadeUp .35s cubic-bezier(.16,1,.3,1);display:flex;flex-direction:column;max-height:calc(100vh - 3rem)}
+    .ug-bar{height:3px;display:flex;flex-shrink:0}
+    .ug-bar span{flex:1}
+    .ug-head{padding:1.1rem 1.25rem .75rem;display:flex;gap:.75rem;align-items:flex-start;border-bottom:1px solid var(--border)}
+    .ug-kicker{font-family:var(--font-display);font-size:.58rem;font-weight:500;text-transform:uppercase;letter-spacing:.12em;color:var(--t3);margin-bottom:.35rem}
+    .ug-head h3{font-family:var(--font-display);font-size:1rem;font-weight:500;letter-spacing:.01em;text-transform:uppercase;color:var(--t1);line-height:1.25}
+    .ug-sub{color:var(--t2);font-size:.74rem;margin-top:.2rem;font-weight:400;letter-spacing:.01em}
+    .ug-x{background:none;border:none;color:var(--t3);font-size:1.4rem;cursor:pointer;transition:color .15s;line-height:1;padding:.1rem .35rem;border-radius:var(--r)}
+    .ug-x:hover{color:var(--t1);background:var(--elev)}
+    .ug-body{padding:1.1rem 1.25rem;font-size:.83rem;line-height:1.6;color:var(--t1);overflow-y:auto;flex:1}
+    .ug-body p{margin-bottom:.75rem}
+    .ug-body p:last-child{margin-bottom:0}
+    .ug-body strong{color:var(--t1);font-weight:600}
+    .ug-body .ug-hint{font-size:.74rem;color:var(--t2);background:var(--elev);border:1px solid var(--border);border-left:3px solid var(--pri);border-radius:var(--r);padding:.65rem .8rem;margin-top:.25rem;line-height:1.5}
+    .ug-foot{padding:.85rem 1.25rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-shrink:0;background:rgba(0,0,0,.15)}
+    .ug-dots{display:flex;gap:.35rem;align-items:center}
+    .ug-dot{width:6px;height:6px;border-radius:50%;background:var(--border);border:none;cursor:pointer;padding:0;transition:all .3s cubic-bezier(.16,1,.3,1)}
+    .ug-dot:hover{background:var(--border-l)}
+    .ug-dot.act{background:var(--pri);width:18px;border-radius:4px}
+    .ug-dot.done{background:var(--green)}
+    .ug-actions{display:flex;gap:.4rem}
+    @media (max-width:980px){
+      .ug-panel{left:1rem;right:1rem;bottom:1rem;width:auto;max-width:none;max-height:70vh}
+    }
+
+    /* Sivupalkin käyttöohje-nappi */
+    .side-guide{margin:.25rem 1.25rem .75rem;padding:.65rem .9rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:var(--r);color:rgba(255,255,255,.82);font-size:.78rem;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:.6rem;transition:all .2s;font-family:var(--font);text-align:left;width:calc(100% - 2.5rem)}
+    .side-guide:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.22);color:#fff}
+    .side-guide .nav-ic{width:18px;text-align:center;font-size:.85rem;opacity:.8}
+
     .ok-card{background:var(--card);border:1px solid var(--green);border-radius:var(--rxl);padding:2.5rem;text-align:center;animation:scaleIn .4s;box-shadow:0 0 40px rgba(45,212,160,.08)}
     .ok-card .chk{width:60px;height:60px;background:rgba(45,212,160,.1);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem;font-size:1.5rem;color:var(--green);border:2px solid rgba(45,212,160,.2)}
 

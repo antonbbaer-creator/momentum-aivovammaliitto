@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/auth';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, ReactNode } from 'react';
+import UserGuide from '@/components/UserGuide';
 
 export default function OrgLayout({ children }: { children: ReactNode }) {
   const { user, loading, orgs, activeOrg, setActiveOrg } = useAuth();
@@ -47,5 +48,10 @@ export default function OrgLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <UserGuide />
+    </>
+  );
 }

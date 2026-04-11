@@ -70,6 +70,16 @@ export default function Sidebar() {
         )}
       </nav>
 
+      <button
+        type="button"
+        className="side-guide"
+        onClick={() => window.dispatchEvent(new Event('momentum:open-userguide'))}
+        aria-label="Avaa käyttöohje"
+      >
+        <span className="nav-ic">?</span>
+        <span>Käyttöohje</span>
+      </button>
+
       <div className="side-ft">
         <div className="ava">
           {user?.photoURL ? (

@@ -23,6 +23,7 @@ export default function ChatFAB() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sendQueue, setSendQueue] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -158,11 +159,13 @@ export default function ChatFAB() {
     return p.join('\n');
   };
 
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return;
-    const userMsg: Message = { role: 'user', content: input.trim() };
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
+  const sendMessage = async (override?: string) => {
+    const text = (override ?? input).trim();
+    if (!text || loading) return;
+    const userMsg: Message = { role: 'user', content: text };
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
+    if (override === undefined) setInput('');
     setLoading(true);
 
     try {
@@ -170,7 +173,7 @@ export default function ChatFAB() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Momentum-Org': activeOrg || '' },
         body: JSON.stringify({
-          messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content })),
+          messages: nextMessages.map(m => ({ role: m.role, content: m.content })),
           systemContext: buildContext(),
         }),
       });
@@ -187,6 +190,38 @@ export default function ChatFAB() {
       setLoading(false);
     }
   };
+
+  // Ulkoinen tapahtuma: avaa paneeli ja aja jono viestejä demo-tarkoitukseen
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { text?: string; texts?: string[] } | undefined;
+      setOpen(true);
+      const texts = Array.isArray(detail?.texts)
+        ? detail!.texts!
+        : detail?.text
+        ? [detail.text]
+        : [];
+      if (texts.length > 0) {
+        // Tyhjennä edellinen keskustelu jotta demo alkaa puhtaalta pöydältä
+        setMessages([]);
+        // Pieni viive ennen ensimmäistä viestiä, jotta käyttäjä ehtii havaita paneelin aukeamisen
+        setTimeout(() => setSendQueue(texts), 600);
+      }
+    };
+    window.addEventListener('momentum:ai-prompt', handler);
+    return () => window.removeEventListener('momentum:ai-prompt', handler);
+  }, []);
+
+  // Prosessoi jono: lähetä seuraava viesti kun edellinen on valmis.
+  // HUOM: sendMessage kutsutaan synkronisesti — se asettaa loading=true saman renderöintikierroksen aikana
+  // kuin setSendQueue(rest), joten efekti ei laukea toistuvasti ja kaikkia viestejä ei popata yhdellä kertaa.
+  useEffect(() => {
+    if (!open || loading || sendQueue.length === 0) return;
+    const [first, ...rest] = sendQueue;
+    setSendQueue(rest);
+    void sendMessage(first);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, loading, sendQueue]);
 
   const suggestions = [
     'Mitä julkaista tällä viikolla?',
