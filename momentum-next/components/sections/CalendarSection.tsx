@@ -16,6 +16,14 @@ import {
   defaultLlffYearwheel,
 } from '@/lib/yearwheel-shared';
 import { OrgTeam, DEFAULT_LLFF_TEAMS } from '@/lib/team-shared';
+import {
+  CommsPlan,
+  DEFAULT_LLFF_2026_PLAN,
+  MONTHS_FI,
+  normalizeCommsPlan,
+  monthCoverageStatus,
+  unifiedChannels,
+} from '@/lib/comms-plan-shared';
 
 interface CalEvent {
   id: number;
@@ -56,6 +64,8 @@ interface Props {
   mode?: 'full' | 'viestinta';
   // Callback when a linked publication is clicked — used by Viestintä-hub to open the detail view.
   onOpenPublication?: (publicationId: string) => void;
+  // Callback to switch to Plan tab (viestintä-mode: empty-month warning -> "Avaa suunnitelma")
+  onOpenPlan?: () => void;
 }
 
 // Viestintätiimin ID — vastaa DEFAULT_LLFF_TEAMS:n id:tä
@@ -69,7 +79,7 @@ const statusColors: Record<string, string> = {
   peruttu: 'var(--red)',
 };
 
-export default function CalendarSection({ phases: propPhases, setPhases: propSetPhases, events: propEvents, setEvents: propSetEvents, mode = 'full', onOpenPublication }: Props) {
+export default function CalendarSection({ phases: propPhases, setPhases: propSetPhases, events: propEvents, setEvents: propSetEvents, mode = 'full', onOpenPublication, onOpenPlan }: Props) {
   const { canEdit } = useAuth();
   const { toast } = useToast();
   const [ownEvents, ownSetEvents] = useOrgData<CalEvent[]>('events', []);
@@ -78,6 +88,8 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
   const [projects] = useOrgData<ProjectLite[]>('projects', []);
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', DEFAULT_LLFF_TEAMS);
   const [publications] = useOrgData<PubLite[]>('publications', []);
+  const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', DEFAULT_LLFF_2026_PLAN);
+  const commsPlan = normalizeCommsPlan(rawCommsPlan);
   const isViestinta = mode === 'viestinta';
 
   const rawPhases = propPhases ?? ownRawPhases;
@@ -302,6 +314,55 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
           <span>Viestinnän kalenteri — vain viestintätiimin projektit ja julkaisut. Luo uusi julkaisu Editori-välilehdeltä.</span>
         </div>
       )}
+      {/* Viestintä-mode: empty-month / under-target warnings — tämä tai seuraava kuukausi */}
+      {isViestinta && (() => {
+        const m1 = month + 1;
+        const m2 = m1 === 12 ? 1 : m1 + 1;
+        const y2 = m1 === 12 ? year + 1 : year;
+        const cov1 = monthCoverageStatus(commsPlan, publications, year, m1);
+        const cov2 = monthCoverageStatus(commsPlan, publications, y2, m2);
+        const warnings = [
+          { cov: cov1, label: `Tämä kuu (${MONTHS_FI[m1 - 1]} ${year})` },
+          { cov: cov2, label: `Seuraava kuu (${MONTHS_FI[m2 - 1]} ${y2})` },
+        ].filter(w => w.cov.status === 'empty' || w.cov.status === 'under');
+        if (warnings.length === 0) return null;
+        return (
+          <div style={{
+            marginBottom: '1rem', padding: '.85rem 1rem',
+            background: 'rgba(228,92,129,.08)',
+            border: '1px solid rgba(228,92,129,.4)',
+            borderRadius: 'var(--rl)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.55rem' }}>
+              <span style={{ color: '#e45c81', fontWeight: 700, fontSize: '.85rem' }}>!</span>
+              <strong style={{ fontSize: '.82rem', color: 'var(--t1)' }}>Viestintää ei ole suunniteltu riittävästi</strong>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem', marginBottom: '.65rem' }}>
+              {warnings.map((w, i) => (
+                <div key={i} style={{ fontSize: '.74rem', color: 'var(--t2)', lineHeight: 1.5 }}>
+                  <strong style={{ color: '#e45c81' }}>{w.label}:</strong> {w.cov.message}
+                  {w.cov.target && w.cov.target.postsMax > 0 && (
+                    <span style={{ color: 'var(--t3)', fontStyle: 'italic' }}> · {w.cov.target.focus}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+              {onOpenPlan && (
+                <button className="btn btn-primary btn-sm" onClick={onOpenPlan}>
+                  Avaa suunnitelma
+                </button>
+              )}
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setCurrentDate(new Date(year, month + 1, 1))}
+              >
+                → Siirry seuraavaan kuuhun
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {view === 'month' && (
         <>
@@ -557,7 +618,9 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
             <div className="field"><label>Kanava</label>
               <select className="input" value={formCh} onChange={e => setFormCh(e.target.value)}>
                 <option value="">Ei kanavaa</option>
-                {(org.channels || []).map((ch: any) => <option key={ch.name} value={ch.name}>{ch.name}</option>)}
+                {unifiedChannels(commsPlan, org.channels).map(ch => (
+                  <option key={ch.name} value={ch.name}>{ch.name}</option>
+                ))}
               </select>
             </div>
             <div className="field"><label>Tila</label>

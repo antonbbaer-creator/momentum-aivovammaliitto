@@ -28,6 +28,7 @@ import {
   filterByCategory,
 } from '@/lib/publications-shared';
 import { OrgTeam, OrgTeamMember, DEFAULT_LLFF_TEAMS, DEFAULT_LLFF_TEAM_MEMBERS, resolveUserMember } from '@/lib/team-shared';
+import { CommsPlan, DEFAULT_LLFF_2026_PLAN, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
 
 interface Props {
   onOpenDetail: (id: string) => void;
@@ -41,6 +42,9 @@ export default function PublicationQueueSection({ onOpenDetail, onOpenEditor }: 
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', DEFAULT_LLFF_TEAMS);
   const [teamMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', DEFAULT_LLFF_TEAM_MEMBERS);
   const [org] = useOrgData<any>('org', { channels: [] });
+  const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', DEFAULT_LLFF_2026_PLAN);
+  const commsPlan = useMemo(() => normalizeCommsPlan(rawCommsPlan), [rawCommsPlan]);
+  const availableChannels = useMemo(() => unifiedChannels(commsPlan, org.channels), [commsPlan, org.channels]);
 
   const pubs: Publication[] = useMemo(() => (rawPubs || []).map(normalizePublication), [rawPubs]);
 
@@ -135,7 +139,7 @@ export default function PublicationQueueSection({ onOpenDetail, onOpenEditor }: 
         <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <select className="input" value={channelFilter} onChange={e => setChannelFilter(e.target.value)} style={{ width: 'auto', fontSize: '.78rem' }}>
             <option value="all">Kaikki kanavat</option>
-            {(org.channels || []).map((ch: any) => <option key={ch.name} value={ch.name}>{ch.name}</option>)}
+            {availableChannels.map(ch => <option key={ch.name} value={ch.name}>{ch.name}</option>)}
           </select>
           <select className="input" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} style={{ width: 'auto', fontSize: '.78rem' }}>
             <option value="all">Kaikki kategoriat</option>
@@ -214,7 +218,7 @@ export default function PublicationQueueSection({ onOpenDetail, onOpenEditor }: 
           <div className="field" style={{ marginBottom: '.75rem' }}>
             <label>Kanavat</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.35rem' }}>
-              {(org.channels || []).map((ch: any) => (
+              {availableChannels.map(ch => (
                 <button
                   key={ch.name}
                   type="button"

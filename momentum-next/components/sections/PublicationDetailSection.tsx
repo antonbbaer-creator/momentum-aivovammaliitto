@@ -25,6 +25,7 @@ import {
   deadlineStatus,
 } from '@/lib/publications-shared';
 import { OrgTeam, OrgTeamMember, DEFAULT_LLFF_TEAMS, DEFAULT_LLFF_TEAM_MEMBERS } from '@/lib/team-shared';
+import { CommsPlan, DEFAULT_LLFF_2026_PLAN, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
 
 const WORKER_URL = 'https://momentum-worker.anton-4f9.workers.dev';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
@@ -64,6 +65,9 @@ export default function PublicationDetailSection({ publicationId, onBack, onOpen
   const [teamMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', DEFAULT_LLFF_TEAM_MEMBERS);
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', DEFAULT_LLFF_TEAMS);
   const [org] = useOrgData<any>('org', { channels: [] });
+  const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', DEFAULT_LLFF_2026_PLAN);
+  const commsPlan = useMemo(() => normalizeCommsPlan(rawCommsPlan), [rawCommsPlan]);
+  const availableChannels = useMemo(() => unifiedChannels(commsPlan, org.channels), [commsPlan, org.channels]);
 
   const pub = useMemo(() => {
     const found = (rawPubs || []).find(p => p.id === publicationId);
@@ -519,7 +523,7 @@ export default function PublicationDetailSection({ publicationId, onBack, onOpen
           <div>
             <label style={{ fontSize: '.68rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase' }}>Kanavat</label>
             <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.4rem' }}>
-              {(org.channels || []).map((ch: any) => {
+              {availableChannels.map(ch => {
                 const active = pub.channels.includes(ch.name);
                 const pm = PLATFORM_META[ch.name];
                 return (
@@ -529,13 +533,16 @@ export default function PublicationDetailSection({ publicationId, onBack, onOpen
                     disabled={!canEdit}
                     onClick={() => toggleChannel(ch.name)}
                     className={`btn btn-sm ${active ? 'btn-primary' : 'btn-secondary'}`}
-                    style={active && pm ? { background: pm.color, borderColor: pm.color } : undefined}
+                    style={active ? {
+                      background: pm?.color || ch.color,
+                      borderColor: pm?.color || ch.color,
+                    } : undefined}
                   >{ch.name}</button>
                 );
               })}
-              {(org.channels || []).length === 0 && (
+              {availableChannels.length === 0 && (
                 <span style={{ fontSize: '.72rem', color: 'var(--t3)', fontStyle: 'italic' }}>
-                  Lisää kanavia asetuksista ensin
+                  Ei kanavia saatavilla
                 </span>
               )}
             </div>

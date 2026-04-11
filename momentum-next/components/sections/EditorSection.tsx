@@ -16,6 +16,7 @@ import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { normalizePublication } from '@/lib/publications-shared';
+import { CommsPlan, DEFAULT_LLFF_2026_PLAN, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
 
 const WORKER_URL = 'https://momentum-worker.anton-4f9.workers.dev';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
@@ -342,6 +343,7 @@ export default function EditorSection() {
   const [publications, setPublications] = useOrgData<any[]>('publications', []);
   const [calEvents, setCalEvents] = useOrgData<any[]>('events', []);
   const [org] = useOrgData<any>('org', { channels: [] });
+  const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', DEFAULT_LLFF_2026_PLAN);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Design>(() => blankDesign());
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
@@ -1986,38 +1988,21 @@ export default function EditorSection() {
               />
             </div>
 
-            {/* Channels — fallback to default LLFF-some-kanavat jos orgissa ei ole omia */}
+            {/* Channels — yhdistää org.channels + viestintäsuunnitelman kanavamatriisi */}
             <div className="field">
               <label>Missä julkaistaan? *</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem' }}>
-                {(() => {
-                  const orgChannels = (org.channels || []) as { name: string }[];
-                  const fallback = [
-                    { name: 'Instagram' },
-                    { name: 'Facebook' },
-                    { name: 'LinkedIn' },
-                    { name: 'TikTok' },
-                    { name: 'Uutiskirje' },
-                    { name: 'Nettisivut' },
-                  ];
-                  const list = orgChannels.length > 0 ? orgChannels : fallback;
-                  return list.map(ch => (
-                    <button
-                      key={ch.name}
-                      type="button"
-                      className={`btn btn-sm ${publishChannels.includes(ch.name) ? 'btn-primary' : 'btn-secondary'}`}
-                      onClick={() => togglePublishChannel(ch.name)}
-                    >
-                      {ch.name}
-                    </button>
-                  ));
-                })()}
+                {unifiedChannels(normalizeCommsPlan(rawCommsPlan), org.channels).map(ch => (
+                  <button
+                    key={ch.name}
+                    type="button"
+                    className={`btn btn-sm ${publishChannels.includes(ch.name) ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => togglePublishChannel(ch.name)}
+                  >
+                    {ch.name}
+                  </button>
+                ))}
               </div>
-              {(org.channels || []).length === 0 && (
-                <div style={{ fontSize: '.62rem', color: 'var(--t3)', marginTop: '.35rem' }}>
-                  Oletuskanavat näkyvissä. Lisää omat kanavasi Viestintä › Kanavat -välilehdellä.
-                </div>
-              )}
             </div>
 
             {/* Date + status */}
