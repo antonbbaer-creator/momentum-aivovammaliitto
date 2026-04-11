@@ -35,21 +35,68 @@ export default function LoginPage() {
     const a = v1.current;
     const b = v2.current;
     if (!a || !b) return;
-    const switchToB = () => { if (b.paused) { b.currentTime = 0; b.play().catch(() => {}); } setShowFirst(false); };
-    const switchToA = () => { if (a.paused) { a.currentTime = 0; a.play().catch(() => {}); } setShowFirst(true); };
-    // Switch on ended
-    a.addEventListener('ended', switchToB);
-    b.addEventListener('ended', switchToA);
-    // Fallback: if video stalls near end, force switch
-    const checkA = () => { if (a.duration && a.currentTime >= a.duration - 0.3) switchToB(); };
-    const checkB = () => { if (b.duration && b.currentTime >= b.duration - 0.3) switchToA(); };
-    a.addEventListener('timeupdate', checkA);
-    b.addEventListener('timeupdate', checkB);
-    // Fallback: if both paused, restart
-    const watchdog = setInterval(() => {
-      if (a.paused && b.paused) { a.currentTime = 0; a.play().catch(() => {}); setShowFirst(true); }
+
+    let current: 'a' | 'b' = 'a';
+    let switching = false;
+
+    const safePlay = (el: HTMLVideoElement) => {
+      const p = el.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(err => {
+          // Autoplay blocked — retry once on next user interaction
+          if (err?.name === 'NotAllowedError') {
+            const resume = () => { el.play().catch(() => {}); window.removeEventListener('pointerdown', resume); };
+            window.addEventListener('pointerdown', resume, { once: true });
+          }
+        });
+      }
+    };
+
+    const switchTo = (which: 'a' | 'b') => {
+      if (switching || current === which) return;
+      switching = true;
+      const next = which === 'a' ? a : b;
+      const prev = which === 'a' ? b : a;
+      next.currentTime = 0;
+      safePlay(next);
+      setShowFirst(which === 'a');
+      current = which;
+      // After crossfade completes, pause previous video so it isn't decoded in background
+      window.setTimeout(() => { try { prev.pause(); } catch {} switching = false; }, 1100);
+    };
+
+    const onEndedA = () => switchTo('b');
+    const onEndedB = () => switchTo('a');
+    a.addEventListener('ended', onEndedA);
+    b.addEventListener('ended', onEndedB);
+
+    // Kick off first video (autoplay attribute should handle this, but be explicit)
+    safePlay(a);
+
+    // Watchdog: if the currently-visible video has been paused for >2s, restart it.
+    // Handles stalled metadata, tab-resume, and missing `ended` events on some codecs.
+    const watchdog = window.setInterval(() => {
+      const active = current === 'a' ? a : b;
+      if (active.paused && !switching) {
+        active.currentTime = 0;
+        safePlay(active);
+      }
     }, 2000);
-    return () => { a.removeEventListener('ended', switchToB); b.removeEventListener('ended', switchToA); a.removeEventListener('timeupdate', checkA); b.removeEventListener('timeupdate', checkB); clearInterval(watchdog); };
+
+    // Resume when the tab becomes visible again (browsers pause backgrounded videos)
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const active = current === 'a' ? a : b;
+      if (active.paused) safePlay(active);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      a.removeEventListener('ended', onEndedA);
+      b.removeEventListener('ended', onEndedB);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.clearInterval(watchdog);
+    };
   }, []);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {

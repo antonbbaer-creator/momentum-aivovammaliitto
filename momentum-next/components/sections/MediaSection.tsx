@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -37,14 +37,20 @@ export default function MediaSection() {
             const ext = (f.name || '').split('.').pop()?.toLowerCase() || '';
             const isImg = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext);
             const cleanName = f.name.replace(/^\d+_/, '');
+            // Prefer the small worker-served thumbnail for grid view. Fall back to the
+            // raw R2 CDN URL for legacy uploads that have no sidecar thumb.
+            const origPath = R2_CDN + '/' + f.key;
+            const thumbPath = isImg
+              ? (f.hasThumb && f.thumbUrl ? f.thumbUrl : origPath)
+              : '';
             return {
               id: 'r2_' + f.key,
               name: cleanName,
               size: f.size,
               type: isImg ? 'image' : 'other',
               ext,
-              path: R2_CDN + '/' + f.key,
-              thumb: isImg ? R2_CDN + '/' + f.key : '',
+              path: origPath,
+              thumb: thumbPath,
               folder: f.key.split('/')[1] || 'uploaded',
               source: 'r2',
               r2Key: f.key,
@@ -56,25 +62,57 @@ export default function MediaSection() {
       .catch(() => console.warn('R2 offline, using local files only'));
   }, [activeOrg]);
 
-  const r2Keys = new Set(r2Files.map(f => f.r2Key));
-  const localOnly = uploadedFiles.filter(f => !f.r2Key || !r2Keys.has(f.r2Key));
-  const allFiles = [...r2Files, ...localOnly];
+  // Generate a small JPEG thumbnail from an image File entirely on the client.
+  // Returned as a Blob so it can be appended to FormData as a proper file field.
+  const generateThumbnailBlob = useCallback(async (file: File, maxDim = 400): Promise<Blob | null> => {
+    if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') return null;
+    const bitmap = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = ev.target!.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    }).catch(() => null);
+    if (!bitmap) return null;
+    const scale = Math.min(maxDim / bitmap.width, maxDim / bitmap.height, 1);
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    return new Promise<Blob | null>(resolve => canvas.toBlob(b => resolve(b), 'image/jpeg', 0.78));
+  }, []);
 
-  const getMeta = (id: string) => mediaMeta[id] || { tags: [], desc: '', title: '' };
+  const allFiles = useMemo(() => {
+    const r2Keys = new Set(r2Files.map(f => f.r2Key));
+    const localOnly = uploadedFiles.filter(f => !f.r2Key || !r2Keys.has(f.r2Key));
+    return [...r2Files, ...localOnly];
+  }, [r2Files, uploadedFiles]);
 
-  const filtered = search.trim()
-    ? allFiles.filter(f => {
-        const q = search.toLowerCase();
-        const m = getMeta(f.id);
-        return f.name.toLowerCase().includes(q) || (m.title || '').toLowerCase().includes(q) || (m.tags || []).some(t => t.toLowerCase().includes(q));
-      })
-    : allFiles;
+  const getMeta = useCallback((id: string) => mediaMeta[id] || { tags: [], desc: '', title: '' }, [mediaMeta]);
 
-  const sorted = [...filtered].sort((a, b) => {
-    if (sortBy === 'size') return (b.size || 0) - (a.size || 0);
-    if (sortBy === 'date') return (b.added || '').localeCompare(a.added || '');
-    return (a.name || '').localeCompare(b.name || '');
-  });
+  const sorted = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = q
+      ? allFiles.filter(f => {
+          const m = getMeta(f.id);
+          return f.name.toLowerCase().includes(q) || (m.title || '').toLowerCase().includes(q) || (m.tags || []).some(t => t.toLowerCase().includes(q));
+        })
+      : allFiles;
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      if (sortBy === 'size') return (b.size || 0) - (a.size || 0);
+      if (sortBy === 'date') return (b.added || '').localeCompare(a.added || '');
+      return (a.name || '').localeCompare(b.name || '');
+    });
+    return arr;
+  }, [allFiles, search, sortBy, getMeta]);
 
   const formatSize = (bytes: number) => {
     if (!bytes) return '';
@@ -96,20 +134,27 @@ export default function MediaSection() {
       const isImg = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext);
 
       try {
+        // Generate a compact thumbnail client-side so the worker can store it
+        // alongside the original in R2. This keeps grid load times tiny.
+        const thumbBlob = isImg ? await generateThumbnailBlob(file, 400) : null;
+
         const form = new FormData();
         form.append('file', file);
         form.append('folder', 'uploaded');
+        if (thumbBlob) form.append('thumb', thumbBlob, 'thumb.jpg');
+
         const res = await fetch(WORKER_URL + '/media/upload', {
           method: 'POST', body: form,
           headers: { 'X-Momentum-Org': activeOrg || '' },
         });
         if (res.ok) {
           const data = await res.json();
+          const origPath = R2_CDN + '/' + data.key;
           const r2File: MediaFile = {
             id: data.id, name: file.name, size: data.size,
             type: isImg ? 'image' : 'other', ext,
-            path: R2_CDN + '/' + data.key,
-            thumb: isImg ? R2_CDN + '/' + data.key : '',
+            path: origPath,
+            thumb: isImg ? (data.hasThumb && data.thumbUrl ? data.thumbUrl : origPath) : '',
             folder: 'uploaded', source: 'r2',
             r2Key: data.key, added: data.uploaded || new Date().toISOString().slice(0, 10),
           };
@@ -250,7 +295,7 @@ export default function MediaSection() {
             return (
               <div key={f.id} className="mb-item" onClick={() => setDetailIdx(i)}>
                 <div className="mb-thumb">
-                  {f.type === 'image' && (f.thumb || f.path) ? <img src={f.thumb || f.path} alt={m.title || f.name} loading="lazy" /> : <div className="mb-thumb-icon">{'□'}</div>}
+                  {f.type === 'image' && (f.thumb || f.path) ? <img src={f.thumb || f.path} alt={m.title || f.name} loading="lazy" decoding="async" width={200} height={160} /> : <div className="mb-thumb-icon">{'□'}</div>}
                   <span className="mb-badge">{f.ext}</span>
                   {f.source === 'r2' && <span className="mb-badge" style={{ left: '.5rem', right: 'auto', bottom: '.5rem', top: 'auto', background: 'rgba(26,143,196,.85)', fontSize: '.55rem' }}>Pilvi</span>}
                 </div>

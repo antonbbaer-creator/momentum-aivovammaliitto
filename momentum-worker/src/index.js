@@ -83,6 +83,12 @@ export default {
       if (path.startsWith('/media/file/')) {
         return handleMediaFile(request, env, path);
       }
+      if (path.startsWith('/media/thumb/')) {
+        return handleMediaThumb(request, env, path, url);
+      }
+      if (path.startsWith('/media/img/')) {
+        return handleMediaImg(request, env, path, url);
+      }
       if (path.startsWith('/media/delete/') && request.method === 'DELETE') {
         return handleMediaDelete(request, env, path);
       }
@@ -335,6 +341,7 @@ async function handleMediaUpload(request, env, orgId) {
 
   const formData = await request.formData();
   const file = formData.get('file');
+  const thumb = formData.get('thumb'); // optional client-generated thumbnail
   const folder = formData.get('folder') || 'uploaded';
 
   if (!file) return corsResponse(request, env, { error: 'No file provided' }, 400);
@@ -348,13 +355,31 @@ async function handleMediaUpload(request, env, orgId) {
     customMetadata: { orgId, folder, originalName: file.name, uploadedAt: new Date().toISOString() },
   });
 
-  const publicUrl = `${new URL(request.url).origin}/media/file/${key}`;
+  // Store client-generated thumbnail alongside the original (if provided)
+  let hasThumb = false;
+  if (thumb && typeof thumb === 'object' && 'stream' in thumb) {
+    try {
+      await env.MEDIA_BUCKET.put(`${key}.thumb.jpg`, thumb.stream(), {
+        httpMetadata: { contentType: 'image/jpeg' },
+        customMetadata: { orgId, folder, thumbFor: key },
+      });
+      hasThumb = true;
+    } catch (e) {
+      console.warn('Thumbnail upload failed:', e?.message);
+    }
+  }
+
+  const origin = new URL(request.url).origin;
+  const publicUrl = `${origin}/media/file/${key}`;
+  const thumbUrl = hasThumb ? `${origin}/media/thumb/${key}` : publicUrl;
 
   return corsResponse(request, env, {
     id: `r2_${timestamp}_${Math.random().toString(36).slice(2, 8)}`,
     name: file.name,
     key,
     publicUrl,
+    thumbUrl,
+    hasThumb,
     size: file.size,
     type: file.type,
     folder,
@@ -370,11 +395,23 @@ async function handleMediaList(request, env, orgId, url) {
   const limit = parseInt(url.searchParams.get('limit') || '100');
 
   const listed = await env.MEDIA_BUCKET.list({ prefix, limit });
-  const files = listed.objects.map(obj => ({
+
+  // Filter out thumbnail sidecar files and build a fast lookup for which
+  // originals have a pre-generated thumbnail.
+  const thumbKeys = new Set(
+    listed.objects.filter(o => o.key.endsWith('.thumb.jpg')).map(o => o.key.replace(/\.thumb\.jpg$/, ''))
+  );
+  const originals = listed.objects.filter(o => !o.key.endsWith('.thumb.jpg'));
+
+  const files = originals.map(obj => ({
     key: obj.key,
     size: obj.size,
     uploaded: obj.uploaded?.toISOString(),
     publicUrl: `${url.origin}/media/file/${obj.key}`,
+    thumbUrl: thumbKeys.has(obj.key)
+      ? `${url.origin}/media/thumb/${obj.key}`
+      : `${url.origin}/media/file/${obj.key}`,
+    hasThumb: thumbKeys.has(obj.key),
     name: obj.key.split('/').pop(),
     folder: obj.key.split('/')[1] || 'unknown',
   }));
@@ -399,11 +436,86 @@ async function handleMediaFile(request, env, path) {
   return new Response(object.body, { headers });
 }
 
+// Serves a pre-generated thumbnail stored in R2 alongside the original.
+// Thumbs are written at upload time (see handleMediaUpload) as `<key>.thumb.jpg`.
+async function handleMediaThumb(request, env, path, url) {
+  if (!env.MEDIA_BUCKET) return new Response('R2 not configured', { status: 500 });
+
+  const key = path.replace('/media/thumb/', '');
+  const thumbKey = `${key}.thumb.jpg`;
+  const cache = caches.default;
+  const cacheKey = new Request(url.toString(), request);
+  let cached = await cache.match(cacheKey);
+  if (cached) return cached;
+
+  // Try pre-generated thumbnail first
+  let object = await env.MEDIA_BUCKET.get(thumbKey);
+  // Fall back to original if no thumbnail exists (legacy uploads)
+  if (!object) object = await env.MEDIA_BUCKET.get(key);
+  if (!object) return new Response('Not found', { status: 404 });
+
+  const headers = new Headers({
+    'Content-Type': object.httpMetadata?.contentType || 'image/jpeg',
+    'Cache-Control': 'public, max-age=31536000, immutable',
+    'Access-Control-Allow-Origin': '*',
+  });
+  const response = new Response(object.body, { headers });
+  // Cache at the edge for subsequent requests
+  try { await cache.put(cacheKey, response.clone()); } catch {}
+  return response;
+}
+
+// Cloudflare Image Resizing proxy. Requires Images product enabled on the zone.
+// Usage: /media/img/<key>?w=400&q=75&f=webp
+// If Image Resizing is not available on the zone, falls back to returning the original.
+async function handleMediaImg(request, env, path, url) {
+  if (!env.MEDIA_BUCKET) return new Response('R2 not configured', { status: 500 });
+
+  const key = path.replace('/media/img/', '');
+  const width = parseInt(url.searchParams.get('w') || '400');
+  const quality = parseInt(url.searchParams.get('q') || '75');
+  const format = url.searchParams.get('f') || 'auto';
+
+  const cache = caches.default;
+  const cacheKey = new Request(url.toString(), request);
+  const cached = await cache.match(cacheKey);
+  if (cached) return cached;
+
+  const object = await env.MEDIA_BUCKET.get(key);
+  if (!object) return new Response('Not found', { status: 404 });
+
+  // Wrap the R2 body in a Response and pass it back out through fetch() with cf.image.
+  // This triggers Cloudflare Image Resizing at the edge when the feature is enabled.
+  const originRes = new Response(object.body, {
+    headers: { 'Content-Type': object.httpMetadata?.contentType || 'image/jpeg' },
+  });
+
+  let resized;
+  try {
+    resized = await fetch(`${url.origin}/media/file/${key}`, {
+      cf: { image: { width, quality, format, fit: 'scale-down' } },
+    });
+  } catch {
+    resized = originRes;
+  }
+
+  const headers = new Headers(resized.headers);
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+  headers.set('Access-Control-Allow-Origin', '*');
+  const out = new Response(resized.body, { status: resized.status, headers });
+  try { await cache.put(cacheKey, out.clone()); } catch {}
+  return out;
+}
+
 async function handleMediaDelete(request, env, path) {
   if (!env.MEDIA_BUCKET) return corsResponse(request, env, { error: 'R2 not configured' }, 500);
 
   const key = path.replace('/media/delete/', '');
-  await env.MEDIA_BUCKET.delete(key);
+  // Delete original and its thumbnail sidecar in parallel (ignore missing thumb)
+  await Promise.all([
+    env.MEDIA_BUCKET.delete(key),
+    env.MEDIA_BUCKET.delete(`${key}.thumb.jpg`).catch(() => {}),
+  ]);
   return corsResponse(request, env, { deleted: true, key });
 }
 
