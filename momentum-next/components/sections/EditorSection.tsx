@@ -32,9 +32,9 @@ interface Template {
 }
 
 const TEMPLATES: Template[] = [
-  // Instagram
-  { id: 'ig-square',    label: 'IG Post — Neliö',       w: 1080, h: 1080, platform: 'instagram' },
+  // Instagram — pystyformaatti ensin koska se on LLFF:n yleisimmin käytetty
   { id: 'ig-portrait',  label: 'IG Post — Pysty',       w: 1080, h: 1350, platform: 'instagram', tip: 'Suositus — täyttää ruudun eniten' },
+  { id: 'ig-square',    label: 'IG Post — Neliö',       w: 1080, h: 1080, platform: 'instagram' },
   { id: 'ig-landscape', label: 'IG Post — Vaaka',       w: 1080, h:  566, platform: 'instagram' },
   { id: 'ig-story',     label: 'IG Story',              w: 1080, h: 1920, platform: 'instagram', tip: 'Jätä 310 px ylä- ja alareunaan vapaaksi' },
   { id: 'ig-reel',      label: 'IG Reel',               w: 1080, h: 1920, platform: 'instagram' },
@@ -63,13 +63,18 @@ const LLFF_COLORS = [
 // 2025-logoversiot: värimaailma (violetti + pinkki + pinkki sydän) istuu
 // LLFF:n viestintäkontekstiin paremmin kuin 2026-versioiden värit.
 // Banner on sama tiedosto molemmissa vuosissa.
+// Monokromit (musta/valkoinen) kuvan tai värikkään taustan päälle.
 const LOGO_OPTIONS = [
-  { id: 'none',          label: 'Ei logoa',        src: '' },
-  { id: 'banner',        label: 'Banner',          src: '/brand/llff-banner-2026.png' },
-  { id: 'logo',          label: 'Logo + nimi',     src: '/brand/llff-logo-2025-fi.png' },
-  { id: 'logo-en',       label: 'Logo + nimi EN',  src: '/brand/llff-logo-2025-en.png' },
-  { id: 'symbol',        label: 'Silmä — pinkki',  src: '/brand/llff-symbol-2025.png' },
-  { id: 'symbol-violet', label: 'Silmä — violetti', src: '/brand/llff-symbol-2025-violet.png' },
+  { id: 'none',          label: 'Ei logoa',          src: '' },
+  { id: 'banner',        label: 'Banner',            src: '/brand/llff-banner-2026.png' },
+  { id: 'logo',          label: 'Logo + nimi',       src: '/brand/llff-logo-2025-fi.png' },
+  { id: 'logo-en',       label: 'Logo + nimi EN',    src: '/brand/llff-logo-2025-en.png' },
+  { id: 'logo-black',    label: 'Logo musta',        src: '/brand/llff-logo-2025-black-fi.png' },
+  { id: 'logo-black-en', label: 'Logo musta EN',     src: '/brand/llff-logo-2025-black-en.png' },
+  { id: 'logo-white',    label: 'Logo valkoinen',    src: '/brand/llff-logo-2025-white-fi.png' },
+  { id: 'logo-white-en', label: 'Logo valkoinen EN', src: '/brand/llff-logo-2025-white-en.png' },
+  { id: 'symbol',        label: 'Silmä — pinkki',    src: '/brand/llff-symbol-2025.png' },
+  { id: 'symbol-violet', label: 'Silmä — violetti',  src: '/brand/llff-symbol-2025-violet.png' },
 ];
 
 type LogoPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'top-center' | 'bottom-center' | 'center';
@@ -272,7 +277,7 @@ const blankSlide = (): Slide => ({
   logoSizePct: 18,
 });
 
-const blankDesign = (templateId: string = 'ig-square'): Design => ({
+const blankDesign = (templateId: string = 'ig-portrait'): Design => ({
   id: 'design_' + Date.now(),
   name: 'Uusi suunnitelma',
   templateId,
@@ -326,7 +331,7 @@ const normalizeDesign = (d: any): Design => {
   return {
     id: d.id,
     name: d.name || 'Uusi suunnitelma',
-    templateId: d.templateId || 'ig-square',
+    templateId: d.templateId || 'ig-portrait',
     slides: [normalizeSlide(d)],
     createdAt: d.createdAt || Date.now(),
     updatedAt: d.updatedAt || Date.now(),
