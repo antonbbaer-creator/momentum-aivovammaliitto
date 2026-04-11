@@ -370,11 +370,24 @@ export default function EditorSection() {
   const [publishCategory, setPublishCategory] = useState<string>('some');
   const [publishStatus, setPublishStatus] = useState<'draft' | 'ready'>('ready');
   const [publishing, setPublishing] = useState(false);
-  // Drag state for mouse-based overlay repositioning
+  // Drag state for mouse-based overlay repositioning — unified: move / resize / rotate
+  // Corner handles: nw / ne / se / sw. Rotate: pohjoisesta työntyvä kahva.
+  type InteractionHandle = 'move' | 'nw' | 'ne' | 'se' | 'sw' | 'rotate';
   const dragState = useRef<{
     id: string;
-    startX: number; startY: number;
-    origX: number; origY: number;
+    handle: InteractionHandle;
+    // Move: pointer-start-pct + original overlay x/y
+    startXPct?: number; startYPct?: number;
+    origX?: number; origY?: number;
+    // Resize: vastakkaisen kulman pikseli-ankkuri (pysyy kiinteänä) + lukittu aspect
+    anchorWorldX?: number; anchorWorldY?: number;
+    aspect?: number;
+    rad?: number;
+    xSign?: 1 | -1; ySign?: 1 | -1; // merkki nx/ny → center-offsetille
+    // Rotate: keskipiste + alkukulma
+    centerWorldX?: number; centerWorldY?: number;
+    startAngle?: number;
+    startRotation?: number;
   } | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const overlayUploadRef = useRef<HTMLInputElement>(null);
@@ -1184,6 +1197,12 @@ export default function EditorSection() {
     if (selectedOverlayId === id) setSelectedOverlayId(null);
   };
 
+  // Z-järjestys — normalisoidaan aina 0..n-1 jotta luvut eivät rapistu pitkässä käytössä
+  const renormalizeZ = (overlays: ImageOverlay[]): ImageOverlay[] => {
+    const sorted = [...overlays].sort((a, b) => a.z - b.z);
+    const zMap = new Map(sorted.map((o, i) => [o.id, i]));
+    return overlays.map(o => ({ ...o, z: zMap.get(o.id) ?? o.z }));
+  };
   const moveOverlayZ = (id: string, direction: 'up' | 'down') => {
     mutateSlide(s => {
       const sorted = [...s.overlays].sort((a, b) => a.z - b.z);
@@ -1191,17 +1210,45 @@ export default function EditorSection() {
       if (idx === -1) return s;
       const target = direction === 'up' ? idx + 1 : idx - 1;
       if (target < 0 || target >= sorted.length) return s;
-      const a = sorted[idx];
-      const b = sorted[target];
-      return {
-        ...s,
-        overlays: s.overlays.map(o => {
-          if (o.id === a.id) return { ...o, z: b.z };
-          if (o.id === b.id) return { ...o, z: a.z };
-          return o;
-        }),
-      };
+      const reordered = [...sorted];
+      [reordered[idx], reordered[target]] = [reordered[target], reordered[idx]];
+      const zMap = new Map(reordered.map((o, i) => [o.id, i]));
+      return { ...s, overlays: s.overlays.map(o => ({ ...o, z: zMap.get(o.id) ?? o.z })) };
     });
+  };
+  const bringOverlayToFront = (id: string) => {
+    mutateSlide(s => {
+      const others = s.overlays.filter(o => o.id !== id);
+      const target = s.overlays.find(o => o.id === id);
+      if (!target) return s;
+      const reordered = [...others.sort((a, b) => a.z - b.z), target];
+      const zMap = new Map(reordered.map((o, i) => [o.id, i]));
+      return { ...s, overlays: s.overlays.map(o => ({ ...o, z: zMap.get(o.id) ?? o.z })) };
+    });
+  };
+  const sendOverlayToBack = (id: string) => {
+    mutateSlide(s => {
+      const others = s.overlays.filter(o => o.id !== id);
+      const target = s.overlays.find(o => o.id === id);
+      if (!target) return s;
+      const reordered = [target, ...others.sort((a, b) => a.z - b.z)];
+      const zMap = new Map(reordered.map((o, i) => [o.id, i]));
+      return { ...s, overlays: s.overlays.map(o => ({ ...o, z: zMap.get(o.id) ?? o.z })) };
+    });
+  };
+  const duplicateOverlay = (id: string) => {
+    const src = currentSlide.overlays.find(o => o.id === id);
+    if (!src) return;
+    const maxZ = currentSlide.overlays.reduce((m, o) => Math.max(m, o.z), -1);
+    const clone: ImageOverlay = {
+      ...src,
+      id: 'ov_' + Math.random().toString(36).slice(2, 9),
+      x: Math.min(100, src.x + 3),
+      y: Math.min(100, src.y + 3),
+      z: maxZ + 1,
+    };
+    mutateSlide(s => ({ ...s, overlays: renormalizeZ([...s.overlays, clone]) }));
+    setSelectedOverlayId(clone.id);
   };
 
   // =============================================================================
@@ -1216,6 +1263,25 @@ export default function EditorSection() {
     const xPct = ((clientX - rect.left) / rect.width) * 100;
     const yPct = ((clientY - rect.top) / rect.height) * 100;
     return { xPct, yPct };
+  };
+  // Convert client coordinates → canvas pixel space (template.w × template.h)
+  const clientToCanvasPx = (clientX: number, clientY: number): { x: number; y: number } | null => {
+    const wrapper = canvasWrapperRef.current;
+    if (!wrapper) return null;
+    const rect = wrapper.getBoundingClientRect();
+    const x = ((clientX - rect.left) / rect.width) * template.w;
+    const y = ((clientY - rect.top) / rect.height) * template.h;
+    return { x, y };
+  };
+  // Laske overlayn nykyiset pikselimitat (keskipiste, leveys, korkeus)
+  const getOverlayPx = (ov: ImageOverlay): { cx: number; cy: number; w: number; h: number } | null => {
+    const img = overlayCache.current.get(ov.src);
+    if (!img) return null;
+    const w = template.w * (ov.widthPct / 100);
+    const h = (img.height / img.width) * w;
+    const cx = template.w * (ov.x / 100);
+    const cy = template.h * (ov.y / 100);
+    return { cx, cy, w, h };
   };
 
   // Hit-test overlays at a given canvas-pct point.
@@ -1249,21 +1315,76 @@ export default function EditorSection() {
     return null;
   };
 
+  // Aloita interaktio tietystä kahvasta (kulma / rotate / move-runko)
+  const beginInteraction = (
+    e: React.PointerEvent<HTMLElement>,
+    ov: ImageOverlay,
+    handle: InteractionHandle
+  ) => {
+    if (!canEdit) return;
+    const px = getOverlayPx(ov);
+    if (!px) return;
+    const rad = (ov.rotation * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    setSelectedOverlayId(ov.id);
+
+    if (handle === 'move') {
+      const pct = clientToPct(e.clientX, e.clientY);
+      if (!pct) return;
+      dragState.current = {
+        id: ov.id, handle,
+        startXPct: pct.xPct, startYPct: pct.yPct,
+        origX: ov.x, origY: ov.y,
+      };
+    } else if (handle === 'rotate') {
+      const world = clientToCanvasPx(e.clientX, e.clientY);
+      if (!world) return;
+      dragState.current = {
+        id: ov.id, handle,
+        centerWorldX: px.cx, centerWorldY: px.cy,
+        startAngle: Math.atan2(world.y - px.cy, world.x - px.cx),
+        startRotation: ov.rotation,
+      };
+    } else {
+      // Kulma-resize: vastakkainen kulma = ANKKURI (pysyy kiinteänä)
+      // Käytetään ov:n omasta kehyksestä: nw → ankkuri on se, sw → ne, jne.
+      const opposite: Record<string, { ox: number; oy: number; sx: 1 | -1; sy: 1 | -1 }> = {
+        nw: { ox:  1, oy:  1, sx: -1, sy: -1 }, // ankkuri SE, raahattava kulma NW
+        ne: { ox: -1, oy:  1, sx:  1, sy: -1 },
+        se: { ox: -1, oy: -1, sx:  1, sy:  1 },
+        sw: { ox:  1, oy: -1, sx: -1, sy:  1 },
+      };
+      const map = opposite[handle];
+      if (!map) return;
+      // Ankkuri paikallisissa koord → rotatoidaan maailmaan
+      const localAx = map.ox * px.w / 2;
+      const localAy = map.oy * px.h / 2;
+      const anchorWorldX = px.cx + localAx * cos - localAy * sin;
+      const anchorWorldY = px.cy + localAx * sin + localAy * cos;
+      dragState.current = {
+        id: ov.id, handle,
+        anchorWorldX, anchorWorldY,
+        aspect: px.w / px.h,
+        rad,
+        xSign: map.sx, ySign: map.sy,
+      };
+    }
+    // Kaappaa pointer kanvaskääreeseen, jotta onCanvasPointerMove/Up saa kaikki tapahtumat
+    // myös kun hiiri raahautuu ulos kahvan tai kanvaksen reunoilta
+    try {
+      const wrapper = canvasWrapperRef.current;
+      if (wrapper) wrapper.setPointerCapture(e.pointerId);
+    } catch {}
+  };
+
   const onCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!canEdit) return;
+    // Jos klikkaus tuli käsittelemättömänä tänne, kyseessä on kankaan body → move-drag tai deselect
     const pct = clientToPct(e.clientX, e.clientY);
     if (!pct) return;
     const hit = hitTestOverlay(pct.xPct, pct.yPct);
     if (hit) {
-      setSelectedOverlayId(hit.id);
-      dragState.current = {
-        id: hit.id,
-        startX: pct.xPct,
-        startY: pct.yPct,
-        origX: hit.x,
-        origY: hit.y,
-      };
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      beginInteraction(e, hit, 'move');
     } else {
       setSelectedOverlayId(null);
     }
@@ -1272,20 +1393,137 @@ export default function EditorSection() {
   const onCanvasPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = dragState.current;
     if (!d) return;
-    const pct = clientToPct(e.clientX, e.clientY);
-    if (!pct) return;
-    const dx = pct.xPct - d.startX;
-    const dy = pct.yPct - d.startY;
+
+    if (d.handle === 'move') {
+      const pct = clientToPct(e.clientX, e.clientY);
+      if (!pct || d.startXPct == null || d.origX == null) return;
+      const dx = pct.xPct - d.startXPct;
+      const dy = (pct.yPct - (d.startYPct ?? 0));
+      updateOverlay(d.id, {
+        x: Math.max(-50, Math.min(150, (d.origX) + dx)),
+        y: Math.max(-50, Math.min(150, (d.origY ?? 0) + dy)),
+      });
+      return;
+    }
+
+    if (d.handle === 'rotate') {
+      const world = clientToCanvasPx(e.clientX, e.clientY);
+      if (!world || d.centerWorldX == null || d.startAngle == null || d.startRotation == null) return;
+      const angle = Math.atan2(world.y - d.centerWorldY!, world.x - d.centerWorldX);
+      let degDelta = ((angle - d.startAngle) * 180) / Math.PI;
+      let newRot = d.startRotation + degDelta;
+      if (e.shiftKey) newRot = Math.round(newRot / 15) * 15;
+      // Normalisoi [-180, 180]
+      while (newRot > 180) newRot -= 360;
+      while (newRot <= -180) newRot += 360;
+      updateOverlay(d.id, { rotation: Math.round(newRot) });
+      return;
+    }
+
+    // Kulma-resize — kaikki pikseliavaruudessa
+    if (d.anchorWorldX == null || d.aspect == null || d.rad == null) return;
+    const world = clientToCanvasPx(e.clientX, e.clientY);
+    if (!world) return;
+    const dx = world.x - d.anchorWorldX;
+    const dy = world.y - d.anchorWorldY!;
+    // Kierrä mouse-delta takaisin overlayn paikalliseen kehykseen
+    const cosN = Math.cos(-d.rad), sinN = Math.sin(-d.rad);
+    const localX = dx * cosN - dy * sinN;
+    const localY = dx * sinN + dy * cosN;
+    // Uusi leveys = |localX|, korkeus lukittu aspectiin
+    let newW = Math.max(20, Math.abs(localX));
+    let newH = newW / d.aspect;
+    // Jos shift ei paina → proportionaalinen. Pidetään aina proportionaalisena Tier 1:ssä.
+    // Uusi keskipiste = ankkuri + rotate( (xSign * newW/2, ySign * newH/2), +rad )
+    const hx = (d.xSign ?? 1) * newW / 2;
+    const hy = (d.ySign ?? 1) * newH / 2;
+    const cosP = Math.cos(d.rad), sinP = Math.sin(d.rad);
+    const newCx = d.anchorWorldX + hx * cosP - hy * sinP;
+    const newCy = d.anchorWorldY! + hx * sinP + hy * cosP;
+    // Muunna takaisin pct-avaruuteen
+    const newWidthPct = (newW / template.w) * 100;
+    const newX = (newCx / template.w) * 100;
+    const newY = (newCy / template.h) * 100;
     updateOverlay(d.id, {
-      x: Math.max(-50, Math.min(150, d.origX + dx)),
-      y: Math.max(-50, Math.min(150, d.origY + dy)),
+      widthPct: Math.max(2, Math.min(200, newWidthPct)),
+      x: Math.max(-50, Math.min(150, newX)),
+      y: Math.max(-50, Math.min(150, newY)),
     });
   };
 
   const onCanvasPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     dragState.current = null;
-    try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
   };
+
+  // ========== KEYBOARD SHORTCUTS ==========
+  // Canva-tyylisiä näppäinoikoteitä: Delete/Backspace, Escape, arrow-nudge, Cmd+D, Cmd+]
+  useEffect(() => {
+    if (!canEdit) return;
+    const handler = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
+                t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (showMediaPicker) {
+        if (e.key === 'Escape') setShowMediaPicker(false);
+        return;
+      }
+      if (showPublishModal) {
+        if (e.key === 'Escape') setShowPublishModal(false);
+        return;
+      }
+      if (!selectedOverlayId) {
+        if (e.key === 'Escape') setSelectedOverlayId(null);
+        return;
+      }
+      const isMeta = e.metaKey || e.ctrlKey;
+      // Delete / Backspace → remove
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        removeOverlay(selectedOverlayId);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setSelectedOverlayId(null);
+        return;
+      }
+      // Cmd/Ctrl + D → duplicate
+      if (isMeta && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        duplicateOverlay(selectedOverlayId);
+        return;
+      }
+      // Cmd/Ctrl + ] / [ → z-order (Shift = to-front/to-back)
+      if (isMeta && e.key === ']') {
+        e.preventDefault();
+        if (e.shiftKey) bringOverlayToFront(selectedOverlayId);
+        else moveOverlayZ(selectedOverlayId, 'up');
+        return;
+      }
+      if (isMeta && e.key === '[') {
+        e.preventDefault();
+        if (e.shiftKey) sendOverlayToBack(selectedOverlayId);
+        else moveOverlayZ(selectedOverlayId, 'down');
+        return;
+      }
+      // Arrow nudge — 0.5% / 5% (Shift)
+      const step = e.shiftKey ? 5 : 0.5;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        const ov = currentSlide.overlays.find(o => o.id === selectedOverlayId);
+        if (!ov) return;
+        const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+        const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+        updateOverlay(selectedOverlayId, {
+          x: Math.max(-50, Math.min(150, ov.x + dx)),
+          y: Math.max(-50, Math.min(150, ov.y + dy)),
+        });
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canEdit, selectedOverlayId, showMediaPicker, showPublishModal, currentSlide]);
 
   // Open media picker with a specific target
   const openMediaPickerFor = (target: PickerTarget) => {
@@ -2028,29 +2266,144 @@ export default function EditorSection() {
               </div>
             )}
 
-            {/* Selected overlay highlight — dashed border showing what's selected */}
-            {selectedOverlay && (() => {
+            {/* Selection UI — rotated dashed border + 4 corner handles + rotate handle + floating toolbar */}
+            {selectedOverlay && canEdit && (() => {
               const img = overlayCache.current.get(selectedOverlay.src);
               if (!img) return null;
-              const ovAspect = img.width / img.height;
-              // Compute size in % of canvas
               const widthPct = selectedOverlay.widthPct;
-              // Height in canvas pixels
               const ovPxH = (img.height / img.width) * (template.w * widthPct / 100);
               const heightPct = (ovPxH / template.h) * 100;
+              const rot = selectedOverlay.rotation || 0;
+              // Akseliyhdensuuntainen bbox floating toolbaria varten — laskemme pikseliavaruudessa
+              // ja palautamme prosenteiksi.
+              const rad = (rot * Math.PI) / 180;
+              const cosR = Math.cos(rad), sinR = Math.sin(rad);
+              const wPx = template.w * widthPct / 100;
+              const hPx = template.h * heightPct / 100;
+              const halfWpx = wPx / 2, halfHpx = hPx / 2;
+              const cornersPx = [
+                [-halfWpx, -halfHpx], [halfWpx, -halfHpx], [halfWpx, halfHpx], [-halfWpx, halfHpx],
+              ].map(([lx, ly]) => ({
+                x: selectedOverlay.x / 100 * template.w + lx * cosR - ly * sinR,
+                y: selectedOverlay.y / 100 * template.h + lx * sinR + ly * cosR,
+              }));
+              const minXpx = Math.min(...cornersPx.map(c => c.x));
+              const maxXpx = Math.max(...cornersPx.map(c => c.x));
+              const minYpx = Math.min(...cornersPx.map(c => c.y));
+              const minX = (minXpx / template.w) * 100;
+              const maxX = (maxXpx / template.w) * 100;
+              const minY = (minYpx / template.h) * 100;
+              const HANDLE_SIZE = 12; // px
+              const handleStyle: React.CSSProperties = {
+                position: 'absolute',
+                width: HANDLE_SIZE, height: HANDLE_SIZE,
+                background: '#fff',
+                border: '2px solid #3788b2',
+                borderRadius: 2,
+                transform: 'translate(-50%, -50%)',
+                zIndex: 12,
+                touchAction: 'none',
+                pointerEvents: 'auto',
+                boxShadow: '0 1px 3px rgba(0,0,0,.35)',
+              };
+              const handleOn = (h: InteractionHandle) => (e: React.PointerEvent<HTMLDivElement>) => {
+                e.stopPropagation();
+                beginInteraction(e, selectedOverlay, h);
+              };
+              // Kahvojen paikat overlayn paikallisessa kehyksessä (%)
+              // Käytämme selectedOverlay-perustaista boxia, CSS-rotatoidaan yhteisellä wrapperilla.
               return (
-                <div style={{
-                  position: 'absolute',
-                  left: `${selectedOverlay.x - widthPct / 2}%`,
-                  top: `${selectedOverlay.y - heightPct / 2}%`,
-                  width: `${widthPct}%`,
-                  height: `${heightPct}%`,
-                  border: '2px dashed #3788b2',
-                  borderRadius: 2,
-                  pointerEvents: 'none',
-                  transform: selectedOverlay.rotation ? `rotate(${selectedOverlay.rotation}deg)` : undefined,
-                  transformOrigin: 'center',
-                }} />
+                <>
+                  {/* Rotated highlight + corner handles wrapperissa */}
+                  <div style={{
+                    position: 'absolute',
+                    left: `${selectedOverlay.x - widthPct / 2}%`,
+                    top: `${selectedOverlay.y - heightPct / 2}%`,
+                    width: `${widthPct}%`,
+                    height: `${heightPct}%`,
+                    border: '2px dashed #3788b2',
+                    borderRadius: 2,
+                    transform: rot ? `rotate(${rot}deg)` : undefined,
+                    transformOrigin: 'center',
+                    pointerEvents: 'none',
+                    zIndex: 11,
+                  }}>
+                    {/* Corner handles */}
+                    <div onPointerDown={handleOn('nw')} style={{ ...handleStyle, left: 0,   top: 0,   cursor: 'nwse-resize' }} />
+                    <div onPointerDown={handleOn('ne')} style={{ ...handleStyle, left: '100%', top: 0,   cursor: 'nesw-resize' }} />
+                    <div onPointerDown={handleOn('se')} style={{ ...handleStyle, left: '100%', top: '100%', cursor: 'nwse-resize' }} />
+                    <div onPointerDown={handleOn('sw')} style={{ ...handleStyle, left: 0,   top: '100%', cursor: 'nesw-resize' }} />
+                    {/* Rotate handle — yläpuolella box+varsi */}
+                    <div style={{
+                      position: 'absolute',
+                      left: '50%', top: -24,
+                      width: 2, height: 20,
+                      background: '#3788b2',
+                      transform: 'translateX(-50%)',
+                      pointerEvents: 'none',
+                    }} />
+                    <div
+                      onPointerDown={handleOn('rotate')}
+                      style={{
+                        ...handleStyle,
+                        left: '50%', top: -28,
+                        width: 14, height: 14,
+                        borderRadius: '50%',
+                        cursor: 'grab',
+                      }}
+                      title="Kierrä"
+                    />
+                  </div>
+
+                  {/* Floating toolbar — akseliyhdensuuntainen bbox yläpuolella, pysyy vaakasuorana */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: `${(minX + maxX) / 2}%`,
+                      top: `${Math.max(0, minY - 1)}%`,
+                      transform: 'translate(-50%, -100%)',
+                      display: 'flex',
+                      gap: 2,
+                      background: 'rgba(15, 10, 30, .92)',
+                      backdropFilter: 'blur(6px)',
+                      WebkitBackdropFilter: 'blur(6px)',
+                      border: '1px solid rgba(255,255,255,.1)',
+                      borderRadius: 6,
+                      padding: '3px 4px',
+                      marginTop: -14,
+                      whiteSpace: 'nowrap',
+                      zIndex: 13,
+                      pointerEvents: 'auto',
+                      boxShadow: '0 4px 16px rgba(0,0,0,.4)',
+                    }}
+                    onPointerDown={e => e.stopPropagation()}
+                  >
+                    {(() => {
+                      const btn: React.CSSProperties = {
+                        background: 'transparent', color: '#f0e8ff',
+                        border: 'none', fontSize: '.6rem', fontWeight: 600,
+                        padding: '.25rem .4rem', cursor: 'pointer',
+                        borderRadius: 3, fontFamily: "'DM Sans', sans-serif",
+                      };
+                      return (
+                        <>
+                          <button style={btn} title="Monista (Cmd+D)"   onClick={() => duplicateOverlay(selectedOverlay.id)}>Kopioi</button>
+                          <div style={{ width: 1, background: 'rgba(255,255,255,.15)', margin: '2px 2px' }} />
+                          <button style={btn} title="Ylimmäs (Cmd+Shift+])" onClick={() => bringOverlayToFront(selectedOverlay.id)}>Ylimmäs</button>
+                          <button style={btn} title="Eteen (Cmd+])"  onClick={() => moveOverlayZ(selectedOverlay.id, 'up')}>Eteen</button>
+                          <button style={btn} title="Taakse (Cmd+[)"  onClick={() => moveOverlayZ(selectedOverlay.id, 'down')}>Taakse</button>
+                          <button style={btn} title="Alimmas (Cmd+Shift+[)" onClick={() => sendOverlayToBack(selectedOverlay.id)}>Alimmas</button>
+                          <div style={{ width: 1, background: 'rgba(255,255,255,.15)', margin: '2px 2px' }} />
+                          <button
+                            style={{ ...btn, color: '#ff9ba5' }}
+                            title="Poista (Delete)"
+                            onClick={() => removeOverlay(selectedOverlay.id)}
+                          >Poista</button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </>
               );
             })()}
           </div>
@@ -2348,6 +2701,16 @@ export default function EditorSection() {
               <div style={{ marginTop: '.3rem' }}>
                 <label style={{ fontSize: '.56rem', color: 'var(--t3)' }}>Läpinäkyvyys: {Math.round(selectedOverlay.opacity * 100)}%</label>
                 <input type="range" min={0} max={1} step={0.05} value={selectedOverlay.opacity} onChange={e => updateOverlay(selectedOverlay.id, { opacity: parseFloat(e.target.value) })} style={{ width: '100%' }} />
+              </div>
+              <div style={{ marginTop: '.4rem', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.2rem' }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => sendOverlayToBack(selectedOverlay.id)} title="Alimmas (Cmd+Shift+[)" style={{ fontSize: '.56rem', padding: '.2rem' }}>Alimmas</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => moveOverlayZ(selectedOverlay.id, 'down')} title="Taakse (Cmd+[)" style={{ fontSize: '.56rem', padding: '.2rem' }}>Taakse</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => moveOverlayZ(selectedOverlay.id, 'up')} title="Eteen (Cmd+])" style={{ fontSize: '.56rem', padding: '.2rem' }}>Eteen</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => bringOverlayToFront(selectedOverlay.id)} title="Ylimmäs (Cmd+Shift+])" style={{ fontSize: '.56rem', padding: '.2rem' }}>Ylimmäs</button>
+              </div>
+              <div style={{ marginTop: '.3rem', display: 'flex', gap: '.2rem' }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => duplicateOverlay(selectedOverlay.id)} title="Monista (Cmd+D)" style={{ flex: 1, fontSize: '.6rem', padding: '.25rem' }}>⎘ Kopioi</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => removeOverlay(selectedOverlay.id)} title="Poista (Delete)" style={{ flex: 1, fontSize: '.6rem', padding: '.25rem', color: 'var(--red)' }}>× Poista</button>
               </div>
             </div>
           )}
