@@ -88,7 +88,7 @@ function ViestintaContent() {
     mainTab === 'production' ? 'Tuotanto: brief → luonnos → valmis → julkaistu' :
     mainTab === 'editor'     ? 'Editori — luo julkaisugrafiikkaa LLFF-brändissä' :
     mainTab === 'media'      ? 'LLFF Mediapankki — R2 CDN' :
-                               'Julkaisukanavien konfiguraatio';
+                               'Kanavat ja julkaisuvirta — valmiit julkaisut kanavittain';
 
   return (
     <AppShell title="Viestintä" subtitle={subtitle}>
@@ -126,7 +126,9 @@ function ViestintaContent() {
       )}
       {mainTab === 'editor' && <EditorSection />}
       {mainTab === 'media' && <MediaSection />}
-      {mainTab === 'publish' && <ChannelsSection />}
+      {mainTab === 'publish' && (
+        <ChannelsSection onOpenDetail={openDetail} onOpenEditor={openEditor} />
+      )}
     </AppShell>
   );
 }
