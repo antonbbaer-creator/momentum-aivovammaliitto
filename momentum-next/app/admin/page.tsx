@@ -302,10 +302,75 @@ export default function AdminPage() {
     }
   };
 
+  // Create juhlatoimikunta only
+  const createJuhlatoimikunta = async () => {
+    if (!user) return;
+    setSeeding(true);
+    try {
+      const orgId = 'juhlatoimikunta';
+      // Create org document
+      await setDoc(doc(db, 'organizations', orgId), {
+        name: 'Juhlatoimikunta', shortName: 'JTK', slogan: JUHLATOIMIKUNTA_ORG.slogan,
+        joinCode: 'juhlatoimikunta-sirpa-70v', createdAt: new Date().toISOString(), createdBy: user.uid, plan: 'free',
+      }, { merge: true });
+      // Add current user as owner
+      await setDoc(doc(db, 'organizations', orgId, 'members', user.uid), {
+        role: 'owner', joinedAt: new Date().toISOString(),
+        displayName: user.displayName || '', email: user.email || '', photoURL: user.photoURL || '',
+      }, { merge: true });
+      // Write org data
+      await setDoc(doc(db, 'organizations', orgId, 'data', 'org'), { v: JSON.stringify(JUHLATOIMIKUNTA_ORG), ts: Date.now(), updatedBy: user.uid });
+      await setDoc(doc(db, 'organizations', orgId, 'data', 'events'), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid });
+      await setDoc(doc(db, 'organizations', orgId, 'data', 'channelStats'), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid });
+      // Seed modules
+      await setDoc(doc(db, 'organizations', orgId, 'data', 'modules'), { v: JSON.stringify(JUHLATOIMIKUNTA_MODULES), ts: Date.now(), updatedBy: user.uid });
+      // Initialize empty collections
+      for (const key of ['projects', 'publications', 'media_meta', 'media_uploaded', 'media_collections']) {
+        await setDoc(doc(db, 'organizations', orgId, 'data', key), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid }, { merge: true });
+      }
+      // Add to user's org list
+      const userOrgsSnap = await getDocs(query(collection(db, 'userOrgs')));
+      let existingOrgs: any[] = [];
+      for (const d of userOrgsSnap.docs) {
+        if (d.id === user.uid) existingOrgs = d.data().orgs || [];
+      }
+      if (!existingOrgs.some((o: any) => o.orgId === orgId)) {
+        const newOrgs = [...existingOrgs, { orgId, role: 'owner', name: 'Juhlatoimikunta' }];
+        await setDoc(doc(db, 'userOrgs', user.uid), { orgs: newOrgs, orgIds: newOrgs.map((o: any) => o.orgId) });
+      }
+      toast('Juhlatoimikunta luotu!', 'success');
+      window.location.reload();
+    } catch (e) {
+      console.error('Create juhlatoimikunta error:', e);
+      toast('Virhe luonnissa', 'error');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   const selectedOrgData = selectedOrg ? orgs.find(o => o.id === selectedOrg) : null;
+  const hasJuhlatoimikunta = orgs.some(o => o.id === 'juhlatoimikunta');
 
   return (
     <AppShell title="Hallintapaneeli" subtitle="Käyttäjien ja organisaatioiden hallinta">
+      {/* Create Juhlatoimikunta if missing */}
+      {!hasJuhlatoimikunta && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(155,124,246,.08), rgba(228,92,129,.06))',
+          border: '1px solid rgba(155,124,246,.25)', borderRadius: 'var(--rl)',
+          padding: '1.25rem 1.5rem', marginBottom: '1.5rem',
+          display: 'flex', alignItems: 'center', gap: '1rem',
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '.92rem', fontWeight: 700 }}>Juhlatoimikunta puuttuu</div>
+            <div style={{ fontSize: '.75rem', color: 'var(--t2)', marginTop: '.2rem' }}>Sirpan 70v juhlat 25.4.2026, Tyttojen talo. Luo tyotila Firestoreen.</div>
+          </div>
+          <button className="btn btn-primary" onClick={createJuhlatoimikunta} disabled={seeding}>
+            {seeding ? 'Luodaan...' : 'Luo Juhlatoimikunta'}
+          </button>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="stats" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="stat">

@@ -10,7 +10,7 @@ interface Venue {
   id: string;
   name: string;
   description: string;
-  purpose: string; // mihin kayttoon (esim. "ruokailu", "tanssi", "seremonia")
+  purpose: string; // mihin käyttöön (esim. "ruokailu", "tanssi", "seremonia")
   capacity?: number;
   images: string[]; // base64 or URLs
   note?: string;
@@ -81,7 +81,7 @@ export default function TilaPage() {
     if (editId) setVenues(prev => prev.map(x => x.id === editId ? { ...x, ...venue } : x));
     else setVenues(prev => [...prev, venue]);
     setShowForm(false);
-    toast(editId ? 'Tila paivitetty' : 'Tila lisatty', 'success');
+    toast(editId ? 'Tila päivitetty' : 'Tila lisätty', 'success');
   };
 
   const remove = (id: string) => {
@@ -142,17 +142,17 @@ export default function TilaPage() {
 
   // List view
   return (
-    <AppShell title="Tilat" subtitle="Juhlapaikan tilat ja niiden kaytto">
+    <AppShell title="Tilat" subtitle="Juhlapaikan tilat ja niiden käyttö">
       {canEdit && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.25rem' }}>
-          <button className="btn btn-primary btn-sm" onClick={openNew}>+ Lisaa tila</button>
+          <button className="btn btn-primary btn-sm" onClick={openNew}>+ Lisää tila</button>
         </div>
       )}
 
       {sorted.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--t3)' }}>
-          <p style={{ fontSize: '.92rem', marginBottom: '.5rem' }}>Ei tiloja viela.</p>
-          <p style={{ fontSize: '.75rem' }}>Lisaa juhlapaikan tilat ja kuvaukset taalta.</p>
+          <p style={{ fontSize: '.92rem', marginBottom: '.5rem' }}>Ei tiloja vielä.</p>
+          <p style={{ fontSize: '.75rem' }}>Lisää juhlapaikan tilat ja kuvaukset täältä.</p>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
@@ -195,9 +195,9 @@ export default function TilaPage() {
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
           <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 520, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa tilaa' : 'Lisaa tila'}</h3>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa tilaa' : 'Lisää tila'}</h3>
             <div className="field"><label>Tilan nimi *</label><input className="input" value={vName} onChange={e => setVName(e.target.value)} autoFocus placeholder="Esim. Juhlahuone, Piha, Sauna" /></div>
-            <div className="field"><label>Kayttotarkoitus</label><input className="input" value={vPurpose} onChange={e => setVPurpose(e.target.value)} placeholder="Esim. Ruokailu, Tanssi, Seremonia" /></div>
+            <div className="field"><label>Käyttötarkoitus</label><input className="input" value={vPurpose} onChange={e => setVPurpose(e.target.value)} placeholder="Esim. Ruokailu, Tanssi, Seremonia" /></div>
             <div className="field"><label>Kuvaus</label><textarea className="input textarea" value={vDesc} onChange={e => setVDesc(e.target.value)} placeholder="Kerro tilasta ja sen tunnelmasta..." rows={3} /></div>
             <div className="field"><label>Kapasiteetti (hloa)</label><input className="input" type="number" value={vCapacity} onChange={e => setVCapacity(e.target.value)} placeholder="Esim. 50" /></div>
 
@@ -223,7 +223,7 @@ export default function TilaPage() {
                 }}>+ Kuva</button>
               </div>
               <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleImageUpload} style={{ display: 'none' }} />
-              <div style={{ fontSize: '.62rem', color: 'var(--t3)' }}>Max 2 MB / kuva. Kuvat tallennetaan tyotilaan.</div>
+              <div style={{ fontSize: '.62rem', color: 'var(--t3)' }}>Max 2 MB / kuva. Kuvat tallennetaan työtilaan.</div>
             </div>
 
             <div className="field"><label>Muistiinpano</label><textarea className="input textarea" value={vNote} onChange={e => setVNote(e.target.value)} /></div>

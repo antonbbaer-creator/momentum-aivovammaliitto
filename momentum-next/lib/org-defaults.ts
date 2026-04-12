@@ -108,7 +108,7 @@ export function getOrgDisplayName(orgSlug: string): string {
 const ORG_CHANNELS: Record<string, string[]> = {
   llff: ['Instagram', 'Facebook', 'LinkedIn', 'TikTok', 'YouTube', 'Nettisivut', 'Uutiskirje'],
   avl: ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Nettisivut', 'Uutiskirje', 'Jäsenkirje', 'Aivoitus-lehti', 'Lehdistötiedotteet', 'Esitteet'],
-  juhlatoimikunta: ['WhatsApp', 'Sahkoposti'],
+  juhlatoimikunta: ['WhatsApp', 'Sähköposti'],
 };
 
 export function getOrgChannels(orgSlug: string): string[] {

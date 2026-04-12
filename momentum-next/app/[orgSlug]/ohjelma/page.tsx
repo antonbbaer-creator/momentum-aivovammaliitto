@@ -72,7 +72,7 @@ export default function OhjelmaPage() {
     if (editId) setItems(prev => prev.map(x => x.id === editId ? { ...x, ...item } : x));
     else setItems(prev => [...prev, item]);
     setShowForm(false);
-    toast(editId ? 'Paivitetty' : 'Lisatty', 'success');
+    toast(editId ? 'Päivitetty' : 'Lisätty', 'success');
   };
 
   const remove = (id: string) => {
@@ -94,10 +94,10 @@ export default function OhjelmaPage() {
   });
 
   return (
-    <AppShell title="Ohjelma" subtitle="Lauantai 25.4.2026 · Tyttojen talo, Kallio">
+    <AppShell title="Ohjelma" subtitle="Lauantai 25.4.2026 · Tyttöjen talo, Kallio">
       {canEdit && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.25rem' }}>
-          <button className="btn btn-primary btn-sm" onClick={() => openNew()}>+ Lisaa ohjelmanumero</button>
+          <button className="btn btn-primary btn-sm" onClick={() => openNew()}>+ Lisää ohjelmanumero</button>
         </div>
       )}
 
@@ -128,7 +128,7 @@ export default function OhjelmaPage() {
         </div>
         <div>
           <div style={{ fontSize: '.6rem', color: 'var(--t3)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.05em' }}>Paikka</div>
-          <div style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--t1)' }}>Tyttojen talo, Hameentie 13 A</div>
+          <div style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--t1)' }}>Tyttöjen talo, Hämeentie 13 A</div>
         </div>
         <div>
           <div style={{ fontSize: '.6rem', color: 'var(--t3)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.05em' }}>Ohjelmanumeroita</div>
@@ -138,8 +138,8 @@ export default function OhjelmaPage() {
 
       {items.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--t3)' }}>
-          <p style={{ fontSize: '.92rem', marginBottom: '.5rem' }}>Ei ohjelmanumeroita viela.</p>
-          <p style={{ fontSize: '.75rem' }}>Lisaa ensimmainen ohjelmanumero ylhaalta. Voit merkita valmistelut (10-15) ja itse juhlan ohjelman (15-24).</p>
+          <p style={{ fontSize: '.92rem', marginBottom: '.5rem' }}>Ei ohjelmanumeroita vielä.</p>
+          <p style={{ fontSize: '.75rem' }}>Lisää ensimmäinen ohjelmanumero ylhäältä. Voit merkitä valmistelut (10-15) ja itse juhlan ohjelman (15-24).</p>
         </div>
       ) : (
         <>
@@ -179,7 +179,7 @@ export default function OhjelmaPage() {
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
           <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 480, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa' : 'Lisaa ohjelmanumero'}</h3>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa' : 'Lisää ohjelmanumero'}</h3>
             <div className="field"><label>Otsikko *</label><input className="input" value={fTitle} onChange={e => setFTitle(e.target.value)} autoFocus placeholder="Esim. Vieraiden vastaanotto" /></div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
               <div className="field"><label>Alkaa *</label><input className="input" type="time" value={fTime} onChange={e => setFTime(e.target.value)} /></div>
@@ -199,7 +199,7 @@ export default function OhjelmaPage() {
                 ))}
               </div>
             </div>
-            <div className="field"><label>Kuvaus</label><textarea className="input textarea" value={fDesc} onChange={e => setFDesc(e.target.value)} placeholder="Mita tapahtuu?" /></div>
+            <div className="field"><label>Kuvaus</label><textarea className="input textarea" value={fDesc} onChange={e => setFDesc(e.target.value)} placeholder="Mitä tapahtuu?" /></div>
             <div className="field"><label>Vastuussa</label><input className="input" value={fResponsible} onChange={e => setFResponsible(e.target.value)} placeholder="Kuka hoitaa?" /></div>
             <div className="field"><label>Muistiinpano</label><textarea className="input textarea" value={fNote} onChange={e => setFNote(e.target.value)} /></div>
             <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>

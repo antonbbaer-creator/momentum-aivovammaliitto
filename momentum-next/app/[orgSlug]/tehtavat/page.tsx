@@ -73,7 +73,7 @@ export default function TehtavatPage() {
     if (editId) setTasks(prev => prev.map(x => x.id === editId ? { ...x, ...task } : x));
     else setTasks(prev => [...prev, task]);
     setShowForm(false);
-    toast(editId ? 'Paivitetty' : 'Lisatty', 'success');
+    toast(editId ? 'Päivitetty' : 'Lisätty', 'success');
   };
 
   const quickAdd = () => {
@@ -113,14 +113,14 @@ export default function TehtavatPage() {
   const hankkiaCount = openTasks.filter(t => t.hankkia).length;
 
   return (
-    <AppShell title="Tehtavat" subtitle={`${openTasks.length} avointa · ${doneTasks.length} valmista`}>
+    <AppShell title="Tehtävät" subtitle={`${openTasks.length} avointa · ${doneTasks.length} valmista`}>
       {/* Quick add */}
       {canEdit && (
         <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1.25rem' }}>
           <input className="input" value={quickText} onChange={e => setQuickText(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && quickAdd()}
-            placeholder="Lisaa tehtava nopeasti..." style={{ flex: 1 }} />
-          <button className="btn btn-primary" onClick={quickAdd} disabled={!quickText.trim()}>Lisaa</button>
+            placeholder="Lisää tehtävä nopeasti..." style={{ flex: 1 }} />
+          <button className="btn btn-primary" onClick={quickAdd} disabled={!quickText.trim()}>Lisää</button>
           <button className="btn btn-secondary" onClick={openNew}>+ Tarkempi</button>
         </div>
       )}
@@ -128,7 +128,7 @@ export default function TehtavatPage() {
       {/* Filters */}
       <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <select className="input" value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)} style={{ width: 'auto', fontSize: '.78rem' }}>
-          <option value="">Kaikki tekijat</option>
+          <option value="">Kaikki tekijät</option>
           {assignees.map(a => <option key={a} value={a}>{a}</option>)}
           {members.filter(m => !assignees.includes(m.name)).map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
         </select>
@@ -140,7 +140,7 @@ export default function TehtavatPage() {
         </button>
         <div style={{ flex: 1 }} />
         <button className="btn btn-ghost btn-sm" onClick={() => setShowDone(!showDone)}>
-          {showDone ? 'Piilota valmiit' : `Nayta valmiit (${doneTasks.length})`}
+          {showDone ? 'Piilota valmiit' : `Näytä valmiit (${doneTasks.length})`}
         </button>
       </div>
 
@@ -148,7 +148,7 @@ export default function TehtavatPage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
         {filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--t3)', fontSize: '.85rem' }}>
-            {openTasks.length === 0 ? 'Ei tehtavia viela. Lisaa ensimmainen ylhaalta.' : 'Ei tuloksia suodattimella.'}
+            {openTasks.length === 0 ? 'Ei tehtäviä vielä. Lisää ensimmäinen ylhäältä.' : 'Ei tuloksia suodattimella.'}
           </div>
         )}
         {filtered.map(t => {
@@ -182,7 +182,7 @@ export default function TehtavatPage() {
                   fontSize: '.6rem', fontWeight: 700, flexShrink: 0,
                   color: urgent ? 'var(--red)' : dlDiff !== null && dlDiff <= 30 ? 'var(--yellow)' : 'var(--green)',
                 }}>
-                  {dlDiff !== null && dlDiff >= 0 ? (dlDiff === 0 ? 'TANAAN' : `${dlDiff} pv`) : t.deadline}
+                  {dlDiff !== null && dlDiff >= 0 ? (dlDiff === 0 ? 'TÄNÄÄN' : `${dlDiff} pv`) : t.deadline}
                 </span>
               )}
             </div>
@@ -220,13 +220,13 @@ export default function TehtavatPage() {
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
           <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 480, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa tehtavaa' : 'Lisaa tehtava'}</h3>
-            <div className="field"><label>Tehtava *</label><input className="input" value={tText} onChange={e => setTText(e.target.value)} autoFocus /></div>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa tehtävää' : 'Lisää tehtävä'}</h3>
+            <div className="field"><label>Tehtävä *</label><input className="input" value={tText} onChange={e => setTText(e.target.value)} autoFocus /></div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
               <div className="field">
-                <label>Tekija</label>
+                <label>Tekijä</label>
                 <select className="input" value={tAssignee} onChange={e => setTAssignee(e.target.value)}>
-                  <option value="">Ei maaratty</option>
+                  <option value="">Ei määrätty</option>
                   {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                 </select>
               </div>
@@ -254,14 +254,14 @@ export default function TehtavatPage() {
                     background: tPriority === 'high' ? 'rgba(239,68,68,.15)' : 'var(--elev)',
                     color: tPriority === 'high' ? 'var(--red)' : 'var(--t2)',
                     border: `1px solid ${tPriority === 'high' ? 'var(--red)' : 'var(--border)'}`,
-                  }}>Tarkeaa</button>
+                  }}>Tärkeää</button>
                 </div>
               </div>
             </div>
             <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: 'pointer' }}>
                 <input type="checkbox" checked={tHankkia} onChange={e => setTHankkia(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--yellow)' }} />
-                Pitaa hankkia / ostaa
+                Pitää hankkia / ostaa
               </label>
             </div>
             <div className="field"><label>Muistiinpano</label><textarea className="input textarea" value={tNote} onChange={e => setTNote(e.target.value)} /></div>

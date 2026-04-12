@@ -1,5 +1,5 @@
-// Juhlatoimikunta — Sirpan 70v syntymapaivajahlien jarjestelytiimi
-// Erillinen ja irrallinen tyotila Momentumissa
+// Juhlatoimikunta — Sirpan 70v syntymäpäiväjuhlien järjestelytiimi
+// Erillinen ja irrallinen työtila Momentumissa
 
 import { OrgTeam, OrgTeamMember } from './team-shared';
 import type { CommsPlan } from './comms-plan-shared';
@@ -11,7 +11,7 @@ export const DEFAULT_JUHLATOIMIKUNTA_TEAMS: OrgTeam[] = [
     name: 'Juhlatoimikunta',
     color: '#9b7cf6',
     icon: '★',
-    description: 'Sirpan 70-vuotisjuhlien jarjestelytiimi.',
+    description: 'Sirpan 70-vuotisjuhlien järjestelytiimi.',
     leadId: 'sonja',
   },
 ];
@@ -20,7 +20,7 @@ export const DEFAULT_JUHLATOIMIKUNTA_TEAM_MEMBERS: OrgTeamMember[] = [
   {
     id: 'sonja',
     name: 'Sonja Baer',
-    role: 'Juhlatoimikunnan vetaja',
+    role: 'Juhlatoimikunnan vetäjä',
     teamId: 'juhlatoimikunta',
     type: 'permanent',
     avatar: 'S',
@@ -32,7 +32,7 @@ export const DEFAULT_JUHLATOIMIKUNTA_TEAM_MEMBERS: OrgTeamMember[] = [
   {
     id: 'raisa',
     name: 'Raisa Baer',
-    role: 'Jasen',
+    role: 'Jäsen',
     teamId: 'juhlatoimikunta',
     type: 'permanent',
     avatar: 'R',
@@ -42,7 +42,7 @@ export const DEFAULT_JUHLATOIMIKUNTA_TEAM_MEMBERS: OrgTeamMember[] = [
   {
     id: 'elina',
     name: 'Elina Savo',
-    role: 'Jasen',
+    role: 'Jäsen',
     teamId: 'juhlatoimikunta',
     type: 'permanent',
     avatar: 'E',
@@ -52,7 +52,7 @@ export const DEFAULT_JUHLATOIMIKUNTA_TEAM_MEMBERS: OrgTeamMember[] = [
   {
     id: 'anton',
     name: 'Anton Baer',
-    role: 'Jasen',
+    role: 'Jäsen',
     teamId: 'juhlatoimikunta',
     type: 'permanent',
     avatar: 'A',
@@ -70,8 +70,8 @@ export const DEFAULT_JUHLATOIMIKUNTA_COMMS_PLAN: CommsPlan = {
   year: 2026,
   festivalName: 'Sirpan 70v juhlat',
   festivalDates: '25.4.2026',
-  summary: 'Sirpan 70-vuotissyntymapaivajahlat jarjestetaan lauantaina 25.4.2026 Tyttojen talolla Kalliossa (Hameentie 13 A, 00530 Helsinki).',
-  mission: 'Jarjestaa Sirpalle ikimuistoiset ja lamminhenkiset 70-vuotisjuhlat.',
+  summary: 'Sirpan 70-vuotissyntymäpäiväjuhlat järjestetään lauantaina 25.4.2026 Tyttöjen talolla Kalliossa (Hämeentie 13 A, 00530 Helsinki).',
+  mission: 'Järjestää Sirpalle ikimuistoiset ja lämminhenkiset 70-vuotisjuhlat.',
   visitorGoal: 0,
   visitorBaseline: 0,
   volunteerGoal: 0,
@@ -91,6 +91,6 @@ export const DEFAULT_JUHLATOIMIKUNTA_COMMS_PLAN: CommsPlan = {
   campaigns: [],
   channelMatrix: [],
   contentPillars: [],
-  channels: ['WhatsApp', 'Sahkoposti'],
+  channels: ['WhatsApp', 'Sähköposti'],
   updatedAt: 0,
 };

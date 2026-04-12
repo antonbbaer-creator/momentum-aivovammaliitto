@@ -264,27 +264,27 @@ export const LLFF_CHANNEL_STATS = [
   { name: 'TikTok', handle: '@llff_festival', followers: 580, reach: '22.1K', lastUpdated: '2026-03' },
 ];
 
-// ── Juhlatoimikunta — Sirpan 70v syntymapaivajahlat ──
+// ── Juhlatoimikunta — Sirpan 70v syntymäpäiväjuhlat ──
 
 export const JUHLATOIMIKUNTA_ORG = {
-  name: 'Juhlatoimikunta', s: 'JTK', slogan: 'Sirpan 70-vuotisjuhlien jarjestely',
-  commsMission: 'Jarjestaa Sirpalle ikimuistoiset ja lamminhenkiset 70-vuotisjuhlat.',
+  name: 'Juhlatoimikunta', s: 'JTK', slogan: 'Sirpan 70-vuotisjuhlien järjestely',
+  commsMission: 'Järjestää Sirpalle ikimuistoiset ja lämminhenkiset 70-vuotisjuhlat.',
   contentPillars: [],
   goals: [],
   vals: [],
   auds: [],
-  tone: ['Lamminhenkinen', 'Iloinen', 'Juhallinen'],
+  tone: ['Lämminhenkinen', 'Iloinen', 'Juhlallinen'],
   channels: [
     { name: 'WhatsApp', color: '#25D366', ic: 'WA' },
-    { name: 'Sahkoposti', color: '#6366f1', ic: 'SP' },
+    { name: 'Sähköposti', color: '#6366f1', ic: 'SP' },
   ],
   team: [
-    { name: 'Sonja Baer', role: 'Juhlatoimikunnan vetaja', avatar: 'S' },
-    { name: 'Raisa Baer', role: 'Jasen', avatar: 'R' },
-    { name: 'Elina Savo', role: 'Jasen', avatar: 'E' },
-    { name: 'Anton Baer', role: 'Jasen', avatar: 'A' },
+    { name: 'Sonja Baer', role: 'Juhlatoimikunnan vetäjä', avatar: 'S' },
+    { name: 'Raisa Baer', role: 'Jäsen', avatar: 'R' },
+    { name: 'Elina Savo', role: 'Jäsen', avatar: 'E' },
+    { name: 'Anton Baer', role: 'Jäsen', avatar: 'A' },
   ],
-  strategyText: 'Sirpan 70-vuotissyntymapaivajahlat jarjestetaan lauantaina 25.4.2026 Tyttojen talolla Kalliossa (Hameentie 13 A, 00530 Helsinki). Juhlatoimikunta: Sonja Baer (vetaja), Raisa Baer, Elina Savo, Anton Baer.',
+  strategyText: 'Sirpan 70-vuotissyntymäpäiväjuhlat järjestetään lauantaina 25.4.2026 Tyttöjen talolla Kalliossa (Hämeentie 13 A, 00530 Helsinki). Juhlatoimikunta: Sonja Baer (vetäjä), Raisa Baer, Elina Savo, Anton Baer.',
 };
 
 export const JUHLATOIMIKUNTA_EVENTS: any[] = [];

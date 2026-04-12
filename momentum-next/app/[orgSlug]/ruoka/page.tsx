@@ -12,7 +12,7 @@ interface FoodItem {
   name: string;
   quantity?: string;
   responsible?: string;
-  hankkia: boolean; // pitaako viela hankkia
+  hankkia: boolean; // pitääkö vielä hankkia
   done: boolean;
   note?: string;
   dietary?: string; // kasvis, gluteeniton, etc.
@@ -20,8 +20,8 @@ interface FoodItem {
 
 const CATEGORIES: { id: string; label: string; color: string }[] = [
   { id: 'alkuruoka',  label: 'Alkupalat',    color: '#2a8a86' },
-  { id: 'paaruoka',   label: 'Paaruoka',     color: '#056b9f' },
-  { id: 'jalkiruoka', label: 'Jalkiruoka',   color: '#9b7cf6' },
+  { id: 'paaruoka',   label: 'Pääruoka',     color: '#056b9f' },
+  { id: 'jalkiruoka', label: 'Jälkiruoka',   color: '#9b7cf6' },
   { id: 'kakku',      label: 'Kakku',        color: '#e45c81' },
   { id: 'juomat',     label: 'Juomat',       color: '#f1b434' },
   { id: 'muu',        label: 'Muu',          color: '#f09a52' },
@@ -70,7 +70,7 @@ export default function RuokaPage() {
     if (editId) setItems(prev => prev.map(x => x.id === editId ? { ...x, ...item } : x));
     else setItems(prev => [...prev, item]);
     setShowForm(false);
-    toast(editId ? 'Paivitetty' : 'Lisatty', 'success');
+    toast(editId ? 'Päivitetty' : 'Lisätty', 'success');
   };
 
   const toggleDone = (id: string) => {
@@ -96,7 +96,7 @@ export default function RuokaPage() {
       <div style={{ display: 'flex', gap: '.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 120, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '.85rem 1rem', textAlign: 'center' }}>
           <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--pri-l)' }}>{totalItems}</div>
-          <div style={{ fontSize: '.68rem', color: 'var(--t3)', fontWeight: 600, textTransform: 'uppercase' }}>Yhteensa</div>
+          <div style={{ fontSize: '.68rem', color: 'var(--t3)', fontWeight: 600, textTransform: 'uppercase' }}>Yhteensä</div>
         </div>
         <div style={{ flex: 1, minWidth: 120, background: needToBuy > 0 ? 'rgba(241,180,52,.06)' : 'var(--card)', border: `1px solid ${needToBuy > 0 ? 'rgba(241,180,52,.2)' : 'var(--border)'}`, borderRadius: 'var(--r)', padding: '.85rem 1rem', textAlign: 'center' }}>
           <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--yellow)' }}>{needToBuy}</div>
@@ -111,7 +111,7 @@ export default function RuokaPage() {
       {/* Add button */}
       {canEdit && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-          <button className="btn btn-primary btn-sm" onClick={() => openNew()}>+ Lisaa ruoka/juoma</button>
+          <button className="btn btn-primary btn-sm" onClick={() => openNew()}>+ Lisää ruoka/juoma</button>
         </div>
       )}
 
@@ -127,7 +127,7 @@ export default function RuokaPage() {
                 <span style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{cat.label}</span>
                 <span style={{ fontSize: '.68rem', color: 'var(--t3)' }}>({catItems.length})</span>
               </div>
-              {canEdit && <button className="btn btn-ghost btn-sm" onClick={() => openNew(cat.id)} style={{ fontSize: '.65rem' }}>+ Lisaa</button>}
+              {canEdit && <button className="btn btn-ghost btn-sm" onClick={() => openNew(cat.id)} style={{ fontSize: '.65rem' }}>+ Lisää</button>}
             </div>
             {catItems.length === 0 ? (
               <div style={{ padding: '.5rem .75rem', fontSize: '.75rem', color: 'var(--t3)', fontStyle: 'italic' }}>Ei kohteita.</div>
@@ -172,7 +172,7 @@ export default function RuokaPage() {
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
           <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 440, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa' : 'Lisaa ruoka/juoma'}</h3>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa' : 'Lisää ruoka/juoma'}</h3>
             <div className="field"><label>Nimi *</label><input className="input" value={fName} onChange={e => setFName(e.target.value)} autoFocus placeholder="Esim. Lohivoileivat" /></div>
             <div className="field">
               <label>Kategoria</label>
@@ -189,14 +189,14 @@ export default function RuokaPage() {
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
-              <div className="field"><label>Maara</label><input className="input" value={fQuantity} onChange={e => setFQuantity(e.target.value)} placeholder="Esim. 30 kpl" /></div>
+              <div className="field"><label>Määrä</label><input className="input" value={fQuantity} onChange={e => setFQuantity(e.target.value)} placeholder="Esim. 30 kpl" /></div>
               <div className="field"><label>Vastuussa</label><input className="input" value={fResponsible} onChange={e => setFResponsible(e.target.value)} placeholder="Kuka hoitaa?" /></div>
             </div>
             <div className="field"><label>Ruokavalio / huomio</label><input className="input" value={fDietary} onChange={e => setFDietary(e.target.value)} placeholder="Esim. gluteeniton vaihtoehto" /></div>
             <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: 'pointer' }}>
                 <input type="checkbox" checked={fHankkia} onChange={e => setFHankkia(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--yellow)' }} />
-                Pitaa viela hankkia
+                Pitää vielä hankkia
               </label>
             </div>
             <div className="field"><label>Muistiinpano</label><textarea className="input textarea" value={fNote} onChange={e => setFNote(e.target.value)} /></div>

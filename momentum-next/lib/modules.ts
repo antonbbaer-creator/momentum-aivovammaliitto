@@ -17,19 +17,20 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   team:       { id: 'team',       label: 'Tiimi',      icon: '≡', path: '/team',       alwaysOn: false },
   viestit:    { id: 'viestit',    label: 'Viestit',    icon: '◎', path: '/viestit',    alwaysOn: false },
   aikataulut: { id: 'aikataulut', label: 'Aikataulut', icon: '◌', path: '/aikataulut', alwaysOn: false },
-  viestinta:  { id: 'viestinta',  label: 'Viestintä',  icon: '▶', path: '/viestinta',  alwaysOn: false },
+  viestinta:  { id: 'viestinta',  label: 'Viestintä',   icon: '▶', path: '/viestinta',  alwaysOn: false },
   ohjelmisto: { id: 'ohjelmisto', label: 'Ohjelmisto', icon: '▷', path: '/ohjelmisto', alwaysOn: false },
   budget:     { id: 'budget',     label: 'Apurahat',   icon: '€', path: '/budget',     alwaysOn: false },
   // Juhla-moduulit (kaytossa juhlatoimikunnassa, saatavilla kaikille)
   vieraat:    { id: 'vieraat',    label: 'Vieraat',    icon: '♥', path: '/vieraat',    alwaysOn: false },
   ruoka:      { id: 'ruoka',      label: 'Ruoka',      icon: '◆', path: '/ruoka',      alwaysOn: false },
-  tehtavat:   { id: 'tehtavat',   label: 'Tehtavat',   icon: '☐', path: '/tehtavat',   alwaysOn: false },
+  tehtavat:   { id: 'tehtavat',   label: 'Tehtävät',   icon: '☐', path: '/tehtavat',   alwaysOn: false },
   tila:       { id: 'tila',       label: 'Tila',       icon: '⌂', path: '/tila',       alwaysOn: false },
   ohjelma:    { id: 'ohjelma',    label: 'Ohjelma',    icon: '▦', path: '/ohjelma',    alwaysOn: false },
+  muistiinpanot: { id: 'muistiinpanot', label: 'Muistiinpanot', icon: '✎', path: '/muistiinpanot', alwaysOn: false },
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'viestit', 'aikataulut', 'viestinta', 'ohjelmisto', 'budget', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma'];
+export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'viestit', 'aikataulut', 'viestinta', 'ohjelmisto', 'budget', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot'];
 
 // Default modules for new orgs (viestintaorgit)
 export const DEFAULT_MODULES: Record<string, boolean> = {
@@ -46,6 +47,7 @@ export const DEFAULT_MODULES: Record<string, boolean> = {
   tehtavat: false,
   tila: false,
   ohjelma: false,
+  muistiinpanot: false,
 };
 
 // Juhlatoimikunnan oletusmoduulit
@@ -63,6 +65,7 @@ export const JUHLATOIMIKUNTA_MODULES: Record<string, boolean> = {
   tehtavat: true,
   tila: true,
   ohjelma: true,
+  muistiinpanot: true,
 };
 
 export function getDefaultModules(orgSlug: string): Record<string, boolean> {
