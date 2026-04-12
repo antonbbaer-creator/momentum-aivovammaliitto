@@ -8,6 +8,7 @@
 
 import { Publication, normalizePublication, newBriefTemplate } from './publications-shared';
 import { Channel } from './chat-shared';
+import { getOrgDisplayName, getOrgChannels } from './org-defaults';
 import { OrgTeam, OrgTeamMember } from './team-shared';
 
 import { workerFetch, WORKER_URL } from './worker-fetch';
@@ -515,17 +516,17 @@ export async function runClaudeBot(
     typeof systemPromptOrContext === 'object'
       ? systemPromptOrContext
       : buildAssistContext(
-          extras?.orgName || (ctx.activeOrg === 'llff' ? 'Lapinlahden Elokuvajuhlat (LLFF)' : (ctx.activeOrg || 'Organisaatio')),
+          extras?.orgName || getOrgDisplayName(ctx.activeOrg || ''),
           extras?.channel || ({ id: ctx.currentChannelId, name: '', displayName: '', type: 'dm', memberIds: [], createdBy: '', createdAt: 0 } as Channel),
           ctx.userName,
-          extras?.availableChannels || ['Instagram', 'Facebook', 'LinkedIn', 'TikTok', 'YouTube', 'Nettisivut', 'Uutiskirje'],
+          extras?.availableChannels || getOrgChannels(ctx.activeOrg || ''),
           extras?.publications || ctx.publications || []
         );
 
   try {
     const res = await workerFetch('/api/ai/assist', {
       method: 'POST',
-      orgId: ctx.activeOrg || 'llff',
+      orgId: ctx.activeOrg || '',
       body: JSON.stringify({
         message: userMessage,
         history,

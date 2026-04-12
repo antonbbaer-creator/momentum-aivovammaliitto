@@ -7,7 +7,7 @@ import { collection, getDocs, doc, deleteDoc, updateDoc, query, setDoc } from 'f
 import { db } from '@/lib/firebase';
 import AppShell from '@/components/AppShell';
 import { useToast } from '@/lib/toast';
-import { AVL_ORG, AVL_EVENTS, AVL_CHANNEL_STATS, LLFF_ORG, LLFF_EVENTS, LLFF_CHANNEL_STATS } from '@/lib/seed-data';
+import { AVL_ORG, AVL_EVENTS, AVL_CHANNEL_STATS, LLFF_ORG, LLFF_EVENTS, LLFF_CHANNEL_STATS, JUHLATOIMIKUNTA_ORG, JUHLATOIMIKUNTA_EVENTS, JUHLATOIMIKUNTA_CHANNEL_STATS } from '@/lib/seed-data';
 import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES } from '@/lib/modules';
 
 interface OrgMember {
@@ -64,6 +64,7 @@ export default function AdminPage() {
       for (const { orgData, events, channelStats, orgId, orgName, joinCode } of [
         { orgData: AVL_ORG, events: AVL_EVENTS, channelStats: AVL_CHANNEL_STATS, orgId: 'avl', orgName: 'Aivovammaliitto', joinCode: 'aivovammaliitto-hetki-2026' },
         { orgData: LLFF_ORG, events: LLFF_EVENTS, channelStats: LLFF_CHANNEL_STATS, orgId: 'llff', orgName: 'Lapinlahden Elokuvajuhlat', joinCode: 'llff-elokuva-2026' },
+        { orgData: JUHLATOIMIKUNTA_ORG, events: JUHLATOIMIKUNTA_EVENTS, channelStats: JUHLATOIMIKUNTA_CHANNEL_STATS, orgId: 'juhlatoimikunta', orgName: 'Juhlatoimikunta', joinCode: 'juhlatoimikunta-sirpa-70v' },
       ]) {
         // Create org document
         await setDoc(doc(db, 'organizations', orgId), {
@@ -95,13 +96,14 @@ export default function AdminPage() {
         if (d.id === user.uid) existingOrgs = d.data().orgs || [];
       }
       const newOrgs = [
-        ...existingOrgs.filter((o: any) => o.orgId !== 'avl' && o.orgId !== 'llff'),
+        ...existingOrgs.filter((o: any) => o.orgId !== 'avl' && o.orgId !== 'llff' && o.orgId !== 'juhlatoimikunta'),
         { orgId: 'avl', role: 'owner', name: 'Aivovammaliitto' },
         { orgId: 'llff', role: 'owner', name: 'Lapinlahden Elokuvajuhlat' },
+        { orgId: 'juhlatoimikunta', role: 'owner', name: 'Juhlatoimikunta' },
       ];
       await setDoc(doc(db, 'userOrgs', user.uid), { orgs: newOrgs });
 
-      toast('AVL + LLFF yhteisöt luotu!', 'success');
+      toast('AVL + LLFF + Juhlatoimikunta yhteisöt luotu!', 'success');
       window.location.reload();
     } catch (e) {
       console.error('Seed error:', e);

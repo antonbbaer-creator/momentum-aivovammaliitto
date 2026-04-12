@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useMemo } from 'react';
-import { useSearchParams, usePathname, useRouter } from 'next/navigation';
+import { useSearchParams, usePathname, useRouter, useParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import {
@@ -24,7 +24,8 @@ import {
   userStateStorageKey,
 } from '@/lib/chat-shared';
 import { momentumDmChannelFor, MOMENTUM_BOT_ID } from '@/lib/claude-bot';
-import { OrgTeam, OrgTeamMember, DEFAULT_LLFF_TEAMS, DEFAULT_LLFF_TEAM_MEMBERS, resolveUserMember } from '@/lib/team-shared';
+import { OrgTeam, OrgTeamMember, resolveUserMember } from '@/lib/team-shared';
+import { getOrgTeams, getOrgTeamMembers } from '@/lib/org-defaults';
 import ChatSidebar from './ChatSidebar';
 import ChatMain from './ChatMain';
 
@@ -33,10 +34,11 @@ export default function ChatLayout() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
+  const orgSlug = (useParams().orgSlug as string) || '';
 
   const [channels, setChannels] = useOrgData<Channel[]>('chat_channels', []);
-  const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', DEFAULT_LLFF_TEAMS);
-  const [teamMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', DEFAULT_LLFF_TEAM_MEMBERS);
+  const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
+  const [teamMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
 
   const myMember = resolveUserMember(teamMembers, user);
   const myId = myMember?.id || null;

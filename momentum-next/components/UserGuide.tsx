@@ -16,14 +16,17 @@ interface Step {
 
 function buildSteps(orgSlug: string): Step[] {
   const isLlff = orgSlug === 'llff';
-  const orgLabel = isLlff ? 'Lapinlahden Lyhytelokuvajuhlien' : 'organisaatiosi';
-  const orgShort = isLlff ? 'LLFF' : 'organisaatio';
+  const isAvl = orgSlug === 'avl';
+  const orgLabel = isLlff ? 'Lapinlahden Lyhytelokuvajuhlien' : isAvl ? 'Aivovammaliiton' : 'organisaatiosi';
+  const orgShort = isLlff ? 'LLFF' : isAvl ? 'AVL' : 'organisaatio';
 
   return [
     {
       title: 'Tervetuloa Momentumiin',
       subtitle: isLlff
         ? 'Lapinlahden Lyhytelokuvajuhlien työkalu'
+        : isAvl
+        ? 'Aivovammaliiton viestinnan strateginen kumppani'
         : 'Projektinhallinta ja viestintä samassa näkymässä',
       body: (
         <>
@@ -303,10 +306,17 @@ function buildSteps(orgSlug: string): Step[] {
   ];
 }
 
-// LLFF-demon viestit — ajetaan peräkkäin Momentum AI:lle käyttöohjeen lopussa
-// Pyydetään tekoälyä itse kertomaan käyttötapauksensa — ei luoda postausta
-const LLFF_DEMO_PROMPTS: string[] = [
-  'Mitä kaikkea osaat tehdä Momentumissa LLFF:n tiimille? Kerro konkreettisesti käyttötapaukset — esimerkiksi ideoiden pallottelu, strategian avaaminen ja tulkinta, postausten luonnostelu eri kanaviin, apurahahakemusten kirjoittamisen tuki, viestintäsuunnitelman sparraus, aikataulujen ja ohjelmiston pohdinta, sekä muut tavat joilla voit auttaa. Vastaa tiiviisti jäsennellyllä listalla, älä tee vielä yhtään postausta — tämä on esittely.',
+// Demo-viestit — ajetaan peräkkäin Momentum AI:lle käyttöohjeen lopussa
+const ORG_DEMO_PROMPTS: Record<string, string[]> = {
+  llff: [
+    'Mitä kaikkea osaat tehdä Momentumissa LLFF:n tiimille? Kerro konkreettisesti käyttötapaukset -- esimerkiksi ideoiden pallottelu, strategian avaaminen ja tulkinta, postausten luonnostelu eri kanaviin, apurahahakemusten kirjoittamisen tuki, viestintäsuunnitelman sparraus, aikataulujen ja ohjelmiston pohdinta, sekä muut tavat joilla voit auttaa. Vastaa tiiviisti jäsennellyllä listalla, älä tee vielä yhtään postausta -- tämä on esittely.',
+  ],
+  avl: [
+    'Mitä kaikkea osaat tehdä Momentumissa Aivovammaliiton viestintätiimille? Kerro konkreettisesti käyttötapaukset -- esimerkiksi viestintäsuunnitelman sparraus, postausten luonnostelu eri kanaviin (Facebook, Instagram, LinkedIn, Aivoitus-lehti), kampanjoiden ideointi, tietoisuuskampanjoiden sisällöt, ja muut tavat joilla voit auttaa. Vastaa tiiviisti jäsennellyllä listalla, älä tee vielä yhtään postausta -- tämä on esittely.',
+  ],
+};
+const DEFAULT_DEMO_PROMPTS = [
+  'Mitä kaikkea osaat tehdä Momentumissa tiimillemme? Kerro konkreettisesti käyttötapaukset. Vastaa tiiviisti jäsennellyllä listalla -- tämä on esittely.',
 ];
 
 export default function UserGuide() {
@@ -378,14 +388,14 @@ export default function UserGuide() {
 
   const next = useCallback(() => {
     if (step >= steps.length - 1) {
-      // Viimeisen askeleen Valmis/Käynnistä-nappi: sulje opas ja käynnistä AI-demo LLFF:lle
+      // Viimeisen askeleen Valmis/Käynnistä-nappi: sulje opas ja käynnistä AI-demo
       close();
-      if (isLlff) {
-        // Pieni viive jotta käyttöohjeen sulkeutuminen ehtii animoitua
+      const demoPrompts = ORG_DEMO_PROMPTS[orgSlug] || DEFAULT_DEMO_PROMPTS;
+      if (demoPrompts.length > 0) {
         setTimeout(() => {
           window.dispatchEvent(
             new CustomEvent('momentum:ai-prompt', {
-              detail: { texts: LLFF_DEMO_PROMPTS },
+              detail: { texts: demoPrompts },
             })
           );
         }, 300);
@@ -474,7 +484,7 @@ export default function UserGuide() {
             Edellinen
           </button>
           <button className="btn btn-primary btn-sm" onClick={next}>
-            {isLast ? (isLlff ? 'Käynnistä AI-demo' : 'Valmis') : 'Seuraava'}
+            {isLast ? 'Käynnistä AI-demo' : 'Seuraava'}
           </button>
         </div>
       </div>

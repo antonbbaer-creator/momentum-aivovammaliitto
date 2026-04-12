@@ -12,12 +12,14 @@ import {
   TEAMS,
   months,
   monthsLong,
-  defaultLlffYearwheel,
+  // defaultLlffYearwheel removed — now via org-defaults
   normalizePhase,
   phaseStartDate,
   phaseEndDate,
 } from '@/lib/yearwheel-shared';
-import { OrgTeam, DEFAULT_LLFF_TEAMS } from '@/lib/team-shared';
+import { useParams } from 'next/navigation';
+import { OrgTeam } from '@/lib/team-shared';
+import { getOrgTeams, getOrgYearwheel } from '@/lib/org-defaults';
 
 // Minimal project shape for phase-linked project listing
 interface ProjectLite {
@@ -40,9 +42,10 @@ interface Props {
 export default function YearwheelSection({ phases: propPhases, setPhases: propSet }: Props) {
   const { canEdit } = useAuth();
   const { toast } = useToast();
-  const [ownRaw, ownSet] = useOrgData<YearPhase[]>('yearwheel', defaultLlffYearwheel);
+  const orgSlug = (useParams().orgSlug as string) || '';
+  const [ownRaw, ownSet] = useOrgData<YearPhase[]>('yearwheel', getOrgYearwheel(orgSlug));
   const [projects] = useOrgData<ProjectLite[]>('projects', []);
-  const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', DEFAULT_LLFF_TEAMS);
+  const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
   const rawPhases = propPhases ?? ownRaw;
   const setPhases = propSet ?? ownSet;
 
@@ -534,7 +537,7 @@ export default function YearwheelSection({ phases: propPhases, setPhases: propSe
               </>
             ) : (
               <>
-                <text x={centerX} y={centerY - 14} textAnchor="middle" fontSize="11" fill="var(--t3)" fontFamily="var(--font-display)" letterSpacing=".1em">FESTIVAALI</text>
+                <text x={centerX} y={centerY - 14} textAnchor="middle" fontSize="11" fill="var(--t3)" fontFamily="var(--font-display)" letterSpacing=".1em">VUOSIKELLO</text>
                 <text x={centerX} y={centerY + 8} textAnchor="middle" fontSize="28" fontWeight="700" fill="var(--t1)" fontFamily="var(--font-display)">{year}</text>
                 <text x={centerX} y={centerY + 28} textAnchor="middle" fontSize="10" fill="var(--t3)">{filteredPhases.length} vaihetta</text>
               </>

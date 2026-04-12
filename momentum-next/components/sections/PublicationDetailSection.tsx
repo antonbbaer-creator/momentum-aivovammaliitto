@@ -24,8 +24,10 @@ import {
   publicationCompleteness,
   deadlineStatus,
 } from '@/lib/publications-shared';
-import { OrgTeam, OrgTeamMember, DEFAULT_LLFF_TEAMS, DEFAULT_LLFF_TEAM_MEMBERS } from '@/lib/team-shared';
-import { CommsPlan, DEFAULT_LLFF_2026_PLAN, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
+import { useParams } from 'next/navigation';
+import { OrgTeam, OrgTeamMember } from '@/lib/team-shared';
+import { CommsPlan, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
+import { getOrgTeams, getOrgTeamMembers, getOrgCommsPlan } from '@/lib/org-defaults';
 
 import { workerFetch, WORKER_URL } from '@/lib/worker-fetch';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
@@ -60,12 +62,13 @@ interface Props {
 export default function PublicationDetailSection({ publicationId, onBack, onOpenEditor }: Props) {
   const { activeOrg, canEdit } = useAuth();
   const { toast } = useToast();
+  const orgSlug = (useParams().orgSlug as string) || '';
   const [rawPubs, setPubs] = useOrgData<any[]>('publications', []);
   const [, setCalEvents] = useOrgData<CalEvent[]>('events', []);
-  const [teamMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', DEFAULT_LLFF_TEAM_MEMBERS);
-  const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', DEFAULT_LLFF_TEAMS);
+  const [teamMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
+  const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
   const [org] = useOrgData<any>('org', { channels: [] });
-  const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', DEFAULT_LLFF_2026_PLAN);
+  const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', getOrgCommsPlan(orgSlug));
   const commsPlan = useMemo(() => normalizeCommsPlan(rawCommsPlan), [rawCommsPlan]);
   const availableChannels = useMemo(() => unifiedChannels(commsPlan, org.channels), [commsPlan, org.channels]);
 

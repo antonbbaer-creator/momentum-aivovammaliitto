@@ -10,6 +10,6 @@
  *
  * Admin-paneeli (/admin) näkee kaikki orgit tietokannasta aina.
  */
-export const ENABLED_ORG_SLUGS = ['llff'];
+export const ENABLED_ORG_SLUGS = ['llff', 'avl', 'juhlatoimikunta'];
 
 export const isOrgEnabled = (orgId: string): boolean => ENABLED_ORG_SLUGS.includes(orgId);

@@ -86,8 +86,8 @@ function ViestintaContent() {
     mainTab === 'plan'       ? 'Suunnitelma: mitä, miten, kuka — sekä kuukausikattavuus' :
     mainTab === 'calendar'   ? 'Julkaisukalenteri — kuukausi- ja listanäkymä' :
     mainTab === 'production' ? 'Tuotanto: brief → luonnos → valmis → julkaistu' :
-    mainTab === 'editor'     ? 'Editori — luo julkaisugrafiikkaa LLFF-brändissä' :
-    mainTab === 'media'      ? 'LLFF Mediapankki — R2 CDN' :
+    mainTab === 'editor'     ? 'Editori — luo julkaisugrafiikkaa' :
+    mainTab === 'media'      ? 'Mediapankki' :
                                'Kanavat ja julkaisuvirta — valmiit julkaisut kanavittain';
 
   return (

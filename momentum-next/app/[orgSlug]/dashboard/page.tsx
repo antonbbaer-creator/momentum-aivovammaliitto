@@ -8,16 +8,15 @@ import { useToast } from '@/lib/toast';
 import { useRouter, useParams } from 'next/navigation';
 import {
   Grant,
-  LLFF_GRANTS_DEFAULT,
   STATUS_DEFS,
   normalizeGrant,
   daysUntilDeadline,
 } from '@/lib/grants-shared';
 import {
   OrgTeamMember,
-  DEFAULT_LLFF_TEAM_MEMBERS,
   resolveUserMember,
 } from '@/lib/team-shared';
+import { getGrantsKey, getOrgGrants, getOrgTeamMembers } from '@/lib/org-defaults';
 
 import { workerFetch } from '@/lib/worker-fetch';
 
@@ -30,8 +29,8 @@ export default function DashboardPage() {
   const [org] = useOrgData<any>('org', {});
   const [projects, setProjects] = useOrgData<any[]>('projects', []);
   const [teamMessages, setTeamMessages] = useOrgData<any[]>('teamMessages', []);
-  const [rawGrants] = useOrgData<Grant[]>('llff_grants', LLFF_GRANTS_DEFAULT);
-  const [orgMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', DEFAULT_LLFF_TEAM_MEMBERS);
+  const [rawGrants] = useOrgData<Grant[]>(getGrantsKey(orgSlug), getOrgGrants(orgSlug));
+  const [orgMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const grants = rawGrants.map(normalizeGrant);
 
   // Match currently-logged-in user to their OrgTeamMember record
@@ -196,15 +195,15 @@ export default function DashboardPage() {
     <AppShell title={`Hei, ${firstName}!`} subtitle={org.name || ''}>
 
       {/* Sinun tehtäväsi — yhdistetty lista: projektitehtävät + apurahat samassa */}
-      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', marginBottom: '1.5rem' }}>
-        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="dc dc-brand" style={{ marginBottom: '1.5rem' }}>
+        <div className="dc-h">
           <div>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em' }}>Sinun tehtäväsi</h3>
+            <h3>Sinun tehtäväsi</h3>
             <p style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.15rem' }}>Mitä tänään työstetään?</p>
           </div>
           <span style={{ fontSize: '.75rem', color: unifiedList.length > 0 ? 'var(--pri-l)' : 'var(--t3)' }}>{unifiedList.length} {unifiedList.length === 1 ? 'kohde' : 'kohdetta'}</span>
         </div>
-        <div style={{ padding: '.85rem 1rem', display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+        <div className="dc-b" style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
           {unifiedList.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--t3)' }}>
               <p style={{ fontSize: '.88rem', marginBottom: '.5rem' }}>Ei avoimia tehtäviä sinulle.</p>
@@ -246,11 +245,11 @@ export default function DashboardPage() {
                       width: 22, height: 22, borderRadius: '50%',
                       background: item.color, color: '#fff',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '.58rem', fontWeight: 800, flexShrink: 0,
+                      fontSize: '.58rem', fontWeight: 600, flexShrink: 0,
                     }}>€</div>
                   )}
                   <div style={{ flex: 1, cursor: 'pointer', minWidth: 0 }} onClick={item.onClick}>
-                    <div style={{ fontSize: '.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: '.85rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {item.title}
                     </div>
                     <div style={{ fontSize: '.68rem', color: 'var(--t3)', marginTop: '.1rem' }}>
@@ -268,10 +267,10 @@ export default function DashboardPage() {
                   ) : (
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       {isGrant && item.deadlineText && (
-                        <div style={{ fontSize: '.65rem', fontWeight: 600, color: 'var(--t2)' }}>{item.deadlineText}</div>
+                        <div style={{ fontSize: '.65rem', fontWeight: 500, color: 'var(--t2)' }}>{item.deadlineText}</div>
                       )}
                       {days !== null && days >= 0 && (
-                        <div style={{ fontSize: '.6rem', fontWeight: 700, color: dlColor, marginTop: isGrant ? '.1rem' : 0 }}>
+                        <div style={{ fontSize: '.6rem', fontWeight: 600, color: dlColor, marginTop: isGrant ? '.1rem' : 0 }}>
                           {days === 0 ? 'TÄNÄÄN' : `${days} pv`}
                         </div>
                       )}
@@ -290,7 +289,7 @@ export default function DashboardPage() {
           <div style={{ fontSize: '.78rem', color: 'var(--t2)', lineHeight: 1.5 }}>
             <strong style={{ color: 'var(--yellow)' }}>Tietoa puuttuu:</strong> Käyttäjätiliäsi ({user?.displayName || user?.email}) ei ole linkitetty tiimiläistietoihin.
             Apurahat ja vastuut näkyvät täällä kun tiimissäsi on tiimiläinen jonka nimi tai sähköposti vastaa sinua.
-            <button onClick={() => router.push(`/${orgSlug}/team`)} style={{ marginLeft: '.5rem', background: 'transparent', border: 'none', color: 'var(--pri-l)', cursor: 'pointer', fontWeight: 700 }}>Avaa Tiimi →</button>
+            <button onClick={() => router.push(`/${orgSlug}/team`)} style={{ marginLeft: '.5rem', background: 'transparent', border: 'none', color: 'var(--pri-l)', cursor: 'pointer', fontWeight: 600 }}>Avaa Tiimi →</button>
           </div>
         </div>
       )}
@@ -320,11 +319,11 @@ export default function DashboardPage() {
       })()}
 
       {/* My projects */}
-      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', marginBottom: '1.5rem' }}>
-        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em' }}>Sinun projektisi</h3>
+      <div className="dc" style={{ marginBottom: '1.5rem' }}>
+        <div className="dc-h">
+          <h3>Sinun projektisi</h3>
         </div>
-        <div style={{ padding: '1.25rem 1.5rem' }}>
+        <div className="dc-b">
           {myProjects.length === 0 ? (
             <p style={{ color: 'var(--t3)', fontSize: '.82rem', textAlign: 'center', padding: '1rem' }}>Ei projekteja joissa sinulle on tehtäviä.</p>
           ) : (
@@ -335,8 +334,8 @@ export default function DashboardPage() {
                 <div key={p.id} onClick={() => router.push(`/${orgSlug}/projects`)}
                   style={{ padding: '.6rem 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '.85rem', fontWeight: 600 }}>{p.t}</span>
-                    {dlc && <span style={{ fontSize: '.65rem', color: dlc.color, fontWeight: 600 }}>{dlc.label}</span>}
+                    <span style={{ fontSize: '.85rem', fontWeight: 500 }}>{p.t}</span>
+                    {dlc && <span style={{ fontSize: '.65rem', color: dlc.color, fontWeight: 500 }}>{dlc.label}</span>}
                   </div>
                   <div style={{ fontSize: '.68rem', color: 'var(--t3)', marginTop: '.15rem' }}>{myOpen} avointa tehtävää sinulle</div>
                 </div>
@@ -379,18 +378,29 @@ export default function DashboardPage() {
 
       {/* AI Actions — bottom of page */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: aiResponse || aiLoading ? '1rem' : 0 }}>
-        <div onClick={() => { const ap = projects.filter(p => p.st === 'active' && !p.archived).map(p => p.t).join(', ') || 'ei aktiivisia'; askAI('Anna tilannekatsaus ' + (org.name || 'organisaation') + ' viestinnästä juuri nyt. Mitä on meneillään? Aktiiviset projektit: ' + ap + '. Avoimia tehtäviä: ' + myTasks.length + '.'); }}
-          style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.25rem', cursor: 'pointer', transition: 'border-color .15s' }}>
-          <div style={{ fontSize: '1.1rem', marginBottom: '.35rem' }}>{'◈'}</div>
-          <div style={{ fontSize: '.88rem', fontWeight: 700 }}>Tilannekatsaus</div>
-          <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.15rem' }}>Mitä viestinnässä tapahtuu juuri nyt?</div>
+        <div className="dc" onClick={() => { const ap = projects.filter(p => p.st === 'active' && !p.archived).map(p => p.t).join(', ') || 'ei aktiivisia'; askAI('Anna tilannekatsaus ' + (org.name || 'organisaation') + ' viestinnästä juuri nyt. Mitä on meneillään? Aktiiviset projektit: ' + ap + '. Avoimia tehtäviä: ' + myTasks.length + '.'); }}
+          style={{ cursor: 'pointer', borderLeft: '3px solid var(--hetki-blue)', transition: 'all .3s cubic-bezier(.16,1,.3,1)' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--pri-l)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.borderLeftColor = 'var(--hetki-blue)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
+          <div className="dc-b">
+            <div style={{ width: 20, height: 20, marginBottom: '.5rem', color: 'var(--pri-l)' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '100%', height: '100%' }}><circle cx="12" cy="12" r="9"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88" fill="currentColor" opacity=".25"/></svg>
+            </div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, letterSpacing: '.02em' }}>Tilannekatsaus</div>
+            <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.2rem', lineHeight: 1.5 }}>Mitä viestinnässä tapahtuu juuri nyt?</div>
+          </div>
         </div>
-        <div onClick={() => askAI('Etsi yksi inspiroiva esimerkki maailmaa muuttavasta järjestöviestinnästä. Kerro mikä järjestö, mikä kampanja, miksi se toimi ja mitä voimme oppia siitä. Anna konkreettinen idea miten voisimme soveltaa vastaavaa.')}
-          style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.25rem', cursor: 'pointer', transition: 'border-color .15s' }}
-          onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--green)')} onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}>
-          <div style={{ fontSize: '1.1rem', marginBottom: '.35rem' }}>{'☆'}</div>
-          <div style={{ fontSize: '.88rem', fontWeight: 700 }}>Inspiraatiota</div>
-          <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.15rem' }}>Maailmaa muuttavaa viestintää</div>
+        <div className="dc" onClick={() => askAI('Kerro yksi todellinen, dokumentoitu esimerkki siitä miten kulttuurialan yhdistys tai järjestö on muuttanut maailmaa parempaan suuntaan. Keskity oikeisiin tapahtumiin: esim. elokuvafestivaalit jotka ovat nostaneet ihmisoikeuskysymyksiä, teatteriprojektit jotka ovat tuoneet syrjäytyneitä yhteisöjä yhteen, taidejärjestöt jotka ovat vaikuttaneet lainsäädäntöön, tai kulttuuritapahtumat jotka ovat edistäneet mielenterveyden destigmatisointia. Kerro mikä järjestö, mitä he tekivät, mikä oli konkreettinen vaikutus, ja mitä me voisimme oppia heiltä. Käytä vain todellisia, oikeita esimerkkejä — älä keksi.')}
+          style={{ cursor: 'pointer', borderLeft: '3px solid var(--hetki-green)', transition: 'all .3s cubic-bezier(.16,1,.3,1)' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--green-l)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.borderLeftColor = 'var(--hetki-green)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
+          <div className="dc-b">
+            <div style={{ width: 20, height: 20, marginBottom: '.5rem', color: 'var(--green-l)' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '100%', height: '100%' }}><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
+            </div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, letterSpacing: '.02em' }}>Inspiraatiota</div>
+            <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.2rem', lineHeight: 1.5 }}>Kulttuurialan yhdistykset jotka muuttivat maailmaa</div>
+          </div>
         </div>
       </div>
 
@@ -398,7 +408,7 @@ export default function DashboardPage() {
       {(aiLoading || aiResponse) && (
         <div style={{ background: 'linear-gradient(135deg, rgba(5,107,159,.06), rgba(24,94,91,.04))', border: '1px solid rgba(5,107,159,.15)', borderRadius: 'var(--rl)', padding: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem' }}>
-            <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--pri)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '.55rem', fontWeight: 700, fontFamily: 'var(--font-display)' }}>M</div>
+            <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--pri)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '.55rem', fontWeight: 500, fontFamily: 'var(--font-display)' }}>M</div>
             <span style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--pri-l)' }}>Momentum</span>
             {aiResponse && <button className="btn btn-ghost btn-sm" onClick={() => setAiResponse('')} style={{ marginLeft: 'auto', fontSize: '.65rem' }}>Sulje</button>}
           </div>

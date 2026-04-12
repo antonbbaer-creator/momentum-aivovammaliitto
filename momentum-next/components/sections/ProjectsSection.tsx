@@ -4,8 +4,11 @@ import { useState } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
-import { OrgTeam, OrgTeamMember, DEFAULT_LLFF_TEAMS, DEFAULT_LLFF_TEAM_MEMBERS } from '@/lib/team-shared';
-import { YearPhase, defaultLlffYearwheel, normalizePhase } from '@/lib/yearwheel-shared';
+import { useParams } from 'next/navigation';
+import { OrgTeam, OrgTeamMember } from '@/lib/team-shared';
+import { getOrgTeams } from '@/lib/org-defaults';
+import { YearPhase, normalizePhase } from '@/lib/yearwheel-shared';
+import { getOrgYearwheel } from '@/lib/org-defaults';
 
 interface Task { id: number; text: string; done: boolean; assignee: string; deadline: string; }
 interface TeamMember { name: string; role: string; avatar: string; }
@@ -44,10 +47,11 @@ const taskProgress = (tasks: Task[]) => tasks?.length ? Math.round(tasks.filter(
 export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const orgSlug = (useParams().orgSlug as string) || '';
   const [projects, setProjects] = useOrgData<Project[]>('projects', []);
   const [teamData] = useOrgData<TeamDataMember[]>('teamMembers', []);
-  const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', DEFAULT_LLFF_TEAMS);
-  const [rawPhases] = useOrgData<YearPhase[]>('yearwheel', defaultLlffYearwheel);
+  const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
+  const [rawPhases] = useOrgData<YearPhase[]>('yearwheel', getOrgYearwheel(orgSlug));
   const phases = rawPhases.map(normalizePhase);
 
   const [mode, setMode] = useState<'kanban' | 'new' | 'detail'>('kanban');

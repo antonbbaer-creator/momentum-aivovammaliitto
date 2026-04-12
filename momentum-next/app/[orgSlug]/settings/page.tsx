@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { useOrgData } from '@/lib/firestore';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES } from '@/lib/modules';
 
 interface Member { uid: string; displayName: string; email: string; photoURL: string; role: string; joinedAt: string; }
 
@@ -14,6 +15,7 @@ export default function SettingsPage() {
   const { user, orgs, activeOrg, activeOrgRole, setActiveOrg, logout, refreshOrgs } = useAuth();
   const router = useRouter();
   const [org, setOrg] = useOrgData<any>('org', { name: '', s: '', slogan: '', channels: [], team: [], goals: [], auds: [], vals: [], tone: [] });
+  const [modules, setModules] = useOrgData<Record<string, boolean>>('modules', DEFAULT_MODULES);
   const [members, setMembers] = useState<Member[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
@@ -206,6 +208,47 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* Modules toggle — admin only */}
+      {isAdmin && (
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', marginBottom: '1.5rem' }}>
+          <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em' }}>Moduulit</h3>
+            <p style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.25rem' }}>Valitse mitkä tyokalut ovat kaytossa tassa tyotilassa.</p>
+          </div>
+          <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+            {MODULE_ORDER.map(id => {
+              const mod = MODULE_REGISTRY[id];
+              if (!mod) return null;
+              const enabled = modules[id] ?? DEFAULT_MODULES[id] ?? false;
+              return (
+                <label key={id} style={{
+                  display: 'flex', alignItems: 'center', gap: '.75rem',
+                  padding: '.65rem .85rem', background: 'var(--elev)',
+                  border: '1px solid var(--border)', borderRadius: 'var(--r)',
+                  cursor: mod.alwaysOn ? 'default' : 'pointer',
+                  opacity: mod.alwaysOn ? 0.6 : 1,
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={enabled || mod.alwaysOn}
+                    disabled={mod.alwaysOn}
+                    onChange={() => {
+                      if (mod.alwaysOn) return;
+                      setModules(prev => ({ ...prev, [id]: !enabled }));
+                    }}
+                    style={{ width: 18, height: 18, accentColor: 'var(--pri)' }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '.85rem', fontWeight: 600 }}>{mod.label}</div>
+                    {mod.alwaysOn && <div style={{ fontSize: '.65rem', color: 'var(--t3)' }}>Aina paalla</div>}
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Account */}
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)' }}>

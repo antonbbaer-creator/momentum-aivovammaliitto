@@ -1,13 +1,14 @@
 'use client';
 
 /*
- * LLFF Apurahavuosikello
+ * Apurahavuosikello
  *
- * Korvaa nykyisen Budjetti-välilehden — visualisoi LLFF:n apurahatilanteen,
- * deadlinet, vastuut ja edistymisen 100 000 € vuositavoitteeseen.
+ * Visualisoi organisaation apurahatilanteen,
+ * deadlinet, vastuut ja edistymisen vuositavoitteeseen.
  */
 
 import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -20,8 +21,6 @@ import {
   STATUS_DEFS,
   PROJECT_DEFS,
   PRIORITY_DEFS,
-  LLFF_GRANTS_DEFAULT,
-  DEFAULT_GRANTS_SETTINGS,
   parseGrantDeadline,
   daysUntilDeadline,
   getStatusTotals,
@@ -29,7 +28,8 @@ import {
   normalizeGrantsSettings,
   getYearTarget,
 } from '@/lib/grants-shared';
-import { OrgTeamMember, DEFAULT_LLFF_TEAM_MEMBERS } from '@/lib/team-shared';
+import { OrgTeamMember } from '@/lib/team-shared';
+import { getGrantsKey, getGrantsSettingsKey, getOrgGrants, getOrgGrantsSettings, getOrgTeamMembers } from '@/lib/org-defaults';
 
 type Tab = 'wheel' | 'status' | 'funders' | 'deadlines';
 
@@ -46,9 +46,10 @@ const fmtEurFull = (n: number): string => n.toLocaleString('fi-FI') + ' €';
 export default function GrantsSection() {
   const { canEdit } = useAuth();
   const { toast } = useToast();
-  const [rawGrants, setGrants] = useOrgData<Grant[]>('llff_grants', LLFF_GRANTS_DEFAULT);
-  const [rawSettings, setSettings] = useOrgData<GrantsSettings>('llff_grants_settings', DEFAULT_GRANTS_SETTINGS);
-  const [members] = useOrgData<OrgTeamMember[]>('orgTeamMembers', DEFAULT_LLFF_TEAM_MEMBERS);
+  const orgSlug = (useParams().orgSlug as string) || '';
+  const [rawGrants, setGrants] = useOrgData<Grant[]>(getGrantsKey(orgSlug), getOrgGrants(orgSlug));
+  const [rawSettings, setSettings] = useOrgData<GrantsSettings>(getGrantsSettingsKey(orgSlug), getOrgGrantsSettings(orgSlug));
+  const [members] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
 
   // Normalize for backward compat with old saves
   const allGrants = rawGrants.map(normalizeGrant);
@@ -58,7 +59,8 @@ export default function GrantsSection() {
   const trashedGrants = allGrants.filter(g => !!g.deletedAt).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
   // Oletusapurahat joita ei löydy nykyisestä listasta (esim. aiemmin kovalla poistolla poistetut) —
   // ne voi palauttaa roskakorin "Palauta oletuksista" -osiosta
-  const missingFromDefaults = LLFF_GRANTS_DEFAULT.filter(def => !allGrants.some(g => g.id === def.id));
+  const orgDefGrants = getOrgGrants(orgSlug);
+  const missingFromDefaults = orgDefGrants.filter(def => !allGrants.some(g => g.id === def.id));
   const settings = normalizeGrantsSettings(rawSettings);
 
   const [tab, setTab] = useState<Tab>('wheel');
@@ -1158,7 +1160,7 @@ export default function GrantsSection() {
                 Palauta oletuksista ({missingFromDefaults.length})
               </h3>
               <p style={{ fontSize: '.7rem', color: 'var(--t3)', margin: '0 0 .55rem 0' }}>
-                Nämä apurahat kuuluvat LLFF-oletuslistaan, mutta niitä ei löydy nykyisestä listastasi — palauta ne tarvittaessa.
+                Nämä apurahat kuuluvat oletuslistaan, mutta niitä ei löydy nykyisestä listastasi -- palauta ne tarvittaessa.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '.45rem' }}>
                 {missingFromDefaults.map(g => {

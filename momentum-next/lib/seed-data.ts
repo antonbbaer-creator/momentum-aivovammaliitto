@@ -263,3 +263,29 @@ export const LLFF_CHANNEL_STATS = [
   { name: 'LinkedIn', handle: 'Kino Lapinlahti', followers: 320, reach: '3.1K', lastUpdated: '2026-03' },
   { name: 'TikTok', handle: '@llff_festival', followers: 580, reach: '22.1K', lastUpdated: '2026-03' },
 ];
+
+// ── Juhlatoimikunta — Sirpan 70v syntymapaivajahlat ──
+
+export const JUHLATOIMIKUNTA_ORG = {
+  name: 'Juhlatoimikunta', s: 'JTK', slogan: 'Sirpan 70-vuotisjuhlien jarjestely',
+  commsMission: '',
+  contentPillars: [],
+  goals: [],
+  vals: [],
+  auds: [],
+  tone: [],
+  channels: [
+    { name: 'WhatsApp', color: '#25D366', ic: 'WA' },
+    { name: 'Sahkoposti', color: '#6366f1', ic: 'SP' },
+  ],
+  team: [
+    { name: 'Sonja Baer', role: 'Juhlatoimikunnan vetaja', avatar: 'S' },
+    { name: 'Raisa Baer', role: 'Jasen', avatar: 'R' },
+    { name: 'Elina Savo', role: 'Jasen', avatar: 'E' },
+    { name: 'Anton Baer', role: 'Jasen', avatar: 'A' },
+  ],
+  strategyText: '',
+};
+
+export const JUHLATOIMIKUNTA_EVENTS: any[] = [];
+export const JUHLATOIMIKUNTA_CHANNEL_STATS: any[] = [];

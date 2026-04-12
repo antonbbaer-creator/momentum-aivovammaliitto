@@ -187,9 +187,11 @@ export default function MediaSection() {
       return parts.join(' — ');
     }).join('\n');
 
+    const orgName = orgSlug === 'llff' ? 'LLFF-festivaalin' : orgSlug === 'avl' ? 'Aivovammaliiton' : 'organisaation';
+    const orgTone = orgSlug === 'llff' ? 'rohkea, lämmin, taiteellinen mutta tavoitettava' : orgSlug === 'avl' ? 'asiallinen, empaattinen, rohkaiseva, selkeä' : 'asiallinen ja selkeä';
     const systemPrompt = [
-      'Olet LLFF-festivaalin viestintäassistentti. Kirjoitat suomeksi sosiaalisen median postauksia.',
-      'Noudata LLFF-äänensävyä: rohkea, lämmin, taiteellinen mutta tavoitettava.',
+      `Olet ${orgName} viestintäassistentti. Kirjoitat suomeksi sosiaalisen median postauksia.`,
+      `Noudata äänensävyä: ${orgTone}.`,
       'Älä käytä emojeja. Pidä teksti konkreettisena ja kuvaa tukevana.',
       `Kanava: ${aiChannel}. Säädä pituus ja tyyli kanavan mukaan (IG Feed ~100-180 sanaa, Stories lyhyt, LinkedIn asiallisempi, Facebook keskipitkä).`,
       `Tunnelma: ${aiTone}.`,
@@ -668,7 +670,7 @@ export default function MediaSection() {
               <textarea
                 value={aiPrompt}
                 onChange={e => setAiPrompt(e.target.value)}
-                placeholder="Esim. 'Ilmoita Nordic Frames -sarjan avajaisista, mukana ohjaaja Maria Kallio'"
+                placeholder="Esim. 'Kirjoita postaus valittujen kuvien pohjalta'"
                 className="input"
                 rows={3}
                 style={{ width: '100%', fontSize: '.82rem', resize: 'vertical', marginBottom: '1rem' }}

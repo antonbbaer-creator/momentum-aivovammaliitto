@@ -6,8 +6,10 @@ import TabSwitcher from '@/components/TabSwitcher';
 import YearwheelSection from '@/components/sections/YearwheelSection';
 import CalendarSection from '@/components/sections/CalendarSection';
 import PhaseTimelineSection from '@/components/sections/PhaseTimelineSection';
+import { useParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
-import { YearPhase, defaultLlffYearwheel } from '@/lib/yearwheel-shared';
+import { YearPhase } from '@/lib/yearwheel-shared';
+import { getOrgYearwheel } from '@/lib/org-defaults';
 
 type Tab = 'wheel' | 'calendar' | 'timeline';
 
@@ -15,9 +17,10 @@ interface CalEvent { id: number; t: string; ch: string; date: string; st: string
 
 export default function AikataulutPage() {
   const [tab, setTab] = useState<Tab>('wheel');
+  const orgSlug = (useParams().orgSlug as string) || '';
 
   // Hub owns the shared state so drag-to-edit in Calendar tab updates the Yearwheel tab instantly
-  const [phases, setPhases] = useOrgData<YearPhase[]>('yearwheel', defaultLlffYearwheel);
+  const [phases, setPhases] = useOrgData<YearPhase[]>('yearwheel', getOrgYearwheel(orgSlug));
   const [events, setEvents] = useOrgData<CalEvent[]>('events', []);
 
   const subtitle = `${phases.length} vaihetta · ${events.length} tapahtumaa`;

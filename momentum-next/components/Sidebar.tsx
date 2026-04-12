@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/auth';
 import { useModules } from '@/lib/modules';
 import { usePathname, useRouter, useParams } from 'next/navigation';
+import { getOrgBanner } from '@/lib/org-defaults';
 
 const NAV_ICONS: Record<string, React.ReactNode> = {
   dashboard: (  // Koti — four-square grid
@@ -43,6 +44,7 @@ export default function Sidebar() {
   const orgSlug = (params.orgSlug as string) || activeOrg || '';
 
   const currentOrg = orgs.find(o => o.orgId === orgSlug);
+  const banner = getOrgBanner(orgSlug);
 
   return (
     <div className="side">
@@ -53,19 +55,18 @@ export default function Sidebar() {
       <div
         className="ws-box"
         onClick={() => router.push(`/${orgSlug}/settings`)}
-        style={orgSlug === 'llff' ? { padding: 0, overflow: 'hidden' } : undefined}
+        style={banner ? { padding: 0, overflow: 'hidden' } : undefined}
       >
-        {orgSlug === 'llff' ? (
+        {banner ? (
           <img
-            src="/brand/llff-banner-2026.png"
-            alt={currentOrg?.name || 'Lapinlahti Film Festival 2026'}
+            src={banner}
+            alt={currentOrg?.name || 'Organisaatio'}
             style={{
               width: '100%',
               height: 'auto',
               display: 'block',
             }}
             onError={(e) => {
-              // Fallback if file is missing — hide gracefully
               (e.currentTarget as HTMLImageElement).style.display = 'none';
             }}
           />

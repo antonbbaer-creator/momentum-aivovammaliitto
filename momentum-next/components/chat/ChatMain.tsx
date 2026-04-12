@@ -18,6 +18,7 @@ import {
 } from '@/lib/chat-shared';
 import { OrgTeam, OrgTeamMember } from '@/lib/team-shared';
 import { useAuth } from '@/lib/auth';
+import { getOrgDisplayName, getOrgChannels } from '@/lib/org-defaults';
 import { useOrgData } from '@/lib/firestore';
 import { Publication, normalizePublication } from '@/lib/publications-shared';
 import {
@@ -129,9 +130,9 @@ export default function ChatMain({
       // System prompt + konteksti rakennetaan workerissa — välitetään julkaisut extras-kautta
       const result = await runClaudeBot(userMessage, history, '', ctx, {
         publications,
-        orgName: activeOrg === 'llff' ? 'Lapinlahden Elokuvajuhlat (LLFF)' : (activeOrg || 'Organisaatio'),
+        orgName: getOrgDisplayName(activeOrg || ''),
         channel,
-        availableChannels: ['Instagram', 'Facebook', 'LinkedIn', 'TikTok', 'YouTube', 'Nettisivut', 'Uutiskirje'],
+        availableChannels: getOrgChannels(activeOrg || ''),
       });
 
       let reply = result.reply || (result.error ? `⚠ Virhe: ${result.error}` : 'Ei vastausta.');

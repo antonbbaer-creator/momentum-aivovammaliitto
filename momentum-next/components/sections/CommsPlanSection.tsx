@@ -13,11 +13,11 @@
 
 import { useMemo, useState } from 'react';
 import { useOrgData } from '@/lib/firestore';
+import { useParams } from 'next/navigation';
 import {
   CommsPlan,
   CommsMonthTarget,
   Campaign,
-  DEFAULT_LLFF_2026_PLAN,
   LLFF_2025_REFERENCE,
   LLFF_2025_NOTES,
   LLFF_2025_IMPROVEMENTS,
@@ -26,7 +26,8 @@ import {
   monthCoverageStatus,
   intensityColor,
 } from '@/lib/comms-plan-shared';
-import { OrgTeam, OrgTeamMember, DEFAULT_LLFF_TEAMS, DEFAULT_LLFF_TEAM_MEMBERS } from '@/lib/team-shared';
+import { OrgTeam, OrgTeamMember } from '@/lib/team-shared';
+import { getOrgCommsPlan, getOrgTeams, getOrgTeamMembers } from '@/lib/org-defaults';
 
 interface PubLite { id: string; title: string; date: string | null; status: string; }
 
@@ -38,9 +39,10 @@ interface Props {
 type PlanTab = 'overview' | 'campaigns' | 'rhythm' | 'archive';
 
 export default function CommsPlanSection({ onOpenCalendar, onOpenQueue }: Props) {
-  const [rawPlan, setPlan] = useOrgData<CommsPlan>('commsPlan', DEFAULT_LLFF_2026_PLAN);
-  const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', DEFAULT_LLFF_TEAMS);
-  const [teamMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', DEFAULT_LLFF_TEAM_MEMBERS);
+  const orgSlug = (useParams().orgSlug as string) || '';
+  const [rawPlan, setPlan] = useOrgData<CommsPlan>('commsPlan', getOrgCommsPlan(orgSlug));
+  const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
+  const [teamMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const [publications] = useOrgData<PubLite[]>('publications', []);
 
   const plan = useMemo(() => normalizeCommsPlan(rawPlan), [rawPlan]);
@@ -108,8 +110,8 @@ export default function CommsPlanSection({ onOpenCalendar, onOpenQueue }: Props)
               {responsible?.avatar || 'L'}
             </div>
             <span>
-              Vastuussa <strong style={{ color: 'var(--t1)' }}>{responsible?.name || 'Lasse'}</strong>
-              {' '}<span style={{ color: 'var(--t3)' }}>/ {responsibleTeam?.name || 'Viestinnän Tiimi'}</span>
+              Vastuussa <strong style={{ color: 'var(--t1)' }}>{responsible?.name || 'Ei nimetty'}</strong>
+              {' '}<span style={{ color: 'var(--t3)' }}>/ {responsibleTeam?.name || 'Tiimi'}</span>
             </span>
           </div>
 
@@ -220,7 +222,7 @@ export default function CommsPlanSection({ onOpenCalendar, onOpenQueue }: Props)
           { id: 'overview',  label: 'Yleiskuva',  icon: '◉' },
           { id: 'campaigns', label: 'Kampanjat',  icon: '★' },
           { id: 'rhythm',    label: 'Rytmi',      icon: '▶' },
-          { id: 'archive',   label: 'Arkisto',    icon: '◇' },
+          ...(orgSlug === 'llff' ? [{ id: 'archive' as const, label: 'Arkisto', icon: '◇' }] : []),
         ] as const).map(t => (
           <button
             key={t.id}

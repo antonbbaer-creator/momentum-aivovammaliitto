@@ -13,17 +13,18 @@ import {
   phaseStartDate,
   phaseEndDate,
   phaseWithDates,
-  defaultLlffYearwheel,
+  // defaultLlffYearwheel removed — now via org-defaults
 } from '@/lib/yearwheel-shared';
-import { OrgTeam, DEFAULT_LLFF_TEAMS } from '@/lib/team-shared';
+import { useParams } from 'next/navigation';
+import { OrgTeam } from '@/lib/team-shared';
 import {
   CommsPlan,
-  DEFAULT_LLFF_2026_PLAN,
   MONTHS_FI,
   normalizeCommsPlan,
   monthCoverageStatus,
   unifiedChannels,
 } from '@/lib/comms-plan-shared';
+import { getOrgTeams, getOrgCommsPlan, getOrgYearwheel } from '@/lib/org-defaults';
 
 interface CalEvent {
   id: number;
@@ -82,13 +83,14 @@ const statusColors: Record<string, string> = {
 export default function CalendarSection({ phases: propPhases, setPhases: propSetPhases, events: propEvents, setEvents: propSetEvents, mode = 'full', onOpenPublication, onOpenPlan }: Props) {
   const { canEdit } = useAuth();
   const { toast } = useToast();
+  const orgSlug = (useParams().orgSlug as string) || '';
   const [ownEvents, ownSetEvents] = useOrgData<CalEvent[]>('events', []);
-  const [ownRawPhases, ownSetPhases] = useOrgData<YearPhase[]>('yearwheel', defaultLlffYearwheel);
+  const [ownRawPhases, ownSetPhases] = useOrgData<YearPhase[]>('yearwheel', getOrgYearwheel(orgSlug));
   const [org] = useOrgData<any>('org', { channels: [] });
   const [projects] = useOrgData<ProjectLite[]>('projects', []);
-  const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', DEFAULT_LLFF_TEAMS);
+  const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
   const [publications] = useOrgData<PubLite[]>('publications', []);
-  const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', DEFAULT_LLFF_2026_PLAN);
+  const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', getOrgCommsPlan(orgSlug));
   const commsPlan = normalizeCommsPlan(rawCommsPlan);
   const isViestinta = mode === 'viestinta';
 

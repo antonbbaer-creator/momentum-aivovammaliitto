@@ -11,12 +11,13 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { normalizePublication } from '@/lib/publications-shared';
-import { CommsPlan, DEFAULT_LLFF_2026_PLAN, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
+import { CommsPlan, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
+import { getOrgCommsPlan } from '@/lib/org-defaults';
 
 import { workerFetch, WORKER_URL } from '@/lib/worker-fetch';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
@@ -60,15 +61,37 @@ const TEMPLATES: Template[] = [
   { id: 'fb-story',     label: 'FB Story',              w: 1080, h: 1920, platform: 'facebook' },
 ];
 
-// ========== LLFF BRAND KIT (2025 style) ==========
-// Values derived from 2025 Instagram koulutusmateriaali
+// ========== BRAND KITS ==========
 const LLFF_COLORS = [
-  { name: 'Tumma violetti', value: '#3A1E5E' }, // primary — tekstitaustoille
+  { name: 'Tumma violetti', value: '#3A1E5E' },
   { name: 'Syvä violetti',  value: '#2D1248' },
-  { name: 'Pastellipinkki', value: '#FBD1E4' }, // primary light — tekstitaustoille
+  { name: 'Pastellipinkki', value: '#FBD1E4' },
   { name: 'Vaalea pinkki',  value: '#FDE8F0' },
   { name: 'Kerma',          value: '#FEF9E8' },
-  { name: 'Aksentti pinkki', value: '#E8A5C5' }, // subtitle-väri violetilla taustalla
+  { name: 'Aksentti pinkki', value: '#E8A5C5' },
+  { name: 'Tumma',          value: '#1A1A1A' },
+  { name: 'Valkoinen',      value: '#FFFFFF' },
+];
+
+const AVL_COLORS = [
+  { name: 'AVL sininen',    value: '#056b9f' },
+  { name: 'Tumma teal',     value: '#185e5b' },
+  { name: 'AVL keltainen',  value: '#f1b434' },
+  { name: 'AVL pinkki',     value: '#e45c81' },
+  { name: 'Vihreä',         value: '#34d399' },
+  { name: 'Tumma',          value: '#1A1A1A' },
+  { name: 'Valkoinen',      value: '#FFFFFF' },
+  { name: 'Vaalea harmaa',  value: '#F5F5F5' },
+];
+
+const ORG_BRAND_COLORS: Record<string, typeof LLFF_COLORS> = {
+  llff: LLFF_COLORS,
+  avl: AVL_COLORS,
+};
+
+const DEFAULT_BRAND_COLORS = [
+  { name: 'Hetki sininen',  value: '#056b9f' },
+  { name: 'Hetki vihreä',   value: '#185e5b' },
   { name: 'Tumma',          value: '#1A1A1A' },
   { name: 'Valkoinen',      value: '#FFFFFF' },
 ];
@@ -152,8 +175,7 @@ interface MediaFile {
 // Target of media picker: background image OR foreground overlay
 type PickerTarget = 'background' | 'overlay';
 
-// ========== DESIGN PRESETS (based on LLFF 2025 Instagram style) ==========
-// Jokainen preset on osittainen Slide-konfiguraatio joka sovelletaan painalluksella
+// ========== DESIGN PRESETS ==========
 interface Preset {
   id: string;
   label: string;
@@ -161,7 +183,7 @@ interface Preset {
   apply: (base: Slide) => Slide;
 }
 
-const DESIGN_PRESETS: Preset[] = [
+const LLFF_PRESETS: Preset[] = [
   {
     id: 'purple-announcement',
     label: 'Violetti ilmoitus',
@@ -264,37 +286,97 @@ const DESIGN_PRESETS: Preset[] = [
   },
 ];
 
-const blankSlide = (): Slide => ({
-  id: 'slide_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-  bgType: 'color',
-  bgValue: '#3A1E5E', // LLFF 2025 tumma violetti
-  bgOpacity: 0,
-  overlays: [],
-  caption: '',
-  captionColor: '#FFFFFF',
-  captionSizePct: 3.5,
-  captionY: 18,
-  title: 'Lapinlahti Film Festival',
-  titleColor: '#FFFFFF',
-  titleSizePct: 7,
-  titleY: 45,
-  titleAlign: 'center',
-  titleWeight: 700,
-  subtitle: '20.–26.8.2026',
-  subtitleColor: '#E8A5C5',
-  subtitleSizePct: 3.5,
-  subtitleY: 62,
-  subtitleWeight: 500,
-  logoId: 'symbol',
-  logoPos: 'bottom-center',
-  logoSizePct: 18,
-});
+const AVL_PRESETS: Preset[] = [
+  {
+    id: 'avl-blue',
+    label: 'AVL sininen',
+    description: 'Sininen tausta, valkoinen teksti — tietoisuuskampanjoille',
+    apply: (b) => ({
+      ...b,
+      bgType: 'color', bgValue: '#056b9f', bgOpacity: 0,
+      caption: '', captionColor: '#FFFFFF', captionSizePct: 3, captionY: 18,
+      title: 'Otsikko', titleColor: '#FFFFFF', titleSizePct: 7, titleY: 42,
+      titleAlign: 'center', titleWeight: 700,
+      subtitle: '', subtitleColor: '#f1b434', subtitleSizePct: 3.2, subtitleY: 62, subtitleWeight: 500,
+      logoId: 'none', logoPos: 'bottom-center', logoSizePct: 16,
+    }),
+  },
+  {
+    id: 'avl-teal',
+    label: 'AVL teal',
+    description: 'Tumma teal, vaalea teksti — vertaistuki ja yhteiso',
+    apply: (b) => ({
+      ...b,
+      bgType: 'color', bgValue: '#185e5b', bgOpacity: 0,
+      caption: '', captionColor: '#FFFFFF', captionSizePct: 3, captionY: 18,
+      title: 'Otsikko', titleColor: '#FFFFFF', titleSizePct: 7, titleY: 42,
+      titleAlign: 'center', titleWeight: 700,
+      subtitle: '', subtitleColor: '#34d399', subtitleSizePct: 3.2, subtitleY: 62, subtitleWeight: 500,
+      logoId: 'none', logoPos: 'bottom-center', logoSizePct: 16,
+    }),
+  },
+  {
+    id: 'avl-photo',
+    label: 'Kuva + teksti',
+    description: 'Valokuva taustalla, valkoinen teksti — tarinapostauksille',
+    apply: (b) => ({
+      ...b,
+      bgType: 'image', bgValue: b.bgType === 'image' ? b.bgValue : '', bgOpacity: 0.35,
+      caption: '', captionColor: '#FFFFFF', captionSizePct: 3, captionY: 35,
+      title: 'Otsikko', titleColor: '#FFFFFF', titleSizePct: 8, titleY: 50,
+      titleAlign: 'center', titleWeight: 700,
+      subtitle: '', subtitleColor: '#f1b434', subtitleSizePct: 3.5, subtitleY: 64, subtitleWeight: 500,
+      logoId: 'none', logoPos: 'bottom-center', logoSizePct: 14,
+    }),
+  },
+];
+
+const ORG_PRESETS: Record<string, Preset[]> = {
+  llff: LLFF_PRESETS,
+  avl: AVL_PRESETS,
+};
+
+// Org-kohtainen blank slide — ei LLFF-dataa muille
+const ORG_BLANK_DEFAULTS: Record<string, { bg: string; title: string; subtitle: string; subtitleColor: string }> = {
+  llff: { bg: '#3A1E5E', title: 'Lapinlahti Film Festival', subtitle: '20.--26.8.2026', subtitleColor: '#E8A5C5' },
+  avl:  { bg: '#056b9f', title: 'Aivovammaliitto', subtitle: '', subtitleColor: '#f1b434' },
+};
+const GENERIC_BLANK = { bg: '#1A1A1A', title: 'Otsikko', subtitle: '', subtitleColor: '#FFFFFF' };
+
+const blankSlide = (orgSlug?: string): Slide => {
+  const d = ORG_BLANK_DEFAULTS[orgSlug || ''] || GENERIC_BLANK;
+  return {
+    id: 'slide_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    bgType: 'color',
+    bgValue: d.bg,
+    bgOpacity: 0,
+    overlays: [],
+    caption: '',
+    captionColor: '#FFFFFF',
+    captionSizePct: 3.5,
+    captionY: 18,
+    title: d.title,
+    titleColor: '#FFFFFF',
+    titleSizePct: 7,
+    titleY: 45,
+    titleAlign: 'center',
+    titleWeight: 700,
+    subtitle: d.subtitle,
+    subtitleColor: d.subtitleColor,
+    subtitleSizePct: 3.5,
+    subtitleY: 62,
+    subtitleWeight: 500,
+    logoId: 'none',
+    logoPos: 'bottom-center',
+    logoSizePct: 18,
+  };
+};
 
 const blankDesign = (templateId: string = 'ig-portrait'): Design => ({
   id: 'design_' + Date.now(),
   name: 'Uusi suunnitelma',
   templateId,
-  slides: [blankSlide()],
+  slides: [blankSlide()],  // overridden in component with orgSlug
   createdAt: Date.now(),
   updatedAt: Date.now(),
 });
@@ -356,6 +438,7 @@ export default function EditorSection() {
   const { activeOrg, canEdit } = useAuth();
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const orgSlug = (useParams().orgSlug as string) || '';
   // When linked from a Publication (?pubId=pub_123), the Editor operates in "attach" mode:
   // Julkaise-painike päivittää olemassa olevaa Publication-tietuetta eikä luo uutta.
   const linkedPubId = searchParams?.get('pubId') || null;
@@ -366,7 +449,7 @@ export default function EditorSection() {
   const [publications, setPublications] = useOrgData<any[]>('publications', []);
   const [calEvents, setCalEvents] = useOrgData<any[]>('events', []);
   const [org] = useOrgData<any>('org', { channels: [] });
-  const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', DEFAULT_LLFF_2026_PLAN);
+  const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', getOrgCommsPlan(orgSlug));
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Design>(() => blankDesign());
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
@@ -460,7 +543,7 @@ export default function EditorSection() {
       return;
     }
 
-    const baseSlide = blankSlide();
+    const baseSlide = blankSlide(orgSlug);
     const slides: Slide[] = slideUrls.map((url, idx) => ({
       ...baseSlide,
       id: 'slide_' + Date.now() + '_' + idx + '_' + Math.random().toString(36).slice(2, 7),
@@ -521,7 +604,7 @@ export default function EditorSection() {
       const newSlide: Slide = options.duplicate && cur
         ? { ...cur, id: 'slide_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
             overlays: cur.overlays.map(o => ({ ...o, id: 'ov_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7) })) }
-        : blankSlide();
+        : blankSlide(orgSlug);
       return { ...prev, slides: [...prev.slides, newSlide], updatedAt: Date.now() };
     });
     // Switch to the new slide
@@ -893,7 +976,7 @@ export default function EditorSection() {
         return;
       }
     }
-    const defaultTitle = (firstSlide.title || firstSlide.caption || draft.name || 'LLFF-julkaisu').slice(0, 120);
+    const defaultTitle = (firstSlide.title || firstSlide.caption || draft.name || 'Julkaisu').slice(0, 120);
     const defaultBody = [firstSlide.title, firstSlide.subtitle, firstSlide.caption]
       .filter(Boolean)
       .join('\n\n');
@@ -1936,15 +2019,15 @@ export default function EditorSection() {
             </div>
           )}
 
-          {/* =========== BRÄNDI — LLFF colors + logos =========== */}
+          {/* =========== BRÄNDI — org colors + logos =========== */}
           {sidebarTab === 'brand' && (
             <div>
               <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>
-                LLFF-värit
+                Brändivärit
               </div>
-              <div style={{ fontSize: '.6rem', color: 'var(--t3)', marginBottom: '.5rem' }}>Napauta → taustaväri</div>
+              <div style={{ fontSize: '.6rem', color: 'var(--t3)', marginBottom: '.5rem' }}>Napauta = taustaväri</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '.35rem', marginBottom: '1rem' }}>
-                {LLFF_COLORS.map(c => {
+                {(ORG_BRAND_COLORS[orgSlug] || DEFAULT_BRAND_COLORS).map(c => {
                   const active = currentSlide.bgType === 'color' && currentSlide.bgValue === c.value;
                   return (
                     <button
@@ -1969,9 +2052,9 @@ export default function EditorSection() {
               <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>
                 Tekstivärit
               </div>
-              <div style={{ fontSize: '.6rem', color: 'var(--t3)', marginBottom: '.5rem' }}>Napauta → otsikon väri</div>
+              <div style={{ fontSize: '.6rem', color: 'var(--t3)', marginBottom: '.5rem' }}>Napauta = otsikon väri</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '.35rem', marginBottom: '1rem' }}>
-                {LLFF_COLORS.map(c => {
+                {(ORG_BRAND_COLORS[orgSlug] || DEFAULT_BRAND_COLORS).map(c => {
                   const active = currentSlide.titleColor === c.value;
                   return (
                     <button
@@ -2029,7 +2112,7 @@ export default function EditorSection() {
                 Preset-tyylit
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
-                {DESIGN_PRESETS.map(p => (
+                {(ORG_PRESETS[orgSlug] || AVL_PRESETS).map(p => (
                   <button
                     key={p.id}
                     onClick={() => canEdit && mutateSlide(s => p.apply(s))}
@@ -2515,7 +2598,7 @@ export default function EditorSection() {
             LLFF 2025 -tyylit
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.3rem' }}>
-            {DESIGN_PRESETS.map(p => (
+            {(ORG_PRESETS[orgSlug] || AVL_PRESETS).map(p => (
               <button
                 key={p.id}
                 onClick={() => mutateSlide(s => p.apply(s))}
@@ -2550,7 +2633,7 @@ export default function EditorSection() {
           </div>
           {currentSlide.bgType === 'color' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.25rem' }}>
-              {LLFF_COLORS.map(c => (
+              {(ORG_BRAND_COLORS[orgSlug] || DEFAULT_BRAND_COLORS).map(c => (
                 <div key={c.value}
                   onClick={() => update('bgValue', c.value)}
                   title={c.name}

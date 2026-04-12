@@ -27,8 +27,10 @@ import {
   filterByChannel,
   filterByCategory,
 } from '@/lib/publications-shared';
-import { OrgTeam, OrgTeamMember, DEFAULT_LLFF_TEAMS, DEFAULT_LLFF_TEAM_MEMBERS, resolveUserMember } from '@/lib/team-shared';
-import { CommsPlan, DEFAULT_LLFF_2026_PLAN, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
+import { useParams } from 'next/navigation';
+import { OrgTeam, OrgTeamMember, resolveUserMember } from '@/lib/team-shared';
+import { CommsPlan, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
+import { getOrgTeams, getOrgTeamMembers, getOrgCommsPlan } from '@/lib/org-defaults';
 
 interface Props {
   onOpenDetail: (id: string) => void;
@@ -38,11 +40,12 @@ interface Props {
 export default function PublicationQueueSection({ onOpenDetail, onOpenEditor }: Props) {
   const { user, canEdit } = useAuth();
   const { toast } = useToast();
+  const orgSlug = (useParams().orgSlug as string) || '';
   const [rawPubs, setPubs] = useOrgData<any[]>('publications', []);
-  const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', DEFAULT_LLFF_TEAMS);
-  const [teamMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', DEFAULT_LLFF_TEAM_MEMBERS);
+  const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
+  const [teamMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const [org] = useOrgData<any>('org', { channels: [] });
-  const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', DEFAULT_LLFF_2026_PLAN);
+  const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', getOrgCommsPlan(orgSlug));
   const commsPlan = useMemo(() => normalizeCommsPlan(rawCommsPlan), [rawCommsPlan]);
   const availableChannels = useMemo(() => unifiedChannels(commsPlan, org.channels), [commsPlan, org.channels]);
 

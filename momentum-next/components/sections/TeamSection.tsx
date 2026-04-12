@@ -8,16 +8,14 @@ import { useToast } from '@/lib/toast';
 import {
   OrgTeam,
   OrgTeamMember,
-  DEFAULT_LLFF_TEAMS,
-  DEFAULT_LLFF_TEAM_MEMBERS,
 } from '@/lib/team-shared';
 import {
   Grant,
-  LLFF_GRANTS_DEFAULT,
   STATUS_DEFS,
   normalizeGrant,
   daysUntilDeadline,
 } from '@/lib/grants-shared';
+import { getGrantsKey, getOrgGrants, getOrgTeams, getOrgTeamMembers } from '@/lib/org-defaults';
 import ProjectsSection, { Project } from './ProjectsSection';
 
 type TabView = 'overview' | 'members' | 'projects';
@@ -38,10 +36,10 @@ export default function TeamSection() {
   const router = useRouter();
   const params = useParams();
   const orgSlug = (params.orgSlug as string) || '';
-  const [orgTeams, setOrgTeams] = useOrgData<OrgTeam[]>('orgTeams', DEFAULT_LLFF_TEAMS);
-  const [members, setMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', DEFAULT_LLFF_TEAM_MEMBERS);
+  const [orgTeams, setOrgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
+  const [members, setMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const [projects] = useOrgData<Project[]>('projects', []);
-  const [rawGrants] = useOrgData<Grant[]>('llff_grants', LLFF_GRANTS_DEFAULT);
+  const [rawGrants] = useOrgData<Grant[]>(getGrantsKey(orgSlug), getOrgGrants(orgSlug));
   const grants = rawGrants.map(normalizeGrant);
 
   // Helper: kaikki vastuullasi olevat apurahat (jossakin tilassa joka ei ole rejected)
@@ -56,6 +54,49 @@ export default function TeamSection() {
   // null = show team picker overview; otherwise show selected team
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [tabView, setTabView] = useState<TabView>('members');
+
+  // Team form state
+  const [showTeamForm, setShowTeamForm] = useState(false);
+  const [editTeamId, setEditTeamId] = useState<string | null>(null);
+  const [tName, setTName] = useState('');
+  const [tColor, setTColor] = useState('#9b7cf6');
+  const [tIcon, setTIcon] = useState('★');
+  const [tDesc, setTDesc] = useState('');
+
+  const TEAM_COLORS = ['#9b7cf6', '#056b9f', '#185e5b', '#e45c81', '#f1b434', '#f09a52', '#2a8a86', '#6366f1'];
+  const TEAM_ICONS = ['★', '◉', '◈', '▶', '▣', '◇', '○', '●'];
+
+  const openNewTeam = () => {
+    setEditTeamId(null); setTName(''); setTColor('#9b7cf6'); setTIcon('★'); setTDesc('');
+    setShowTeamForm(true);
+  };
+
+  const openEditTeam = (t: OrgTeam) => {
+    setEditTeamId(t.id); setTName(t.name); setTColor(t.color); setTIcon(t.icon); setTDesc(t.description);
+    setShowTeamForm(true);
+  };
+
+  const saveTeam = () => {
+    if (!tName.trim()) return;
+    const team: OrgTeam = {
+      id: editTeamId || 'team_' + Date.now(),
+      name: tName.trim(),
+      color: tColor,
+      icon: tIcon,
+      description: tDesc.trim(),
+    };
+    if (editTeamId) setOrgTeams(prev => prev.map(x => x.id === editTeamId ? { ...x, ...team } : x));
+    else setOrgTeams(prev => [...prev, team]);
+    setShowTeamForm(false);
+    toast(editTeamId ? 'Tiimi paivitetty' : 'Tiimi lisatty', 'success');
+  };
+
+  const removeTeam = (id: string) => {
+    const teamMemCount = members.filter(m => m.teamId === id).length;
+    if (teamMemCount > 0 && !window.confirm(`Tiimissa on ${teamMemCount} jasenta. Poistetaanko silti?`)) return;
+    setOrgTeams(prev => prev.filter(x => x.id !== id));
+    toast('Tiimi poistettu', 'success');
+  };
 
   // Member form state
   const [showMemberForm, setShowMemberForm] = useState(false);
@@ -136,7 +177,13 @@ export default function TeamSection() {
               <p style={{ fontSize: '.85rem', color: 'var(--t2)', marginTop: '.2rem' }}>{selectedTeam.description}</p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '.25rem' }}>
-              <div style={{ fontSize: '.72rem', color: 'var(--t3)' }}>{teamMembers.length} jäsentä · {teamProjects.length} aktiivista projektia</div>
+              <div style={{ fontSize: '.72rem', color: 'var(--t3)' }}>{teamMembers.length} jasenta · {teamProjects.length} aktiivista projektia</div>
+              {canEdit && (
+                <div style={{ display: 'flex', gap: '.3rem' }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => openEditTeam(selectedTeam)} style={{ fontSize: '.68rem' }}>Muokkaa</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => { removeTeam(selectedTeam.id); setSelectedTeamId(null); }} style={{ fontSize: '.68rem', color: 'var(--red)' }}>Poista</button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -315,6 +362,7 @@ export default function TeamSection() {
         )}
 
         {showMemberForm && renderMemberForm()}
+        {showTeamForm && renderTeamForm()}
       </>
     );
   }
@@ -326,7 +374,12 @@ export default function TeamSection() {
         <div style={{ fontSize: '.78rem', color: 'var(--t3)' }}>
           {orgTeams.length} tiimiä · {members.length} jäsentä · {projects.filter(p => !p.archived).length} aktiivista projektia
         </div>
-        {canEdit && <button className="btn btn-primary btn-sm" onClick={() => openNewMember()}>+ Lisää jäsen</button>}
+        {canEdit && (
+          <div style={{ display: 'flex', gap: '.5rem' }}>
+            <button className="btn btn-secondary btn-sm" onClick={openNewTeam}>+ Lisaa tiimi</button>
+            <button className="btn btn-primary btn-sm" onClick={() => openNewMember()}>+ Lisaa jasen</button>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
@@ -424,8 +477,50 @@ export default function TeamSection() {
       </div>
 
       {showMemberForm && renderMemberForm()}
+      {showTeamForm && renderTeamForm()}
     </>
   );
+
+  // --- Team form modal renderer ---
+  function renderTeamForm() {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowTeamForm(false)}>
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 440, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editTeamId ? 'Muokkaa tiimia' : 'Lisaa tiimi'}</h3>
+          <div className="field"><label>Nimi *</label><input className="input" value={tName} onChange={e => setTName(e.target.value)} autoFocus placeholder="Esim. Juhlatiimi" /></div>
+          <div className="field"><label>Kuvaus</label><textarea className="input textarea" value={tDesc} onChange={e => setTDesc(e.target.value)} placeholder="Mita tiimi tekee?" /></div>
+          <div className="field">
+            <label>Vari</label>
+            <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+              {TEAM_COLORS.map(c => (
+                <button key={c} type="button" onClick={() => setTColor(c)} style={{
+                  width: 32, height: 32, borderRadius: '50%', background: c, border: tColor === c ? '3px solid var(--t1)' : '2px solid transparent', cursor: 'pointer',
+                }} />
+              ))}
+            </div>
+          </div>
+          <div className="field">
+            <label>Ikoni</label>
+            <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+              {TEAM_ICONS.map(ic => (
+                <button key={ic} type="button" onClick={() => setTIcon(ic)} style={{
+                  width: 36, height: 36, borderRadius: 'var(--r)', fontSize: '1.1rem',
+                  background: tIcon === ic ? `${tColor}25` : 'var(--elev)',
+                  color: tIcon === ic ? tColor : 'var(--t2)',
+                  border: `1px solid ${tIcon === ic ? tColor : 'var(--border)'}`,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>{ic}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+            <button className="btn btn-ghost" onClick={() => setShowTeamForm(false)}>Peruuta</button>
+            <button className="btn btn-primary" onClick={saveTeam} disabled={!tName.trim()}>Tallenna</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // --- Member form modal renderer ---
   function renderMemberForm() {

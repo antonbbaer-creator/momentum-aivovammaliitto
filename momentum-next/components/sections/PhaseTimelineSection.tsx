@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
 import {
   YearPhase,
@@ -9,9 +10,9 @@ import {
   TEAMS,
   months,
   monthsLong,
-  defaultLlffYearwheel,
   normalizePhase,
 } from '@/lib/yearwheel-shared';
+import { getOrgYearwheel } from '@/lib/org-defaults';
 
 interface Props {
   phases?: YearPhase[];
@@ -19,7 +20,8 @@ interface Props {
 }
 
 export default function PhaseTimelineSection({ phases: propPhases, setPhases: propSet }: Props) {
-  const [ownRaw] = useOrgData<YearPhase[]>('yearwheel', defaultLlffYearwheel);
+  const orgSlug = (useParams().orgSlug as string) || '';
+  const [ownRaw] = useOrgData<YearPhase[]>('yearwheel', getOrgYearwheel(orgSlug));
   const rawPhases = propPhases ?? ownRaw;
   const phases: YearPhase[] = rawPhases.map(normalizePhase);
   const [teamFilter, setTeamFilter] = useState<string>('all');

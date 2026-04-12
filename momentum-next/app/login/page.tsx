@@ -154,10 +154,10 @@ export default function LoginPage() {
           fontFamily: 'var(--font-display)', fontSize: '1.35rem', fontWeight: 400, lineHeight: 1.4, letterSpacing: '0em',
           marginBottom: '1.25rem', maxWidth: 400,
         }}>
-          Projektinhallinnan ja viestinnan strateginen kumppani
+          Projektinhallinnan ja viestinnän strateginen kumppani
         </h1>
         <p style={{ color: 'var(--t2)', fontSize: '1.05rem', fontWeight: 400, lineHeight: 1.7, marginBottom: '2.5rem', maxWidth: 400 }}>
-          Suunnittele, toteuta ja seuraa organisaatiosi projekteja ja viestintaa yhdessa tiimisi kanssa.
+          Suunnittele, toteuta ja seuraa organisaatiosi projekteja ja viestintää yhdessä tiimisi kanssa.
         </p>
 
         {/* Google login */}
