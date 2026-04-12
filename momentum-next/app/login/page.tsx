@@ -97,7 +97,8 @@ export default function LoginPage() {
       document.removeEventListener('visibilitychange', onVisible);
       window.clearInterval(watchdog);
     };
-  }, []);
+    // Re-run when `loading` flips — the videos are unmounted while loading.
+  }, [loading]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,24 +140,24 @@ export default function LoginPage() {
       {/* ═══ LEFT ═══ */}
       <div style={{
         width: 480, flexShrink: 0, display: 'flex', flexDirection: 'column',
-        justifyContent: 'center', padding: '3rem 3.5rem',
+        justifyContent: 'center', padding: '3rem 3.5rem', fontFamily: 'var(--font-display)',
       }}>
         <div style={{ marginBottom: '2.5rem' }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.4rem', fontWeight: 500, letterSpacing: '.04em', textTransform: 'uppercase', marginBottom: '.75rem' }}>Momentum</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', color: 'var(--t3)', fontSize: '.82rem' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 500, letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: '.5rem' }}>Momentum</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', color: 'var(--t3)', fontSize: '.88rem' }}>
             <span>by</span>
-            <img src="/brand/hetki-company-logo-white.png" alt="Hetki Company" style={{ height: 20, opacity: 0.7 }} />
+            <img src="/brand/hetki-company-logo-white.png" alt="Hetki Company" style={{ height: 24, opacity: 0.7 }} />
           </div>
         </div>
 
         <h1 style={{
-          fontSize: '2rem', fontWeight: 800, lineHeight: 1.2, letterSpacing: '-.02em',
-          marginBottom: '1rem', maxWidth: 360,
+          fontFamily: 'var(--font-display)', fontSize: '1.35rem', fontWeight: 400, lineHeight: 1.4, letterSpacing: '0em',
+          marginBottom: '1.25rem', maxWidth: 400,
         }}>
-          Viestinnän suunnittelun strateginen kumppani
+          Projektinhallinnan ja viestinnan strateginen kumppani
         </h1>
-        <p style={{ color: 'var(--t2)', fontSize: '.92rem', lineHeight: 1.7, marginBottom: '2rem', maxWidth: 360 }}>
-          Suunnittele, toteuta ja seuraa organisaatiosi viestintää yhdessä tiimisi kanssa.
+        <p style={{ color: 'var(--t2)', fontSize: '1.05rem', fontWeight: 400, lineHeight: 1.7, marginBottom: '2.5rem', maxWidth: 400 }}>
+          Suunnittele, toteuta ja seuraa organisaatiosi projekteja ja viestintaa yhdessa tiimisi kanssa.
         </p>
 
         {/* Google login */}
@@ -164,7 +165,8 @@ export default function LoginPage() {
           onClick={loginWithGoogle}
           style={{
             background: '#fff', color: '#333', border: '1px solid #ddd',
-            padding: '.85rem 1.5rem', fontSize: '.95rem', fontWeight: 600,
+            padding: '.85rem 1.5rem', fontSize: '.82rem', fontWeight: 500,
+            fontFamily: 'var(--font-display)', letterSpacing: '.04em', textTransform: 'uppercase' as const,
             borderRadius: '10px', cursor: 'pointer', display: 'flex',
             alignItems: 'center', gap: '0.75rem', width: '100%', maxWidth: 360, justifyContent: 'center',
             transition: 'all .2s', boxShadow: '0 2px 8px rgba(0,0,0,.08)',
@@ -204,7 +206,8 @@ export default function LoginPage() {
           <button type="submit" disabled={submitting || !email || !password}
             style={{
               background: 'var(--pri)', color: '#fff', border: 'none',
-              padding: '.85rem 1.5rem', fontSize: '.95rem', fontWeight: 600,
+              padding: '.85rem 1.5rem', fontSize: '.82rem', fontWeight: 500,
+              fontFamily: 'var(--font-display)', letterSpacing: '.04em', textTransform: 'uppercase' as const,
               borderRadius: '10px', cursor: 'pointer', width: '100%',
               opacity: submitting || !email || !password ? 0.5 : 1,
               transition: 'all .2s',

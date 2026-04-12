@@ -5,8 +5,17 @@
 .DS_Store
 ._*
 
-# Large original photos (use thumbs instead)
+# Large media / video files
 media/valokuvat/
+media/LLFF Media/
+media/AVL-Logoeditor/
+VIdeo/
+
+# Dependencies
+node_modules/
+
+# Temp files
+docs/~$*
 
 # IDE
 .vscode/

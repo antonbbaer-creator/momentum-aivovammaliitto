@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hetki Company</title>
+  <link rel="icon" type="image/png" href="assets/logos/Hetki-logo_black.png">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300;1,9..40,400&display=swap" rel="stylesheet">
+  <style>
+    /* ─── FONTS ─── */
+    @font-face {
+      font-family: 'Pitch Sans';
+      src: url('assets/fonts/pitch-sans-regular.woff2') format('woff2');
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Pitch Sans';
+      src: url('assets/fonts/pitch-sans-medium.woff2') format('woff2');
+      font-weight: 500;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    /* ─── VARIABLES ─── */
+    :root {
+      /* Brand colors — 100% */
+      --black: #303030;
+      --blue: #056B9F;
+      --green: #185E5B;
+      --yellow: #F1B434;
+      --pink: #E45C81;
+
+      /* Tints */
+      --black-80: #4F4F4F;
+      --black-60: #313035;
+      --blue-80: #307EA9;
+      --blue-60: #5E9CBD;
+      --green-80: #3D7371;
+      --green-60: #699492;
+      --yellow-80: #F2BB53;
+      --pink-80: #E6728F;
+
+      /* Neutrals */
+      --white: #FFFFFF;
+      --off-white: #F4F4F4;
+      --light-gray: #E7E7E7;
+      --mid-gray: #787878;
+      --dark-gray: #1a1a1a;
+
+      /* Typography */
+      --font-display: 'Pitch Sans', 'DM Sans', monospace;
+      --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
+
+      /* Spacing */
+      --space-xs: 0.5rem;
+      --space-sm: 1rem;
+      --space-md: 2rem;
+      --space-lg: 4rem;
+      --space-xl: 6rem;
+      --space-2xl: 10rem;
+
+      /* Layout */
+      --max-width: 1400px;
+      --gutter: clamp(1.5rem, 4vw, 4rem);
+    }
+
+    /* ─── RESET ─── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-body);
+      background: var(--white);
+      color: var(--black);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+    ::selection { background: var(--blue); color: var(--white); }
+    img { display: block; max-width: 100%; }
+    a { color: inherit; text-decoration: none; }
+    ul { list-style: none; }
+
+    /* ─── UTILITY ─── */
+    .container {
+      width: 100%;
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 var(--gutter);
+    }
+
+    /* ─── NAVIGATION ─── */
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 1.75rem 0;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .nav.scrolled {
+      background: rgba(26, 26, 26, 0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 1rem 0;
+    }
+    .nav-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .nav-logo img {
+      height: 18px;
+      width: auto;
+    }
+    .nav-links {
+      display: flex;
+      gap: 3rem;
+    }
+    .nav-links a {
+      font-family: var(--font-display);
+      font-size: 0.82rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      color: var(--white);
+      text-transform: uppercase;
+      position: relative;
+      transition: opacity 0.3s;
+    }
+    .nav-links a::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      width: 0;
+      height: 1px;
+      background: var(--white);
+      transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .nav-links a:hover::after { width: 100%; }
+    .nav-links a:hover { opacity: 0.8; }
+
+    /* Mobile menu toggle */
+    .nav-toggle {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      width: 32px;
+      height: 20px;
+      position: relative;
+      z-index: 101;
+    }
+    .nav-toggle span {
+      display: block;
+      width: 100%;
+      height: 2px;
+      background: var(--white);
+      position: absolute;
+      left: 0;
+      transition: all 0.3s;
+    }
+    .nav-toggle span:nth-child(1) { top: 0; }
+    .nav-toggle span:nth-child(2) { top: 50%; transform: translateY(-50%); }
+    .nav-toggle span:nth-child(3) { bottom: 0; }
+    .nav-toggle.open span:nth-child(1) { top: 50%; transform: translateY(-50%) rotate(45deg); }
+    .nav-toggle.open span:nth-child(2) { opacity: 0; }
+    .nav-toggle.open span:nth-child(3) { bottom: 50%; transform: translateY(50%) rotate(-45deg); }
+
+    /* ─── HERO ─── */
+    .hero {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      min-height: 700px;
+      overflow: hidden;
+      display: flex;
+      align-items: flex-end;
+    }
+    .hero-media {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+    }
+    .hero-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 30%;
+    }
+    .hero-media::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to bottom,
+        rgba(26,26,26,0.2) 0%,
+        rgba(26,26,26,0.05) 40%,
+        rgba(26,26,26,0.3) 70%,
+        rgba(26,26,26,0.7) 100%
+      );
+    }
+
+    /* H Graphic Element — vertical white bars */
+    .h-element {
+      position: absolute;
+      z-index: 1;
+      background: var(--white);
+    }
+    .h-element--left-top {
+      left: clamp(2rem, 8vw, 10rem);
+      top: 0;
+      width: clamp(40px, 4vw, 65px);
+      height: 35%;
+    }
+    .h-element--left-bottom {
+      left: clamp(2rem, 8vw, 10rem);
+      bottom: 0;
+      width: clamp(40px, 4vw, 65px);
+      height: 38%;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      padding-bottom: var(--space-xl);
+    }
+    .hero-headline {
+      font-family: var(--font-display);
+      font-size: clamp(2.8rem, 7vw, 6rem);
+      font-weight: 500;
+      line-height: 0.95;
+      letter-spacing: -0.02em;
+      color: var(--white);
+      text-transform: uppercase;
+      margin-bottom: var(--space-sm);
+    }
+    .hero-sub {
+      font-family: var(--font-body);
+      font-size: clamp(0.95rem, 1.2vw, 1.15rem);
+      color: rgba(255,255,255,0.7);
+      font-weight: 300;
+      max-width: 500px;
+      line-height: 1.7;
+    }
+
+    /* ─── SECTION SHARED ─── */
+    section {
+      padding: var(--space-xl) 0;
+    }
+    .section-label {
+      font-family: var(--font-display);
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--mid-gray);
+      margin-bottom: var(--space-md);
+    }
+    .section-title {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 4.5vw, 4rem);
+      font-weight: 500;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+      margin-bottom: var(--space-md);
+    }
+
+    /* ─── INTRO STRIP (below hero) ─── */
+    .intro-strip {
+      background: var(--white);
+      padding: var(--space-lg) 0;
+      border-bottom: 1px solid var(--light-gray);
+    }
+    .intro-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+      gap: var(--space-lg);
+      align-items: start;
+    }
+    .intro-headline {
+      font-family: var(--font-display);
+      font-size: clamp(1.4rem, 2.5vw, 2rem);
+      font-weight: 500;
+      line-height: 1.05;
+      letter-spacing: -0.01em;
+      text-transform: uppercase;
+    }
+    .intro-subhead {
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      color: var(--black);
+    }
+    .intro-text {
+      font-size: 0.88rem;
+      line-height: 1.75;
+      color: var(--black-80);
+      font-weight: 300;
+    }
+
+    /* ─── ABOUT ─── */
+    .about {
+      background: var(--black);
+      color: var(--white);
+      padding: var(--space-2xl) 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .about-bg {
+      position: absolute;
+      inset: 0;
+      opacity: 0.35;
+    }
+    .about-bg img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .about .container { position: relative; z-index: 1; }
+    .about .section-label { color: var(--blue-60); }
+    .about-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-xl);
+      align-items: center;
+    }
+    .about-text p {
+      font-size: clamp(1rem, 1.3vw, 1.2rem);
+      line-height: 1.8;
+      font-weight: 300;
+      color: rgba(255,255,255,0.8);
+      margin-bottom: var(--space-md);
+    }
+    .about-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-md);
+      margin-top: var(--space-lg);
+    }
+    .stat-item {}
+    .stat-number {
+      font-family: var(--font-display);
+      font-size: 3rem;
+      font-weight: 500;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+    .stat-label {
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.5);
+      font-weight: 400;
+      margin-top: 0.3rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .about-visual {
+      position: relative;
+    }
+    .about-visual img {
+      width: 100%;
+      aspect-ratio: 3/4;
+      object-fit: cover;
+    }
+    .about-visual .h-element-accent {
+      position: absolute;
+      right: -2rem;
+      top: 10%;
+      width: 50px;
+      height: 45%;
+      background: var(--blue);
+    }
+
+    /* ─── WORK GRID ─── */
+    .work {
+      background: var(--white);
+      padding: var(--space-2xl) 0;
+    }
+    .work-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+    }
+    .work-item {
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      aspect-ratio: 4/3;
+    }
+    .work-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .work-item:hover img {
+      transform: scale(1.05);
+    }
+    .work-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(5, 107, 159, 0.0);
+      display: flex;
+      align-items: flex-end;
+      padding: 1.5rem;
+      transition: background 0.5s;
+    }
+    .work-item:hover .work-overlay {
+      background: rgba(5, 107, 159, 0.7);
+    }
+    .work-info {
+      transform: translateY(20px);
+      opacity: 0;
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .work-item:hover .work-info {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    .work-info h3 {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: var(--white);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .work-info p {
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.7);
+      font-weight: 300;
+      margin-top: 0.25rem;
+    }
+
+    /* Large featured work item */
+    .work-item--large {
+      grid-column: span 2;
+      grid-row: span 2;
+      aspect-ratio: auto;
+    }
+
+    /* ─── SERVICES ─── */
+    .services {
+      background: var(--off-white);
+      padding: var(--space-2xl) 0;
+      position: relative;
+    }
+    .services-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: var(--space-xl);
+    }
+    .services-header .section-title { margin-bottom: 0; }
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--light-gray);
+    }
+    .service-card {
+      background: var(--off-white);
+      padding: var(--space-lg) var(--space-md);
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .service-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .service-card:nth-child(1)::before { background: var(--blue); }
+    .service-card:nth-child(2)::before { background: var(--green); }
+    .service-card:nth-child(3)::before { background: var(--yellow); }
+    .service-card:nth-child(4)::before { background: var(--pink); }
+    .service-card:nth-child(5)::before { background: var(--blue); }
+    .service-card:nth-child(6)::before { background: var(--green); }
+    .service-card:hover::before { transform: scaleX(1); }
+    .service-card:hover { background: var(--white); }
+    .service-number {
+      font-family: var(--font-display);
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--mid-gray);
+      letter-spacing: 0.06em;
+      margin-bottom: var(--space-md);
+    }
+    .service-card h3 {
+      font-family: var(--font-display);
+      font-size: 1.3rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: -0.01em;
+      margin-bottom: var(--space-sm);
+    }
+    .service-card p {
+      font-size: 0.88rem;
+      line-height: 1.7;
+      color: var(--mid-gray);
+      font-weight: 300;
+    }
+
+    /* ─── FILM SECTION ─── */
+    .film {
+      background: var(--black);
+      color: var(--white);
+      padding: var(--space-2xl) 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .film-bg {
+      position: absolute;
+      inset: 0;
+      opacity: 0.2;
+    }
+    .film-bg img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .film .container { position: relative; z-index: 1; }
+    .film .section-label { color: var(--pink-80); }
+    .film-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-xl);
+      align-items: center;
+    }
+    .film-logo img {
+      height: 24px;
+      width: auto;
+      margin-bottom: var(--space-md);
+      opacity: 0.9;
+    }
+    .film-text h2 {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 4vw, 3.5rem);
+      font-weight: 500;
+      text-transform: uppercase;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      margin-bottom: var(--space-md);
+    }
+    .film-text p {
+      font-size: 1rem;
+      line-height: 1.8;
+      color: rgba(255,255,255,0.7);
+      font-weight: 300;
+      max-width: 480px;
+    }
+    .film-visual {
+      position: relative;
+    }
+    .film-visual img {
+      width: 100%;
+      aspect-ratio: 16/9;
+      object-fit: cover;
+    }
+    .film-visual::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .play-btn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 72px;
+      height: 72px;
+      border: 2px solid rgba(255,255,255,0.6);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      background: rgba(0,0,0,0.3);
+      backdrop-filter: blur(8px);
+    }
+    .play-btn:hover {
+      border-color: var(--white);
+      transform: translate(-50%, -50%) scale(1.1);
+      background: rgba(228, 92, 129, 0.4);
+    }
+    .play-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: var(--white);
+      margin-left: 3px;
+    }
+
+    /* ─── CONTACT ─── */
+    .contact {
+      background: var(--white);
+      padding: var(--space-2xl) 0;
+    }
+    .contact-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-xl);
+    }
+    .contact-info h3 {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: var(--space-sm);
+      margin-top: var(--space-lg);
+    }
+    .contact-info h3:first-child { margin-top: 0; }
+    .contact-info p,
+    .contact-info a {
+      font-size: 0.92rem;
+      line-height: 1.8;
+      color: var(--mid-gray);
+      font-weight: 300;
+    }
+    .contact-info a {
+      border-bottom: 1px solid var(--light-gray);
+      transition: border-color 0.3s, color 0.3s;
+    }
+    .contact-info a:hover {
+      color: var(--blue);
+      border-color: var(--blue);
+    }
+
+    /* ─── FOOTER ─── */
+    .footer {
+      background: var(--black);
+      color: var(--white);
+      padding: var(--space-lg) 0;
+      position: relative;
+    }
+    .footer::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--blue), var(--green), var(--yellow), var(--pink));
+    }
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .footer-logo img {
+      height: 14px;
+      width: auto;
+      opacity: 0.6;
+    }
+    .footer-copy {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.35);
+      font-weight: 300;
+      letter-spacing: 0.04em;
+    }
+    .footer-links {
+      display: flex;
+      gap: 2rem;
+    }
+    .footer-links a {
+      font-family: var(--font-display);
+      font-size: 0.72rem;
+      font-weight: 400;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      transition: color 0.3s;
+    }
+    .footer-links a:hover { color: var(--white); }
+
+    /* ─── COLOR BAND ─── */
+    .color-band {
+      display: flex;
+      height: 6px;
+    }
+    .color-band span { flex: 1; }
+
+    /* ─── CTA BUTTON ─── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-family: var(--font-display);
+      font-size: 0.82rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 1rem 2rem;
+      border: 1px solid currentColor;
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      color: inherit;
+    }
+    .btn:hover {
+      background: var(--white);
+      color: var(--black);
+      border-color: var(--white);
+    }
+    .btn--filled {
+      background: var(--blue);
+      color: var(--white);
+      border-color: var(--blue);
+    }
+    .btn--filled:hover {
+      background: var(--white);
+      color: var(--blue);
+    }
+    .btn--dark:hover {
+      background: var(--black);
+      color: var(--white);
+      border-color: var(--black);
+    }
+    .btn svg {
+      width: 14px;
+      height: 14px;
+      transition: transform 0.3s;
+    }
+    .btn:hover svg { transform: translateX(4px); }
+
+    /* ─── SCROLL REVEAL ─── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 1024px) {
+      .intro-grid { grid-template-columns: 1fr 1fr; gap: var(--space-md); }
+      .about-grid { grid-template-columns: 1fr; gap: var(--space-lg); }
+      .work-grid { grid-template-columns: repeat(2, 1fr); }
+      .work-item--large { grid-column: span 2; grid-row: span 1; }
+      .services-grid { grid-template-columns: repeat(2, 1fr); }
+      .film-content { grid-template-columns: 1fr; gap: var(--space-lg); }
+      .contact-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .nav-links.open {
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        inset: 0;
+        background: rgba(26,26,26,0.97);
+        backdrop-filter: blur(20px);
+        align-items: center;
+        justify-content: center;
+        gap: 2.5rem;
+        z-index: 100;
+      }
+      .nav-links.open a { font-size: 1.5rem; }
+      .nav-toggle { display: block; }
+
+      .hero { min-height: 600px; }
+      .h-element--left-top,
+      .h-element--left-bottom {
+        left: 1rem;
+        width: 30px;
+      }
+      .intro-grid { grid-template-columns: 1fr; }
+      .work-grid { grid-template-columns: 1fr; }
+      .work-item--large { grid-column: span 1; }
+      .services-grid { grid-template-columns: 1fr; }
+      .services-header { flex-direction: column; align-items: flex-start; gap: var(--space-md); }
+      .about-stats { grid-template-columns: 1fr 1fr; gap: var(--space-sm); }
+
+      .footer-inner { flex-direction: column; gap: var(--space-md); text-align: center; }
+      .footer-links { gap: 1.5rem; }
+    }
+
+    @media (max-width: 480px) {
+      .hero-headline { font-size: 2.2rem; }
+      .about-stats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ════ NAVIGATION ════ -->
+  <nav class="nav" id="nav">
+    <div class="container nav-inner">
+      <a href="#" class="nav-logo">
+        <img src="assets/logos/Hetki-Company-logo_white.png" alt="Hetki Company">
+      </a>
+      <div class="nav-links" id="navLinks">
+        <a href="#about">About</a>
+        <a href="#work">Work</a>
+        <a href="#film">Film</a>
+        <a href="#contact">Contact</a>
+      </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ════ HERO ════ -->
+  <section class="hero">
+    <div class="hero-media">
+      <img src="assets/photos/hero-1.jpg" alt="Hetki Company">
+    </div>
+    <div class="h-element h-element--left-top"></div>
+    <div class="h-element h-element--left-bottom"></div>
+    <div class="hero-content">
+      <div class="container">
+        <h1 class="hero-headline">We Create<br>Moments</h1>
+        <p class="hero-sub">Creative production studio for brands that want to stand out. Strategy, content and film.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ INTRO STRIP ════ -->
+  <div class="intro-strip">
+    <div class="container">
+      <div class="intro-grid">
+        <div class="intro-headline">
+          Creative<br>Studio
+        </div>
+        <div class="intro-subhead">
+          Strategy &amp; Brand
+        </div>
+        <div class="intro-text">
+          Hetki Company on luova tuotantostudio, joka yhdistää strategisen ajattelun ja visuaalisen tarinankerronnan. Autamme brändejä löytämään oman äänensä ja luomaan merkityksellisiä hetkiä.
+        </div>
+        <div class="intro-text">
+          Tuotamme korkealaatuista sisältöä mainontaan, dokumentteihin ja brändiviestintään. Jokainen projekti alkaa ymmärryksestä ja päättyy vaikutukseen.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ COLOR BAND ════ -->
+  <div class="color-band">
+    <span style="background:var(--blue)"></span>
+    <span style="background:var(--green)"></span>
+    <span style="background:var(--yellow)"></span>
+    <span style="background:var(--pink)"></span>
+    <span style="background:var(--black)"></span>
+  </div>
+
+  <!-- ════ ABOUT ════ -->
+  <section class="about" id="about">
+    <div class="about-bg">
+      <img src="assets/textures/Hetki-Company_texture_black.jpg" alt="">
+    </div>
+    <div class="container">
+      <div class="section-label reveal">About</div>
+      <div class="about-grid">
+        <div class="about-text">
+          <h2 class="section-title reveal" style="color:var(--white)">Luova voima<br>muutoksen<br>takana</h2>
+          <p class="reveal reveal-delay-1">Hetki Company on turkulainen luova tuotantostudio, joka uskoo tarinoiden voimaan. Yhdistämme strategisen ajattelun ja visuaalisen tarinankerronnan luodaksemme sisältöä, joka resonoi ja jää mieleen.</p>
+          <p class="reveal reveal-delay-2">Tiimimme koostuu kokeneista tekijöistä, jotka hallitsevat kaiken konseptoinnista toteutukseen. Olemme erikoistuneet brändistrategiaan, sisällöntuotantoon ja elokuvatuotantoon.</p>
+          <div class="about-stats reveal reveal-delay-3">
+            <div class="stat-item">
+              <div class="stat-number" style="color:var(--blue)">50+</div>
+              <div class="stat-label">Projektia</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-number" style="color:var(--green)">12</div>
+              <div class="stat-label">Vuotta kokemusta</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-number" style="color:var(--yellow)">30+</div>
+              <div class="stat-label">Asiakasta</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-number" style="color:var(--pink)">5</div>
+              <div class="stat-label">Palkintoa</div>
+            </div>
+          </div>
+        </div>
+        <div class="about-visual reveal reveal-delay-2">
+          <img src="assets/photos/hero-2.jpg" alt="Hetki Team">
+          <div class="h-element-accent"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ WORK ════ -->
+  <section class="work" id="work">
+    <div class="container">
+      <div class="section-label reveal">Selected Work</div>
+      <h2 class="section-title reveal">Projektit</h2>
+    </div>
+    <div class="container" style="max-width:1600px;padding:0">
+      <div class="work-grid reveal reveal-delay-1">
+        <div class="work-item work-item--large">
+          <img src="assets/photos/work-1.jpg" alt="Project">
+          <div class="work-overlay">
+            <div class="work-info">
+              <h3>Vertu Helsinki</h3>
+              <p>Dokumenttielokuva &amp; kampanja</p>
+            </div>
+          </div>
+        </div>
+        <div class="work-item">
+          <img src="assets/photos/work-2.jpg" alt="Project">
+          <div class="work-overlay">
+            <div class="work-info">
+              <h3>Brand Identity</h3>
+              <p>Visuaalinen identiteetti</p>
+            </div>
+          </div>
+        </div>
+        <div class="work-item">
+          <img src="assets/photos/work-3.jpg" alt="Project">
+          <div class="work-overlay">
+            <div class="work-info">
+              <h3>Campaign Film</h3>
+              <p>Lyhytelokuva</p>
+            </div>
+          </div>
+        </div>
+        <div class="work-item">
+          <img src="assets/photos/work-4.jpg" alt="Project">
+          <div class="work-overlay">
+            <div class="work-info">
+              <h3>Social Content</h3>
+              <p>Sisältöstrategia &amp; tuotanto</p>
+            </div>
+          </div>
+        </div>
+        <div class="work-item">
+          <img src="assets/photos/work-5.jpg" alt="Project">
+          <div class="work-overlay">
+            <div class="work-info">
+              <h3>Photography</h3>
+              <p>Editoriaalinen kuvaus</p>
+            </div>
+          </div>
+        </div>
+        <div class="work-item">
+          <img src="assets/photos/work-6.jpg" alt="Project">
+          <div class="work-overlay">
+            <div class="work-info">
+              <h3>Event Production</h3>
+              <p>Tapahtumadokumentointi</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ SERVICES ════ -->
+  <section class="services" id="services">
+    <div class="container">
+      <div class="services-header">
+        <div>
+          <div class="section-label reveal">What We Do</div>
+          <h2 class="section-title reveal">Palvelut</h2>
+        </div>
+        <a href="#contact" class="btn btn--dark reveal">
+          Aloitetaan projekti
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+      <div class="services-grid reveal reveal-delay-1">
+        <div class="service-card">
+          <div class="service-number">01</div>
+          <h3>Brand Strategy</h3>
+          <p>Brändistrategia, positiointi ja visuaalinen identiteetti, joka erottaa sinut kilpailijoista.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-number">02</div>
+          <h3>Content Production</h3>
+          <p>Korkealaatuista sisältöä kaikille kanaville: valokuvaus, video, grafiikka ja teksti.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-number">03</div>
+          <h3>Film &amp; Documentary</h3>
+          <p>Dokumenttielokuvat, kampanjafilmit ja bränditarinat, jotka koskettavat ja inspiroivat.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-number">04</div>
+          <h3>Digital Design</h3>
+          <p>Verkkosivut, sovellukset ja digitaaliset kokemukset, jotka toimivat ja näyttävät hyvältä.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-number">05</div>
+          <h3>Campaign Planning</h3>
+          <p>Kampanjasuunnittelu ja mediastrategia, joka tavoittaa oikean yleisön oikeaan aikaan.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-number">06</div>
+          <h3>Event &amp; Live</h3>
+          <p>Tapahtumatuotanto ja live-dokumentointi, joka tallentaa merkitykselliset hetket.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ FILM ════ -->
+  <section class="film" id="film">
+    <div class="film-bg">
+      <img src="assets/textures/Hetki-Company_texture_black&pink.jpg" alt="">
+    </div>
+    <div class="container">
+      <div class="section-label reveal">Film Division</div>
+      <div class="film-content">
+        <div class="film-text reveal">
+          <div class="film-logo">
+            <img src="assets/logos/Hetki-Company-Film-logo_white.png" alt="Hetki Film Company">
+          </div>
+          <h2>Tarinoita<br>jotka<br>liikuttavat</h2>
+          <p>Hetki Film Company on elokuvatuotantoon erikoistunut yksikkömme. Tuotamme dokumenttielokuvia, lyhytelokuvia ja kampanjafilmejä, joissa yhdistyvät visuaalinen laatu ja aito kerronta.</p>
+          <div style="margin-top:var(--space-md)">
+            <a href="#contact" class="btn" style="color:var(--white)">
+              Katso showreel
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+          </div>
+        </div>
+        <div class="film-visual reveal reveal-delay-2">
+          <img src="assets/photos/hero-3.jpg" alt="Film Production">
+          <div class="play-btn">
+            <svg viewBox="0 0 24 24"><polygon points="8,5 20,12 8,19"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ CONTACT ════ -->
+  <section class="contact" id="contact">
+    <div class="container">
+      <div class="section-label reveal">Get in Touch</div>
+      <h2 class="section-title reveal">Ota yhteyttä</h2>
+      <div class="contact-grid">
+        <div class="contact-info reveal reveal-delay-1">
+          <h3>Studio</h3>
+          <p>Hetki Company Oy<br>Turku, Finland</p>
+          <h3>Email</h3>
+          <p><a href="mailto:hello@hetkicompany.fi">hello@hetkicompany.fi</a></p>
+          <h3>Social</h3>
+          <p>
+            <a href="#">Instagram</a> &nbsp;/&nbsp;
+            <a href="#">LinkedIn</a> &nbsp;/&nbsp;
+            <a href="#">Vimeo</a>
+          </p>
+        </div>
+        <div class="reveal reveal-delay-2">
+          <p style="font-size:clamp(1.2rem,2vw,1.6rem);line-height:1.6;font-weight:300;color:var(--black-80)">
+            Kerro meille projektistasi. Aloitetaan luomalla jotain merkityksellistä yhdessä.
+          </p>
+          <div style="margin-top:var(--space-md)">
+            <a href="mailto:hello@hetkicompany.fi" class="btn btn--filled">
+              Lähetä viesti
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ COLOR BAND ════ -->
+  <div class="color-band">
+    <span style="background:var(--blue)"></span>
+    <span style="background:var(--green)"></span>
+    <span style="background:var(--yellow)"></span>
+    <span style="background:var(--pink)"></span>
+    <span style="background:var(--black)"></span>
+  </div>
+
+  <!-- ════ FOOTER ════ -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <a href="#" class="footer-logo">
+        <img src="assets/logos/Hetki-Company-logo_white.png" alt="Hetki Company">
+      </a>
+      <div class="footer-copy">&copy; 2025 Hetki Company Oy</div>
+      <div class="footer-links">
+        <a href="#about">About</a>
+        <a href="#work">Work</a>
+        <a href="#film">Film</a>
+        <a href="#contact">Contact</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // ─── Nav scroll effect ───
+    const nav = document.getElementById('nav');
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('scrolled', window.scrollY > 80);
+    });
+
+    // ─── Mobile menu ───
+    const toggle = document.getElementById('navToggle');
+    const links = document.getElementById('navLinks');
+    toggle.addEventListener('click', () => {
+      toggle.classList.toggle('open');
+      links.classList.toggle('open');
+    });
+    links.querySelectorAll('a').forEach(a => {
+      a.addEventListener('click', () => {
+        toggle.classList.remove('open');
+        links.classList.remove('open');
+      });
+    });
+
+    // ─── Scroll reveal ───
+    const reveals = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -60px 0px' });
+    reveals.forEach(el => observer.observe(el));
+
+    // ─── Smooth scroll ───
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        const target = document.querySelector(a.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+  </script>
+</body>
+</html>
