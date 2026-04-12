@@ -358,7 +358,7 @@ export default function ChatFAB() {
                 style={{ flex: 1, fontSize: '.88rem' }}
                 disabled={loading}
               />
-              <button onClick={sendMessage} disabled={!input.trim() || loading} style={{
+              <button onClick={() => sendMessage()} disabled={!input.trim() || loading} style={{
                 background: 'var(--pri)', color: '#fff', border: 'none',
                 borderRadius: 'var(--r)', padding: '.5rem 1rem', fontSize: '.85rem',
                 fontWeight: 600, cursor: 'pointer', opacity: !input.trim() || loading ? .5 : 1,
