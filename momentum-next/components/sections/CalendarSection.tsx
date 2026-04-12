@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import { useIsMobile } from '@/lib/use-mobile';
 import {
   YearPhase,
   TEAMS,
@@ -83,6 +84,7 @@ const statusColors: Record<string, string> = {
 export default function CalendarSection({ phases: propPhases, setPhases: propSetPhases, events: propEvents, setEvents: propSetEvents, mode = 'full', onOpenPublication, onOpenPlan }: Props) {
   const { canEdit } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const orgSlug = (useParams().orgSlug as string) || '';
   const [ownEvents, ownSetEvents] = useOrgData<CalEvent[]>('events', []);
   const [ownRawPhases, ownSetPhases] = useOrgData<YearPhase[]>('yearwheel', getOrgYearwheel(orgSlug));
@@ -613,7 +615,7 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
       {/* Event form modal */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 420, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '2rem', width: isMobile ? '100%' : 420, maxWidth: isMobile ? '100%' : '90vw', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? '100%' : '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa tapahtumaa' : 'Uusi tapahtuma'}</h3>
             <div className="field"><label>Otsikko *</label><input className="input" value={formTitle} onChange={e => setFormTitle(e.target.value)} autoFocus /></div>
             <div className="field"><label>Päivämäärä *</label><input type="date" className="input" value={formDate} onChange={e => setFormDate(e.target.value)} /></div>

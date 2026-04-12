@@ -12,6 +12,7 @@ import { useParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import { useIsMobile } from '@/lib/use-mobile';
 import {
   Grant,
   GrantStatus,
@@ -47,6 +48,7 @@ export default function GrantsSection() {
   const { canEdit } = useAuth();
   const { toast } = useToast();
   const orgSlug = (useParams().orgSlug as string) || '';
+  const isMobile = useIsMobile();
   const [rawGrants, setGrants] = useOrgData<Grant[]>(getGrantsKey(orgSlug), getOrgGrants(orgSlug));
   const [rawSettings, setSettings] = useOrgData<GrantsSettings>(getGrantsSettingsKey(orgSlug), getOrgGrantsSettings(orgSlug));
   const [members] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
@@ -422,7 +424,7 @@ export default function GrantsSection() {
     const ringRadii = [outerR - 30, outerR - 70, outerR - 110];
 
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) minmax(280px, 360px)', gap: '1.25rem', alignItems: 'start' }} className="grants-grid">
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(320px, 1fr) minmax(280px, 360px)', gap: '1.25rem', alignItems: 'start' }} className="grants-grid">
         {/* WHEEL */}
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1rem', display: 'flex', justifyContent: 'center' }}>
           <svg width={wheelSize} height={wheelSize} style={{ maxWidth: '100%', height: 'auto' }}>
@@ -572,7 +574,7 @@ export default function GrantsSection() {
   const renderStatus = () => {
     const cols: GrantStatus[] = ['confirmed', 'applied', 'planning', 'rejected'];
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.75rem' }} className="grants-status-grid">
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: '.75rem' }} className="grants-status-grid">
         {cols.map(st => {
           const def = STATUS_DEFS[st];
           const colGrants = yearGrants.filter(g => g.status === st).sort((a, b) => (b.amount || 0) - (a.amount || 0));
@@ -783,7 +785,7 @@ export default function GrantsSection() {
     const days = daysUntilDeadline(selected);
     return (
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setSelectedId(null)}>
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.75rem', width: 560, maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '1.75rem', width: isMobile ? '100%' : 560, maxWidth: isMobile ? '100%' : '92vw', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? '100%' : '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
           <button className="btn btn-ghost" onClick={() => setSelectedId(null)} style={{ marginBottom: '.75rem', fontSize: '.7rem' }}>← Sulje</button>
 
           <div style={{ marginBottom: '1rem' }}>
@@ -798,7 +800,7 @@ export default function GrantsSection() {
 
           {/* Details grid */}
           <div style={{ background: 'var(--elev)', borderRadius: 'var(--r)', padding: '1rem', marginBottom: '1rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
               <div>
                 <div style={{ fontSize: '.6rem', color: 'var(--t3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em' }}>Summa</div>
                 <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--t1)', marginTop: '.15rem' }}>
@@ -894,7 +896,7 @@ export default function GrantsSection() {
     if (!showForm) return null;
     return (
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.75rem', width: 560, maxWidth: '92vw', maxHeight: '92vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '1.75rem', width: isMobile ? '100%' : 560, maxWidth: isMobile ? '100%' : '92vw', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? '100%' : '92vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa apurahaa' : 'Lisää apuraha'}</h3>
 
           <div className="field">
@@ -914,12 +916,12 @@ export default function GrantsSection() {
               ))}
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
             <div className="field"><label>Rahoittaja *</label><input className="input" value={fFunder} onChange={e => setFFunder(e.target.value)} placeholder="Esim. Koneen Säätiö" autoFocus /></div>
             <div className="field"><label>Apurahan nimi *</label><input className="input" value={fName} onChange={e => setFName(e.target.value)} placeholder="Esim. Toiminta-apuraha" /></div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
             <div className="field"><label>Summa (€)</label><input type="number" className="input" value={fAmount} onChange={e => setFAmount(e.target.value)} placeholder="50000" /></div>
             <div className="field"><label>Summa-teksti</label><input className="input" value={fAmountText} onChange={e => setFAmountText(e.target.value)} placeholder="Esim. 5–50k €" /></div>
           </div>
@@ -990,12 +992,12 @@ export default function GrantsSection() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
             <div className="field"><label>Deadline (päivä)</label><input type="date" className="input" value={fDeadline} onChange={e => setFDeadline(e.target.value)} /></div>
             <div className="field"><label>Deadline-teksti</label><input className="input" value={fDeadlineText} onChange={e => setFDeadlineText(e.target.value)} placeholder="Esim. 31.1.2026 klo 16" /></div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
             <div className="field"><label>Päätöspäivä</label><input className="input" value={fDecision} onChange={e => setFDecision(e.target.value)} placeholder="Esim. Toukokuu 2026" /></div>
             <div className="field">
               <label>Vastuuhenkilö</label>

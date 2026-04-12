@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import { useIsMobile } from '@/lib/use-mobile';
 import {
   YearPhase,
   YearTask,
@@ -43,6 +44,7 @@ export default function YearwheelSection({ phases: propPhases, setPhases: propSe
   const { canEdit } = useAuth();
   const { toast } = useToast();
   const orgSlug = (useParams().orgSlug as string) || '';
+  const isMobile = useIsMobile();
   const [ownRaw, ownSet] = useOrgData<YearPhase[]>('yearwheel', getOrgYearwheel(orgSlug));
   const [projects] = useOrgData<ProjectLite[]>('projects', []);
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
@@ -441,7 +443,7 @@ export default function YearwheelSection({ phases: propPhases, setPhases: propSe
       </div>
 
       {/* Wheel + side legend layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) minmax(280px, 360px)', gap: '1.25rem', alignItems: 'start' }} className="yearwheel-grid">
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(320px, 1fr) minmax(280px, 360px)', gap: '1.25rem', alignItems: 'start' }} className="yearwheel-grid">
         {/* === WHEEL === */}
         <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)' }}>
           <svg width={wheelSize} height={wheelSize} style={{ maxWidth: '100%', height: 'auto' }}>
@@ -638,11 +640,11 @@ export default function YearwheelSection({ phases: propPhases, setPhases: propSe
     if (!showForm) return null;
     return (
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 520, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '2rem', width: isMobile ? '100%' : 520, height: isMobile ? '100%' : 'auto', maxWidth: isMobile ? '100%' : '90vw', maxHeight: isMobile ? '100%' : '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa vaihetta' : 'Lisää vaihe'}</h3>
           <div className="field"><label>Nimi *</label><input className="input" value={formName} onChange={e => setFormName(e.target.value)} autoFocus /></div>
           <div className="field"><label>Kuvaus</label><textarea className="input textarea" value={formDesc} onChange={e => setFormDesc(e.target.value)} /></div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
             <div className="field"><label>Alkukuukausi</label>
               <select className="input" value={formStart} onChange={e => setFormStart(e.target.value)}>
                 {monthsLong.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}

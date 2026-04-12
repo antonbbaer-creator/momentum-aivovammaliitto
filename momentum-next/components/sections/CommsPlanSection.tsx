@@ -14,6 +14,7 @@
 import { useMemo, useState } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useParams } from 'next/navigation';
+import { useIsMobile } from '@/lib/use-mobile';
 import {
   CommsPlan,
   CommsMonthTarget,
@@ -40,6 +41,7 @@ type PlanTab = 'overview' | 'campaigns' | 'rhythm' | 'archive';
 
 export default function CommsPlanSection({ onOpenCalendar, onOpenQueue }: Props) {
   const orgSlug = (useParams().orgSlug as string) || '';
+  const isMobile = useIsMobile();
   const [rawPlan, setPlan] = useOrgData<CommsPlan>('commsPlan', getOrgCommsPlan(orgSlug));
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
   const [teamMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
@@ -155,7 +157,7 @@ export default function CommsPlanSection({ onOpenCalendar, onOpenQueue }: Props)
         <div style={{ fontSize: '.7rem', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--t3)', marginBottom: '.6rem' }}>
           KUUKAUSIMUISTUTUS
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '.75rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))', gap: '.75rem' }}>
           {[thisCoverage, nextCoverage].map((cov, idx) => {
             const monthLabel = MONTHS_FI[(idx === 0 ? thisMonth : nextMonth) - 1];
             const yearLabel = idx === 0 ? thisYear : nextYear;
@@ -247,6 +249,7 @@ export default function CommsPlanSection({ onOpenCalendar, onOpenQueue }: Props)
 // TAB 1: Yleiskuva — missio, strategiset siirrot, KPI:t, yleisö, pilarit
 // ============================================================
 function OverviewTab({ plan }: { plan: CommsPlan }) {
+  const isMobile = useIsMobile();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       {/* === KOLME STRATEGISTA SIIRTOA === */}
@@ -254,7 +257,7 @@ function OverviewTab({ plan }: { plan: CommsPlan }) {
         <div style={{ fontSize: '.7rem', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--t3)', marginBottom: '.6rem' }}>
           KOLME STRATEGISTA SIIRTOA {plan.year}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '.85rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))', gap: '.85rem' }}>
           {plan.strategicMoves.map(move => (
             <div key={move.id} className="card" style={{
               padding: '1.1rem 1.25rem',
@@ -362,6 +365,7 @@ function OverviewTab({ plan }: { plan: CommsPlan }) {
 // TAB 2: Kampanjat — 12 kampanjaa ryhmiteltynä vuosikellon vaiheisiin
 // ============================================================
 function CampaignsTab({ plan }: { plan: CommsPlan }) {
+  const isMobile = useIsMobile();
   const [openPhase, setOpenPhase] = useState<string | null>('phase-3');
 
   const campaignTypeColor: Record<string, string> = {
@@ -448,7 +452,7 @@ function CampaignsTab({ plan }: { plan: CommsPlan }) {
                 {phaseCampaigns.length === 0 ? (
                   <div style={{ fontSize: '.72rem', color: 'var(--t3)', padding: '.4rem 0' }}>Ei kampanjoita tässä vaiheessa.</div>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '.6rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))', gap: '.6rem' }}>
                     {phaseCampaigns.map(c => {
                       const color = campaignTypeColor[c.type] || 'var(--pri-l)';
                       return (
@@ -518,6 +522,7 @@ function RhythmTab({
   publications: PubLite[];
   onSave: (next: CommsPlan) => void;
 }) {
+  const isMobile = useIsMobile();
   const [editMode, setEditMode] = useState(false);
   const [drafts, setDrafts] = useState<CommsMonthTarget[]>(plan.monthTargets);
 
@@ -567,7 +572,7 @@ function RhythmTab({
         </div>
 
         {/* Pylväsdiagrammi */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '.4rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(12, 1fr)', gap: '.4rem' }}>
           {viewTargets.map(mt => {
             const cov = monthCoverageStatus(plan, publications, year, mt.month);
             const color = intensityColor(mt.intensity);
@@ -695,7 +700,7 @@ function RhythmTab({
               background: 'var(--elev)',
               border: row.isNew2026 ? '1px solid rgba(228,92,129,.5)' : '1px solid var(--border)',
               borderRadius: 'var(--r)', padding: '.65rem .85rem',
-              display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1fr 1fr',
+              display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr 1fr 1fr 1fr',
               gap: '.55rem', alignItems: 'center',
             }}>
               <div>
@@ -726,6 +731,7 @@ function RhythmTab({
 // TAB 4: Arkisto — 2025 oppimäärä (Arttu)
 // ============================================================
 function ArchiveTab({ teamMembers }: { teamMembers: OrgTeamMember[] }) {
+  const isMobile = useIsMobile();
   const [section, setSection] = useState<'notes' | 'calendar' | 'improvements'>('notes');
   const [openWeek, setOpenWeek] = useState<number | null>(23);
 
@@ -873,7 +879,7 @@ function ArchiveTab({ teamMembers }: { teamMembers: OrgTeamMember[] }) {
           <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginBottom: '1rem', lineHeight: 1.5 }}>
             Edellisen vuoden viestinnän vastaavan opit. "Korkea" -prioriteetit on sovellettu jo 2026-suunnitelmaan.
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '.75rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(320px, 1fr))', gap: '.75rem' }}>
             {LLFF_2025_IMPROVEMENTS.map(imp => {
               const st = statusMeta[imp.status];
               const pr = priorityMeta[imp.priority];

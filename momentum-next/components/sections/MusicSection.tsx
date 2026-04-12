@@ -4,11 +4,13 @@ import { useState } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import { useIsMobile } from '@/lib/use-mobile';
 import { MusicAct, DEFAULT_MUSIC, LLFF_VENUES, PROGRAMME_COLORS } from '@/lib/festival-shared';
 
 export default function MusicSection() {
   const { canEdit } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [acts, setActs] = useOrgData<MusicAct[]>('music', DEFAULT_MUSIC);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -92,13 +94,13 @@ export default function MusicSection() {
 
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 480, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '2rem', width: isMobile ? '100%' : 480, maxWidth: isMobile ? '100%' : '90vw', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? '100%' : '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa esiintyjää' : 'Lisää musiikkiesitys'}</h3>
             <div className="field"><label>Esiintyjä / kokoonpano *</label><input className="input" value={fArtist} onChange={e => setFArtist(e.target.value)} autoFocus /></div>
             <div className="field"><label>Esityksen nimi *</label><input className="input" value={fTitle} onChange={e => setFTitle(e.target.value)} /></div>
             <div className="field"><label>Kuvaus</label><textarea className="input textarea" value={fDesc} onChange={e => setFDesc(e.target.value)} /></div>
             <div className="field"><label>Genre</label><input className="input" value={fGenre} onChange={e => setFGenre(e.target.value)} placeholder="Jazz, ambient, folk..." /></div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
               <div className="field"><label>Päivämäärä</label><input type="date" className="input" value={fDate} onChange={e => setFDate(e.target.value)} /></div>
               <div className="field"><label>Aika</label><input type="time" className="input" value={fTime} onChange={e => setFTime(e.target.value)} /></div>
             </div>

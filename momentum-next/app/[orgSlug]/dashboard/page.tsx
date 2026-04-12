@@ -6,6 +6,7 @@ import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useRouter, useParams } from 'next/navigation';
+import { useIsMobile } from '@/lib/use-mobile';
 import {
   Grant,
   STATUS_DEFS,
@@ -57,6 +58,7 @@ export default function DashboardPage() {
       return da - db;
     }) : [];
 
+  const isMobile = useIsMobile();
   const [aiResponse, setAiResponse] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
@@ -389,7 +391,7 @@ export default function DashboardPage() {
           ? 'Anna yksi inspiroiva ja konkreettinen idea 70-vuotissyntymapaivajahlien jarjestamiseen. Keskity johonkin naihin teemoista: koristeluun, ohjelmaan, puheisiin, yllatyshetkiin, musiikkiin, valokuvaukseen, tai lamminhenkisiin yksityiskohtiin jotka tekevat juhlista ikimuistoiset. Anna tarkkoja ja helposti toteutettavia ehdotuksia.'
           : 'Kerro yksi todellinen, dokumentoitu esimerkki siitä miten kulttuurialan yhdistys tai järjestö on muuttanut maailmaa parempaan suuntaan. Keskity oikeisiin tapahtumiin: esim. elokuvafestivaalit jotka ovat nostaneet ihmisoikeuskysymyksiä, teatteriprojektit jotka ovat tuoneet syrjäytyneitä yhteisöjä yhteen, taidejärjestöt jotka ovat vaikuttaneet lainsäädäntöön, tai kulttuuritapahtumat jotka ovat edistäneet mielenterveyden destigmatisointia. Kerro mikä järjestö, mitä he tekivät, mikä oli konkreettinen vaikutus, ja mitä me voisimme oppia heiltä. Käytä vain todellisia, oikeita esimerkkejä — älä keksi.';
         return (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: aiResponse || aiLoading ? '1rem' : 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem', marginBottom: aiResponse || aiLoading ? '1rem' : 0 }}>
             <div className="dc" onClick={() => askAI(statusPrompt)}
               style={{ cursor: 'pointer', borderLeft: '3px solid var(--hetki-blue)', transition: 'all .3s cubic-bezier(.16,1,.3,1)' }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--pri-l)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}

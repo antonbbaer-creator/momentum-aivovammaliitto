@@ -9,6 +9,7 @@ import { useState, useMemo } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import { useIsMobile } from '@/lib/use-mobile';
 import {
   Publication,
   PublicationStatus,
@@ -41,6 +42,7 @@ export default function PublicationQueueSection({ onOpenDetail, onOpenEditor }: 
   const { user, canEdit } = useAuth();
   const { toast } = useToast();
   const orgSlug = (useParams().orgSlug as string) || '';
+  const isMobile = useIsMobile();
   const [rawPubs, setPubs] = useOrgData<any[]>('publications', []);
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
   const [teamMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
@@ -242,7 +244,7 @@ export default function PublicationQueueSection({ onOpenDetail, onOpenEditor }: 
       )}
 
       {/* Kanban — 4 columns */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.75rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: '.75rem' }}>
         {STATUS_ORDER.map(status => {
           const items = grouped[status];
           const colors = STATUS_COLORS[status];

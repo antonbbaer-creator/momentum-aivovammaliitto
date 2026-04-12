@@ -13,6 +13,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import { useIsMobile } from '@/lib/use-mobile';
 import {
   Publication,
   PublicationStatus,
@@ -63,6 +64,7 @@ export default function PublicationDetailSection({ publicationId, onBack, onOpen
   const { activeOrg, canEdit } = useAuth();
   const { toast } = useToast();
   const orgSlug = (useParams().orgSlug as string) || '';
+  const isMobile = useIsMobile();
   const [rawPubs, setPubs] = useOrgData<any[]>('publications', []);
   const [, setCalEvents] = useOrgData<CalEvent[]>('events', []);
   const [teamMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
@@ -346,7 +348,7 @@ export default function PublicationDetailSection({ publicationId, onBack, onOpen
       )}
 
       {/* 3-column workspace */}
-      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr 320px', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '260px 1fr 320px', gap: '1rem' }}>
         {/* ========== LEFT: BRIEF & META ========== */}
         <aside style={{
           background: 'var(--card)', border: '1px solid var(--border)',
@@ -680,7 +682,7 @@ export default function PublicationDetailSection({ publicationId, onBack, onOpen
               </span>
             </div>
             {attachedFiles.length > 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '.3rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)', gap: '.3rem' }}>
                 {attachedFiles.map(f => (
                   <div key={f.id} style={{
                     position: 'relative',

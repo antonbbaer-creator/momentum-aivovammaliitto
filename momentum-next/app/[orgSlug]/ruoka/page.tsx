@@ -8,6 +8,7 @@ import { useToast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { getOrgTeamMembers } from '@/lib/org-defaults';
 import { OrgTeamMember } from '@/lib/team-shared';
+import { useIsMobile } from '@/lib/use-mobile';
 
 interface FoodItem {
   id: string;
@@ -34,6 +35,7 @@ export default function RuokaPage() {
   const params = useParams();
   const orgSlug = (params.orgSlug as string) || '';
   const [members] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
+  const isMobile = useIsMobile();
   const [items, setItems] = useOrgData<FoodItem[]>('food', []);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -175,7 +177,7 @@ export default function RuokaPage() {
       {/* Form modal */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 440, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '2rem', width: isMobile ? '100%' : 440, maxWidth: isMobile ? '100%' : '90vw', maxHeight: isMobile ? '100%' : '90vh', height: isMobile ? '100%' : 'auto', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa' : 'Lisää ruoka/juoma'}</h3>
             <div className="field"><label>Nimi *</label><input className="input" value={fName} onChange={e => setFName(e.target.value)} autoFocus placeholder="Esim. Lohivoileivat" /></div>
             <div className="field">
@@ -192,7 +194,7 @@ export default function RuokaPage() {
                 ))}
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
               <div className="field"><label>Määrä</label><input className="input" value={fQuantity} onChange={e => setFQuantity(e.target.value)} placeholder="Esim. 30 kpl" /></div>
               <div className="field">
                 <label>Vastuussa</label>

@@ -6,6 +6,7 @@ import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
+import { useIsMobile } from '@/lib/use-mobile';
 
 interface Guest {
   id: string;
@@ -111,6 +112,7 @@ export default function VieraatPage() {
   const { toast } = useToast();
   const params = useParams();
   const orgSlug = params.orgSlug as string;
+  const isMobile = useIsMobile();
 
   const defaultGuests = orgSlug === 'juhlatoimikunta' ? JUHLATOIMIKUNTA_GUESTS : [];
   const [guests, setGuests] = useOrgData<Guest[]>('guests', defaultGuests);
@@ -323,12 +325,12 @@ export default function VieraatPage() {
       {/* Guest form modal — all fields editable */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 480, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '2rem', width: isMobile ? '100%' : 480, maxWidth: isMobile ? '100%' : '90vw', maxHeight: isMobile ? '100%' : '90vh', height: isMobile ? '100%' : 'auto', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa vierasta' : 'Lisää vieras'}</h3>
 
             <div className="field"><label>Nimi *</label><input className="input" value={gName} onChange={e => setGName(e.target.value)} autoFocus /></div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
               <div className="field">
                 <label>Ryhmä</label>
                 <select className="input" value={gGroup} onChange={e => setGGroup(e.target.value)}>
@@ -358,7 +360,7 @@ export default function VieraatPage() {
 
             <div className="field"><label>Seurue / kanssatulijat</label><input className="input" value={gCompanions} onChange={e => setGCompanions(e.target.value)} placeholder="Esim. Tomppa, Rasmus, Melina" /></div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
               <div className="field"><label>Lähde</label><input className="input" value={gSource} onChange={e => setGSource(e.target.value)} placeholder="Esim. FB-lista, Seina" /></div>
               <div className="field"><label>Ruokavalio / allergiat</label><input className="input" value={gDietary} onChange={e => setGDietary(e.target.value)} placeholder="Esim. kasvis, gluteeniton" /></div>
             </div>

@@ -5,6 +5,10 @@ import AppShell from '@/components/AppShell';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import { useParams } from 'next/navigation';
+import { getOrgTeamMembers } from '@/lib/org-defaults';
+import { OrgTeamMember } from '@/lib/team-shared';
+import { useIsMobile } from '@/lib/use-mobile';
 
 interface ProgramItem {
   id: string;
@@ -34,6 +38,10 @@ const HOURS = Array.from({ length: 15 }, (_, i) => i + 10); // 10-24
 export default function OhjelmaPage() {
   const { canEdit } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
+  const params = useParams();
+  const orgSlug = (params.orgSlug as string) || '';
+  const [members] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const [items, setItems] = useOrgData<ProgramItem[]>('program', []);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -91,6 +99,15 @@ export default function OhjelmaPage() {
   const partyItems = sorted.filter(i => {
     const h = parseInt(i.time.split(':')[0]);
     return h >= 15;
+  });
+
+  // Group by responsible person
+  const byPerson: Record<string, ProgramItem[]> = {};
+  sorted.forEach(item => {
+    if (item.responsible) {
+      if (!byPerson[item.responsible]) byPerson[item.responsible] = [];
+      byPerson[item.responsible].push(item);
+    }
   });
 
   return (
@@ -175,10 +192,46 @@ export default function OhjelmaPage() {
         </>
       )}
 
+      {/* Responsibilities by person */}
+      {Object.keys(byPerson).length > 0 && (
+        <div style={{ marginTop: '2rem', marginBottom: '1.5rem' }}>
+          <div style={{
+            fontSize: '.75rem', fontWeight: 700, color: 'var(--t2)', textTransform: 'uppercase',
+            letterSpacing: '.05em', marginBottom: '.75rem',
+          }}>Vastuut henkilöittäin</div>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(240px, 1fr))', gap: '.75rem' }}>
+            {Object.entries(byPerson).map(([person, personItems]) => (
+              <div key={person} style={{
+                background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r)',
+                padding: '.85rem 1rem',
+              }}>
+                <div style={{ fontSize: '.82rem', fontWeight: 700, marginBottom: '.5rem', color: 'var(--t1)' }}>{person}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                  {personItems.map(item => {
+                    const cat = catMap[item.category] || catMap.muu;
+                    return (
+                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontSize: '.72rem' }}>
+                        <span style={{ fontWeight: 700, color: cat.color, minWidth: 36 }}>{item.time}</span>
+                        <span style={{ color: 'var(--t1)' }}>{item.title}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Form modal */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 480, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div style={{
+            background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)',
+            borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '2rem',
+            width: isMobile ? '100%' : 480, maxWidth: isMobile ? '100%' : '90vw',
+            height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? '100%' : '90vh', overflowY: 'auto',
+          }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa' : 'Lisää ohjelmanumero'}</h3>
             <div className="field"><label>Otsikko *</label><input className="input" value={fTitle} onChange={e => setFTitle(e.target.value)} autoFocus placeholder="Esim. Vieraiden vastaanotto" /></div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
@@ -200,7 +253,13 @@ export default function OhjelmaPage() {
               </div>
             </div>
             <div className="field"><label>Kuvaus</label><textarea className="input textarea" value={fDesc} onChange={e => setFDesc(e.target.value)} placeholder="Mitä tapahtuu?" /></div>
-            <div className="field"><label>Vastuussa</label><input className="input" value={fResponsible} onChange={e => setFResponsible(e.target.value)} placeholder="Kuka hoitaa?" /></div>
+            <div className="field">
+              <label>Vastuussa</label>
+              <select className="input" value={fResponsible} onChange={e => setFResponsible(e.target.value)}>
+                <option value="">Ei määrätty</option>
+                {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+              </select>
+            </div>
             <div className="field"><label>Muistiinpano</label><textarea className="input textarea" value={fNote} onChange={e => setFNote(e.target.value)} /></div>
             <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
               {editId && <button className="btn btn-ghost btn-sm" onClick={() => { remove(editId); setShowForm(false); }} style={{ color: 'var(--red)', marginRight: 'auto' }}>Poista</button>}
@@ -215,9 +274,9 @@ export default function OhjelmaPage() {
 
   function renderTimeline(timelineItems: ProgramItem[]) {
     return (
-      <div style={{ position: 'relative', paddingLeft: '2.5rem' }}>
+      <div style={{ position: 'relative', paddingLeft: isMobile ? '1.75rem' : '2.5rem' }}>
         {/* Vertical line */}
-        <div style={{ position: 'absolute', left: '1rem', top: 0, bottom: 0, width: 2, background: 'var(--border)' }} />
+        <div style={{ position: 'absolute', left: isMobile ? '.6rem' : '1rem', top: 0, bottom: 0, width: 2, background: 'var(--border)' }} />
 
         {timelineItems.map((item, i) => {
           const cat = catMap[item.category] || catMap.muu;
@@ -225,8 +284,8 @@ export default function OhjelmaPage() {
             <div key={item.id} style={{ position: 'relative', marginBottom: '.75rem' }}>
               {/* Timeline dot */}
               <div style={{
-                position: 'absolute', left: '-1.85rem', top: '.75rem',
-                width: 14, height: 14, borderRadius: '50%',
+                position: 'absolute', left: isMobile ? '-1.4rem' : '-1.85rem', top: '.75rem',
+                width: isMobile ? 10 : 14, height: isMobile ? 10 : 14, borderRadius: '50%',
                 background: cat.color, border: '2px solid var(--bg)',
                 zIndex: 1,
               }} />

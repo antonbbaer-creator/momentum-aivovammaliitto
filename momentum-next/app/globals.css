@@ -500,14 +500,14 @@
       .side{display:none}
       .main{margin-left:0}
       .mob-toggle{display:flex}
+      .topbar{padding:.75rem 1rem;gap:.75rem}
+      .topbar h1{font-size:1.1rem}
+      .topbar p{font-size:.7rem}
       .stats{grid-template-columns:1fr 1fr}
       .pipe{grid-template-columns:1fr}
       .cb-grid{grid-template-columns:1fr}
       .ch-grid{grid-template-columns:1fr}
       .page{padding:1rem}
-      .topbar{padding:.75rem 1rem}
-      .topbar h1{font-size:1.1rem}
-      .topbar p{font-size:.7rem}
       .toast-wrap{top:.75rem;right:.75rem;left:.75rem}
       .toast{min-width:auto;max-width:100%}
       .modal{max-width:calc(100vw - 2rem);margin:1rem}
@@ -567,5 +567,15 @@
       .cal-dh{padding:.4rem;font-size:.55rem}
       .cal-d{min-height:50px}
       .mb-thumb{height:180px}
+      .topbar h1{font-size:1rem}
+      .btn{padding:.6rem 1rem;font-size:.78rem}
+      .field label{font-size:.7rem}
+      .dc-h h3{font-size:.82rem}
+    }
+    @media(max-width:360px){
+      .page{padding:.75rem}
+      .topbar{padding:.6rem .75rem}
+      .dc-h{padding:.75rem .85rem}
+      .dc-b{padding:.75rem}
     }
   

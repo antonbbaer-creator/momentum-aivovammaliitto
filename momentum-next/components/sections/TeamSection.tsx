@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useIsMobile } from '@/lib/use-mobile';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -36,6 +37,7 @@ export default function TeamSection() {
   const router = useRouter();
   const params = useParams();
   const orgSlug = (params.orgSlug as string) || '';
+  const isMobile = useIsMobile();
   const [orgTeams, setOrgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
   const [members, setMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const [projects] = useOrgData<Project[]>('projects', []);
@@ -382,7 +384,7 @@ export default function TeamSection() {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
         {orgTeams.map(team => {
           const tMembers = members.filter(m => m.teamId === team.id);
           const tProjects = projects.filter(p => p.teamId === team.id && !p.archived);
@@ -485,7 +487,7 @@ export default function TeamSection() {
   function renderTeamForm() {
     return (
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowTeamForm(false)}>
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 440, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '2rem', width: isMobile ? '100%' : 440, height: isMobile ? '100%' : 'auto', maxWidth: isMobile ? '100%' : '90vw', maxHeight: isMobile ? '100%' : '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editTeamId ? 'Muokkaa tiimia' : 'Lisaa tiimi'}</h3>
           <div className="field"><label>Nimi *</label><input className="input" value={tName} onChange={e => setTName(e.target.value)} autoFocus placeholder="Esim. Juhlatiimi" /></div>
           <div className="field"><label>Kuvaus</label><textarea className="input textarea" value={tDesc} onChange={e => setTDesc(e.target.value)} placeholder="Mita tiimi tekee?" /></div>
@@ -526,7 +528,7 @@ export default function TeamSection() {
   function renderMemberForm() {
     return (
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowMemberForm(false)}>
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 480, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '2rem', width: isMobile ? '100%' : 480, height: isMobile ? '100%' : 'auto', maxWidth: isMobile ? '100%' : '90vw', maxHeight: isMobile ? '100%' : '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editMemberId ? 'Muokkaa jäsentä' : 'Lisää jäsen'}</h3>
           <div className="field"><label>Nimi *</label><input className="input" value={mName} onChange={e => setMName(e.target.value)} autoFocus /></div>
           <div className="field"><label>Rooli *</label><input className="input" value={mRole} onChange={e => setMRole(e.target.value)} placeholder="Esim. Vastaava tuottaja" /></div>
@@ -559,7 +561,7 @@ export default function TeamSection() {
               <option value="external">Ulkoinen / freelancer</option>
             </select>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
             <div className="field"><label>Sähköposti (yhteystieto)</label><input className="input" value={mEmail} onChange={e => setMEmail(e.target.value)} /></div>
             <div className="field"><label>Puhelin</label><input className="input" value={mPhone} onChange={e => setMPhone(e.target.value)} /></div>
           </div>

@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import { useIsMobile } from '@/lib/use-mobile';
 
 import { workerFetch, WORKER_URL } from '@/lib/worker-fetch';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
@@ -17,6 +18,7 @@ export const EDITOR_HANDOFF_KEY = 'momentum_editor_handoff';
 export default function MediaSection() {
   const { activeOrg, canEdit } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const router = useRouter();
   const params = useParams();
   const orgSlug = (params?.orgSlug as string) || '';
@@ -585,9 +587,9 @@ export default function MediaSection() {
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              background: 'var(--card)', border: '1px solid var(--border)',
-              borderRadius: 'var(--rl)', width: 720, maxWidth: '95vw',
-              maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+              background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)',
+              borderRadius: isMobile ? 0 : 'var(--rl)', width: isMobile ? '100%' : 720, maxWidth: isMobile ? '100%' : '95vw',
+              height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? '100%' : '90vh', display: 'flex', flexDirection: 'column',
               boxShadow: '0 20px 80px rgba(0,0,0,.6)',
             }}
           >
@@ -637,7 +639,7 @@ export default function MediaSection() {
               </div>
 
               {/* Channel + tone */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem', marginBottom: '.75rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem', marginBottom: '.75rem' }}>
                 <div>
                   <label style={{ fontSize: '.7rem', color: 'var(--t3)', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: '.3rem' }}>Kanava</label>
                   <select className="input" value={aiChannel} onChange={e => setAiChannel(e.target.value)} style={{ width: '100%', fontSize: '.8rem' }}>

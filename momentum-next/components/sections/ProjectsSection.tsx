@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import { useIsMobile } from '@/lib/use-mobile';
 import { useParams } from 'next/navigation';
 import { OrgTeam, OrgTeamMember } from '@/lib/team-shared';
 import { getOrgTeams } from '@/lib/org-defaults';
@@ -48,6 +49,7 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
   const { user } = useAuth();
   const { toast } = useToast();
   const orgSlug = (useParams().orgSlug as string) || '';
+  const isMobile = useIsMobile();
   const [projects, setProjects] = useOrgData<Project[]>('projects', []);
   const [teamData] = useOrgData<TeamDataMember[]>('teamMembers', []);
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
@@ -318,7 +320,7 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '1rem' }}>
         {cols.map(col => {
           const items = active.filter(p => p.st === col.k);
           return (

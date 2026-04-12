@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useOrgData } from '@/lib/firestore';
 import { workerFetch } from '@/lib/worker-fetch';
+import { useIsMobile } from '@/lib/use-mobile';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -18,6 +19,7 @@ export default function ChatFAB() {
   const [publications] = useOrgData<any[]>('publications', []);
   const [aiProfile] = useOrgData<any>('aiProfile', {});
 
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -237,7 +239,7 @@ export default function ChatFAB() {
       {!open && (
         <button onClick={() => setOpen(true)} style={{
           position: 'fixed', bottom: '1.5rem', right: '1.5rem', zIndex: 1000,
-          width: 56, height: 56, borderRadius: '50%', border: 'none',
+          width: isMobile ? 48 : 56, height: isMobile ? 48 : 56, borderRadius: '50%', border: 'none',
           background: 'var(--pri)', color: '#fff', fontSize: '1.2rem', fontWeight: 700,
           cursor: 'pointer', boxShadow: '0 4px 20px rgba(5,107,159,.4)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -258,8 +260,10 @@ export default function ChatFAB() {
 
           {/* Panel */}
           <div style={{
-            position: 'fixed', top: 0, right: 0, bottom: 0, width: 420, maxWidth: '100vw',
-            zIndex: 1000, background: 'var(--card)', borderLeft: '1px solid var(--border)',
+            position: 'fixed', top: 0, right: 0, bottom: 0,
+            width: isMobile ? '100vw' : 420, maxWidth: '100vw',
+            zIndex: 1000, background: 'var(--card)',
+            borderLeft: isMobile ? 'none' : '1px solid var(--border)',
             display: 'flex', flexDirection: 'column',
             animation: 'slideInRight .3s ease-out',
           }}>

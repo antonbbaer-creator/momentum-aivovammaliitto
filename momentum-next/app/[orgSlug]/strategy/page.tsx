@@ -7,10 +7,12 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { doc, setDoc, collection } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useIsMobile } from '@/lib/use-mobile';
 
 export default function StrategyPage() {
   const { user, activeOrg, canEdit } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [org, setOrg] = useOrgData<any>('org', {});
   const [teamData] = useOrgData<any[]>('teamMembers', []);
   const [tab, setTab] = useState<'strategy' | 'plan'>('strategy');
@@ -87,7 +89,7 @@ export default function StrategyPage() {
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--pri)' }} />
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '.72rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--t3)' }}>Organisaation strategia {orgStrategy.strategicPeriod || ''}</h2>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
               <EditableBlock label="Missio" color="var(--pri-l)" sectionKey="orgStrategy.mission" value={orgStrategy.mission} parentKey="orgStrategy" />
               <EditableBlock label="Visio" color="var(--pri-l)" sectionKey="orgStrategy.vision" value={orgStrategy.vision} parentKey="orgStrategy" />
             </div>
@@ -144,7 +146,7 @@ export default function StrategyPage() {
             )}
 
             {/* Kohderyhmät ja tavoitteet */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
               {/* Kohderyhmät */}
               <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)' }}>
                 <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
@@ -192,7 +194,7 @@ export default function StrategyPage() {
                 <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
                   <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase' }}>Ydinviestit</h3>
                 </div>
-                <div style={{ padding: '1.25rem 1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+                <div style={{ padding: '1.25rem 1.5rem', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
                   {org.keyMessages.map((m: any, i: number) => (
                     <div key={i} style={{ padding: '1rem', background: 'var(--elev)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.35rem' }}>

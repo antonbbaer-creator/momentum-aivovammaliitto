@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import { useIsMobile } from '@/lib/use-mobile';
 import {
   FestivalWeek,
   ProgrammeItem,
@@ -18,6 +19,7 @@ import {
 export default function ProgrammeGridSection() {
   const { canEdit } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [festivalWeek, setFestivalWeek] = useOrgData<FestivalWeek>('festivalWeek', LLFF_FESTIVAL_WEEK_2026);
   const [programme, setProgramme] = useOrgData<ProgrammeItem[]>('programme', DEFAULT_PROGRAMME);
   const [showForm, setShowForm] = useState(false);
@@ -117,7 +119,7 @@ export default function ProgrammeGridSection() {
           <p style={{ fontSize: '.72rem', color: 'var(--t3)', marginBottom: '.75rem' }}>
             Klikkaa esityspaikkaa päivän alta aktivoidaksesi tai poistaaksesi sen. Ke–To odottavat esityspaikan määrittämistä.
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(7, 1fr)', gap: '.5rem' }}>
             {days.map((date, i) => {
               const dayVenues = festivalWeek.venuesByDay[date] || [];
               return (
@@ -249,7 +251,7 @@ export default function ProgrammeGridSection() {
       {/* Form modal */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 480, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '2rem', width: isMobile ? '100%' : 480, maxWidth: isMobile ? '100%' : '90vw', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? '100%' : '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa tapahtumaa' : 'Uusi tapahtuma'}</h3>
             <div className="field"><label>Tyyppi</label>
               <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap' }}>
@@ -272,7 +274,7 @@ export default function ProgrammeGridSection() {
             </div>
             <div className="field"><label>Otsikko *</label><input className="input" value={fTitle} onChange={e => setFTitle(e.target.value)} autoFocus /></div>
             <div className="field"><label>Kuvaus</label><textarea className="input textarea" value={fDesc} onChange={e => setFDesc(e.target.value)} /></div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '.75rem' }}>
               <div className="field"><label>Päivä *</label>
                 <select className="input" value={fDate} onChange={e => setFDate(e.target.value)}>
                   {days.map((d, i) => (

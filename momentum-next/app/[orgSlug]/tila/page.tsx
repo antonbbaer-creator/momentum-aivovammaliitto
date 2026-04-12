@@ -5,6 +5,7 @@ import AppShell from '@/components/AppShell';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import { useIsMobile } from '@/lib/use-mobile';
 
 interface Venue {
   id: string;
@@ -20,6 +21,7 @@ interface Venue {
 export default function TilaPage() {
   const { canEdit } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [venues, setVenues] = useOrgData<Venue[]>('venues', []);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -101,7 +103,7 @@ export default function TilaPage() {
 
         {/* Images gallery */}
         {detail.images.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: detail.images.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))', gap: '.75rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: detail.images.length === 1 ? '1fr' : isMobile ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))', gap: '.75rem', marginBottom: '1.5rem' }}>
             {detail.images.map((img, i) => (
               <div key={i} style={{ borderRadius: 'var(--rl)', overflow: 'hidden', border: '1px solid var(--border)', aspectRatio: '16/10' }}>
                 <img src={img} alt={`${detail.name} kuva ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -155,7 +157,7 @@ export default function TilaPage() {
           <p style={{ fontSize: '.75rem' }}>Lisää juhlapaikan tilat ja kuvaukset täältä.</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
           {sorted.map(v => (
             <div key={v.id} onClick={() => setSelectedVenue(v.id)} style={{
               background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
@@ -194,7 +196,7 @@ export default function TilaPage() {
       {/* Form modal */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 520, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '2rem', width: isMobile ? '100%' : 520, maxWidth: isMobile ? '100%' : '90vw', maxHeight: isMobile ? '100%' : '90vh', height: isMobile ? '100%' : 'auto', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa tilaa' : 'Lisää tila'}</h3>
             <div className="field"><label>Tilan nimi *</label><input className="input" value={vName} onChange={e => setVName(e.target.value)} autoFocus placeholder="Esim. Juhlahuone, Piha, Sauna" /></div>
             <div className="field"><label>Käyttötarkoitus</label><input className="input" value={vPurpose} onChange={e => setVPurpose(e.target.value)} placeholder="Esim. Ruokailu, Tanssi, Seremonia" /></div>

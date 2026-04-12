@@ -8,6 +8,7 @@ import { useToast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { getOrgTeamMembers } from '@/lib/org-defaults';
 import { OrgTeamMember } from '@/lib/team-shared';
+import { useIsMobile } from '@/lib/use-mobile';
 
 interface MeetingNote {
   id: string;
@@ -26,6 +27,7 @@ export default function MuistiinpanotPage() {
   const orgSlug = (params.orgSlug as string) || '';
   const [notes, setNotes] = useOrgData<MeetingNote[]>('meetingNotes', []);
   const [members] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
+  const isMobile = useIsMobile();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [selectedNote, setSelectedNote] = useState<string | null>(null);
@@ -238,10 +240,10 @@ export default function MuistiinpanotPage() {
       {/* Form modal */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 560, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '2rem', width: isMobile ? '100%' : 560, maxWidth: isMobile ? '100%' : '90vw', maxHeight: isMobile ? '100%' : '90vh', height: isMobile ? '100%' : 'auto', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa muistiinpanoa' : 'Uusi muistiinpano'}</h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: '.75rem' }}>
               <div className="field"><label>Otsikko *</label><input className="input" value={nTitle} onChange={e => setNTitle(e.target.value)} autoFocus placeholder="Esim. Juhlatoimikunnan palaveri" /></div>
               <div className="field"><label>Päivämäärä</label><input className="input" type="date" value={nDate} onChange={e => setNDate(e.target.value)} /></div>
             </div>

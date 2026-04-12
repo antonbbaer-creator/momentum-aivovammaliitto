@@ -15,6 +15,7 @@ import { useSearchParams, useParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import { useIsMobile } from '@/lib/use-mobile';
 import { normalizePublication } from '@/lib/publications-shared';
 import { CommsPlan, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
 import { getOrgCommsPlan } from '@/lib/org-defaults';
@@ -437,6 +438,7 @@ const normalizeDesign = (d: any): Design => {
 export default function EditorSection() {
   const { activeOrg, canEdit } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const searchParams = useSearchParams();
   const orgSlug = (useParams().orgSlug as string) || '';
   // When linked from a Publication (?pubId=pub_123), the Editor operates in "attach" mode:
@@ -1679,7 +1681,7 @@ export default function EditorSection() {
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr 320px', gap: '1rem', minHeight: 600 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '280px 1fr 320px', gap: '1rem', minHeight: isMobile ? 'auto' : 600 }}>
       {/* ========== LEFT SIDEBAR: Canva-tyylinen tab rail + panel ========== */}
       <div
         style={{
@@ -2856,7 +2858,7 @@ export default function EditorSection() {
       {/* ========== MEDIA PICKER MODAL ========== */}
       {showMediaPicker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowMediaPicker(false)}>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.5rem', width: 820, maxWidth: '92vw', maxHeight: '88vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '1.5rem', width: isMobile ? '100%' : 820, maxWidth: isMobile ? '100%' : '92vw', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? '100%' : '88vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.75rem', flexWrap: 'wrap', gap: '.5rem' }}>
               <div>
@@ -2969,8 +2971,8 @@ export default function EditorSection() {
         >
           <div
             style={{
-              background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
-              padding: '1.75rem', width: 560, maxWidth: '95vw', maxHeight: '92vh', overflowY: 'auto',
+              background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)',
+              padding: isMobile ? '1.25rem' : '1.75rem', width: isMobile ? '100%' : 560, maxWidth: isMobile ? '100%' : '95vw', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? '100%' : '92vh', overflowY: 'auto',
               animation: 'scaleIn .15s ease-out',
             }}
             onClick={e => e.stopPropagation()}

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import { useIsMobile } from '@/lib/use-mobile';
 
 interface Film {
   id: string;
@@ -60,6 +61,7 @@ const defaultNordicFilms: Film[] = [
 export default function FilmsSection() {
   const { canEdit } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [films, setFilms] = useOrgData<Film[]>('films', [...defaultThemeFilms, ...defaultNordicFilms]);
   const [tab, setTab] = useState<'theme' | 'nordic'>('theme');
   const [selectedFilm, setSelectedFilm] = useState<string | null>(null);
@@ -124,7 +126,7 @@ export default function FilmsSection() {
       <>
         <button className="btn btn-ghost" onClick={() => setSelectedFilm(null)} style={{ marginBottom: '1rem' }}>{'←'} Takaisin</button>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 340px', gap: '1.5rem' }}>
           <div>
             <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.5rem', marginBottom: '1.25rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
@@ -242,14 +244,14 @@ export default function FilmsSection() {
 
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem', width: 560, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '2rem', width: isMobile ? '100%' : 560, maxWidth: isMobile ? '100%' : '90vw', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? '100%' : '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa elokuvaa' : 'Lisää elokuva'} ({tab === 'theme' ? 'Teemaohjelmisto' : 'Nordic Frames'})</h3>
             <div className="field"><label>Elokuvan nimi *</label><input className="input" value={formTitle} onChange={e => setFormTitle(e.target.value)} autoFocus /></div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
               <div className="field"><label>Ohjaaja</label><input className="input" value={formDirector} onChange={e => setFormDirector(e.target.value)} /></div>
               <div className="field"><label>Maa</label><input className="input" value={formCountry} onChange={e => setFormCountry(e.target.value)} /></div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: '.75rem' }}>
               <div className="field"><label>Vuosi</label><input className="input" value={formYear} onChange={e => setFormYear(e.target.value)} /></div>
               <div className="field"><label>Genre</label><input className="input" value={formGenre} onChange={e => setFormGenre(e.target.value)} /></div>
               <div className="field"><label>Tyyppi</label><input className="input" value={formType} onChange={e => setFormType(e.target.value)} placeholder="esikoinen / toisinkoinen" /></div>
