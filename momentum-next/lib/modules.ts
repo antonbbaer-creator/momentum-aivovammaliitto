@@ -25,10 +25,11 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   ruoka:      { id: 'ruoka',      label: 'Ruoka',      icon: '◆', path: '/ruoka',      alwaysOn: false },
   tehtavat:   { id: 'tehtavat',   label: 'Tehtavat',   icon: '☐', path: '/tehtavat',   alwaysOn: false },
   tila:       { id: 'tila',       label: 'Tila',       icon: '⌂', path: '/tila',       alwaysOn: false },
+  ohjelma:    { id: 'ohjelma',    label: 'Ohjelma',    icon: '▦', path: '/ohjelma',    alwaysOn: false },
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'viestit', 'aikataulut', 'viestinta', 'ohjelmisto', 'budget', 'vieraat', 'ruoka', 'tehtavat', 'tila'];
+export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'viestit', 'aikataulut', 'viestinta', 'ohjelmisto', 'budget', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma'];
 
 // Default modules for new orgs (viestintaorgit)
 export const DEFAULT_MODULES: Record<string, boolean> = {
@@ -44,6 +45,7 @@ export const DEFAULT_MODULES: Record<string, boolean> = {
   ruoka: false,
   tehtavat: false,
   tila: false,
+  ohjelma: false,
 };
 
 // Juhlatoimikunnan oletusmoduulit
@@ -52,7 +54,7 @@ export const JUHLATOIMIKUNTA_MODULES: Record<string, boolean> = {
   strategy: false,
   team: true,
   viestit: false,
-  aikataulut: false,
+  aikataulut: true,
   viestinta: false,
   ohjelmisto: false,
   budget: false,
@@ -60,6 +62,7 @@ export const JUHLATOIMIKUNTA_MODULES: Record<string, boolean> = {
   ruoka: true,
   tehtavat: true,
   tila: true,
+  ohjelma: true,
 };
 
 export function getDefaultModules(orgSlug: string): Record<string, boolean> {

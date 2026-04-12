@@ -39,6 +39,9 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   tehtavat: (  // Tehtavat — checklist
     <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
   ),
+  ohjelma: (  // Ohjelma — clock/timeline
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+  ),
   tila: (  // Tila — building/venue
     <svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/></svg>
   ),
