@@ -180,7 +180,10 @@ export default function DashboardPage() {
   const askAI = async (prompt: string) => {
     setAiLoading(true); setAiResponse('');
     try {
-      const systemCtx = `Olet ${org.name || 'organisaation'} viestinnän AI-kumppani. Vastaa lyhyesti ja konkreettisesti suomeksi. ${org.commsMission ? 'Viestinnän missio: ' + org.commsMission : ''} ${org.tone?.length ? 'Sävyt: ' + org.tone.join(', ') : ''}`;
+      const isJuhla = orgSlug === 'juhlatoimikunta';
+      const systemCtx = isJuhla
+        ? 'Olet osaava ja inspiroiva juhlajarjestaja-AI. Autat Sirpan 70-vuotissyntymapaivajahlien suunnittelussa. Juhlat jarjestetaan lauantaina 25.4.2026 Tyttojen talolla Kalliossa (Hameentie 13 A, Helsinki). Tiimi: Sonja Baer (vetaja), Raisa Baer, Elina Savo, Anton Baer. Vastaa lyhyesti, lamminhenkisesti ja konkreettisesti suomeksi. Anna kaytannollisia ja luovia ideoita juhlien jarjestamiseen.'
+        : `Olet ${org.name || 'organisaation'} viestinnän AI-kumppani. Vastaa lyhyesti ja konkreettisesti suomeksi. ${org.commsMission ? 'Viestinnän missio: ' + org.commsMission : ''} ${org.tone?.length ? 'Sävyt: ' + org.tone.join(', ') : ''}`;
       const res = await workerFetch('/api/chat', {
         method: 'POST',
         orgId: activeOrg || '',
@@ -377,32 +380,43 @@ export default function DashboardPage() {
       )}
 
       {/* AI Actions — bottom of page */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: aiResponse || aiLoading ? '1rem' : 0 }}>
-        <div className="dc" onClick={() => { const ap = projects.filter(p => p.st === 'active' && !p.archived).map(p => p.t).join(', ') || 'ei aktiivisia'; askAI('Anna tilannekatsaus ' + (org.name || 'organisaation') + ' viestinnästä juuri nyt. Mitä on meneillään? Aktiiviset projektit: ' + ap + '. Avoimia tehtäviä: ' + myTasks.length + '.'); }}
-          style={{ cursor: 'pointer', borderLeft: '3px solid var(--hetki-blue)', transition: 'all .3s cubic-bezier(.16,1,.3,1)' }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--pri-l)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.borderLeftColor = 'var(--hetki-blue)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
-          <div className="dc-b">
-            <div style={{ width: 20, height: 20, marginBottom: '.5rem', color: 'var(--pri-l)' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '100%', height: '100%' }}><circle cx="12" cy="12" r="9"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88" fill="currentColor" opacity=".25"/></svg>
+      {(() => {
+        const isJuhla = orgSlug === 'juhlatoimikunta';
+        const statusPrompt = isJuhla
+          ? 'Anna tilannekatsaus juhlien jarjestelyista. Mita pitaisi seuraavaksi hoitaa? Avoimia tehtavia: ' + myTasks.length + '.'
+          : 'Anna tilannekatsaus ' + (org.name || 'organisaation') + ' viestinnästä juuri nyt. Mitä on meneillään? Aktiiviset projektit: ' + (projects.filter((p: any) => p.st === 'active' && !p.archived).map((p: any) => p.t).join(', ') || 'ei aktiivisia') + '. Avoimia tehtäviä: ' + myTasks.length + '.';
+        const inspPrompt = isJuhla
+          ? 'Anna yksi inspiroiva ja konkreettinen idea 70-vuotissyntymapaivajahlien jarjestamiseen. Keskity johonkin naihin teemoista: koristeluun, ohjelmaan, puheisiin, yllatyshetkiin, musiikkiin, valokuvaukseen, tai lamminhenkisiin yksityiskohtiin jotka tekevat juhlista ikimuistoiset. Anna tarkkoja ja helposti toteutettavia ehdotuksia.'
+          : 'Kerro yksi todellinen, dokumentoitu esimerkki siitä miten kulttuurialan yhdistys tai järjestö on muuttanut maailmaa parempaan suuntaan. Keskity oikeisiin tapahtumiin: esim. elokuvafestivaalit jotka ovat nostaneet ihmisoikeuskysymyksiä, teatteriprojektit jotka ovat tuoneet syrjäytyneitä yhteisöjä yhteen, taidejärjestöt jotka ovat vaikuttaneet lainsäädäntöön, tai kulttuuritapahtumat jotka ovat edistäneet mielenterveyden destigmatisointia. Kerro mikä järjestö, mitä he tekivät, mikä oli konkreettinen vaikutus, ja mitä me voisimme oppia heiltä. Käytä vain todellisia, oikeita esimerkkejä — älä keksi.';
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: aiResponse || aiLoading ? '1rem' : 0 }}>
+            <div className="dc" onClick={() => askAI(statusPrompt)}
+              style={{ cursor: 'pointer', borderLeft: '3px solid var(--hetki-blue)', transition: 'all .3s cubic-bezier(.16,1,.3,1)' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--pri-l)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.borderLeftColor = 'var(--hetki-blue)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
+              <div className="dc-b">
+                <div style={{ width: 20, height: 20, marginBottom: '.5rem', color: 'var(--pri-l)' }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '100%', height: '100%' }}><circle cx="12" cy="12" r="9"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88" fill="currentColor" opacity=".25"/></svg>
+                </div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, letterSpacing: '.02em' }}>Tilannekatsaus</div>
+                <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.2rem', lineHeight: 1.5 }}>{isJuhla ? 'Missa mennaan juhlien jarjestelyissa?' : 'Mitä viestinnässä tapahtuu juuri nyt?'}</div>
+              </div>
             </div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, letterSpacing: '.02em' }}>Tilannekatsaus</div>
-            <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.2rem', lineHeight: 1.5 }}>Mitä viestinnässä tapahtuu juuri nyt?</div>
-          </div>
-        </div>
-        <div className="dc" onClick={() => askAI('Kerro yksi todellinen, dokumentoitu esimerkki siitä miten kulttuurialan yhdistys tai järjestö on muuttanut maailmaa parempaan suuntaan. Keskity oikeisiin tapahtumiin: esim. elokuvafestivaalit jotka ovat nostaneet ihmisoikeuskysymyksiä, teatteriprojektit jotka ovat tuoneet syrjäytyneitä yhteisöjä yhteen, taidejärjestöt jotka ovat vaikuttaneet lainsäädäntöön, tai kulttuuritapahtumat jotka ovat edistäneet mielenterveyden destigmatisointia. Kerro mikä järjestö, mitä he tekivät, mikä oli konkreettinen vaikutus, ja mitä me voisimme oppia heiltä. Käytä vain todellisia, oikeita esimerkkejä — älä keksi.')}
-          style={{ cursor: 'pointer', borderLeft: '3px solid var(--hetki-green)', transition: 'all .3s cubic-bezier(.16,1,.3,1)' }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--green-l)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.borderLeftColor = 'var(--hetki-green)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
-          <div className="dc-b">
-            <div style={{ width: 20, height: 20, marginBottom: '.5rem', color: 'var(--green-l)' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '100%', height: '100%' }}><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
+            <div className="dc" onClick={() => askAI(inspPrompt)}
+              style={{ cursor: 'pointer', borderLeft: '3px solid var(--hetki-green)', transition: 'all .3s cubic-bezier(.16,1,.3,1)' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--green-l)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.borderLeftColor = 'var(--hetki-green)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
+              <div className="dc-b">
+                <div style={{ width: 20, height: 20, marginBottom: '.5rem', color: 'var(--green-l)' }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '100%', height: '100%' }}><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
+                </div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, letterSpacing: '.02em' }}>Inspiraatiota</div>
+                <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.2rem', lineHeight: 1.5 }}>{isJuhla ? 'Ideoita ikimuistoisiin juhliin' : 'Kulttuurialan yhdistykset jotka muuttivat maailmaa'}</div>
+              </div>
             </div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, letterSpacing: '.02em' }}>Inspiraatiota</div>
-            <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.2rem', lineHeight: 1.5 }}>Kulttuurialan yhdistykset jotka muuttivat maailmaa</div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* AI Response */}
       {(aiLoading || aiResponse) && (

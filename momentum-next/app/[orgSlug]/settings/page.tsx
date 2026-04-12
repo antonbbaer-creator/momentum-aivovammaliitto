@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { useOrgData } from '@/lib/firestore';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES } from '@/lib/modules';
+import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, getDefaultModules } from '@/lib/modules';
 
 interface Member { uid: string; displayName: string; email: string; photoURL: string; role: string; joinedAt: string; }
 
@@ -15,7 +15,9 @@ export default function SettingsPage() {
   const { user, orgs, activeOrg, activeOrgRole, setActiveOrg, logout, refreshOrgs } = useAuth();
   const router = useRouter();
   const [org, setOrg] = useOrgData<any>('org', { name: '', s: '', slogan: '', channels: [], team: [], goals: [], auds: [], vals: [], tone: [] });
-  const [modules, setModules] = useOrgData<Record<string, boolean>>('modules', DEFAULT_MODULES);
+  const orgSlug = activeOrg || '';
+  const orgDefaults = getDefaultModules(orgSlug);
+  const [modules, setModules] = useOrgData<Record<string, boolean>>('modules', orgDefaults);
   const [members, setMembers] = useState<Member[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
@@ -220,7 +222,7 @@ export default function SettingsPage() {
             {MODULE_ORDER.map(id => {
               const mod = MODULE_REGISTRY[id];
               if (!mod) return null;
-              const enabled = modules[id] ?? DEFAULT_MODULES[id] ?? false;
+              const enabled = modules[id] ?? orgDefaults[id] ?? false;
               return (
                 <label key={id} style={{
                   display: 'flex', alignItems: 'center', gap: '.75rem',

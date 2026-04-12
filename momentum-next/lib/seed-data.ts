@@ -268,12 +268,12 @@ export const LLFF_CHANNEL_STATS = [
 
 export const JUHLATOIMIKUNTA_ORG = {
   name: 'Juhlatoimikunta', s: 'JTK', slogan: 'Sirpan 70-vuotisjuhlien jarjestely',
-  commsMission: '',
+  commsMission: 'Jarjestaa Sirpalle ikimuistoiset ja lamminhenkiset 70-vuotisjuhlat.',
   contentPillars: [],
   goals: [],
   vals: [],
   auds: [],
-  tone: [],
+  tone: ['Lamminhenkinen', 'Iloinen', 'Juhallinen'],
   channels: [
     { name: 'WhatsApp', color: '#25D366', ic: 'WA' },
     { name: 'Sahkoposti', color: '#6366f1', ic: 'SP' },
@@ -284,7 +284,7 @@ export const JUHLATOIMIKUNTA_ORG = {
     { name: 'Elina Savo', role: 'Jasen', avatar: 'E' },
     { name: 'Anton Baer', role: 'Jasen', avatar: 'A' },
   ],
-  strategyText: '',
+  strategyText: 'Sirpan 70-vuotissyntymapaivajahlat jarjestetaan lauantaina 25.4.2026 Tyttojen talolla Kalliossa (Hameentie 13 A, 00530 Helsinki). Juhlatoimikunta: Sonja Baer (vetaja), Raisa Baer, Elina Savo, Anton Baer.',
 };
 
 export const JUHLATOIMIKUNTA_EVENTS: any[] = [];

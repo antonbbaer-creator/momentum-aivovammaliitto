@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase';
 import AppShell from '@/components/AppShell';
 import { useToast } from '@/lib/toast';
 import { AVL_ORG, AVL_EVENTS, AVL_CHANNEL_STATS, LLFF_ORG, LLFF_EVENTS, LLFF_CHANNEL_STATS, JUHLATOIMIKUNTA_ORG, JUHLATOIMIKUNTA_EVENTS, JUHLATOIMIKUNTA_CHANNEL_STATS } from '@/lib/seed-data';
-import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES } from '@/lib/modules';
+import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, JUHLATOIMIKUNTA_MODULES } from '@/lib/modules';
 
 interface OrgMember {
   uid: string;
@@ -86,6 +86,11 @@ export default function AdminPage() {
         // Initialize empty collections
         for (const key of ['projects', 'publications', 'media_meta', 'media_uploaded', 'media_collections']) {
           await setDoc(doc(db, 'organizations', orgId, 'data', key), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid }, { merge: true });
+        }
+
+        // Seed org-specific modules
+        if (orgId === 'juhlatoimikunta') {
+          await setDoc(doc(db, 'organizations', orgId, 'data', 'modules'), { v: JSON.stringify(JUHLATOIMIKUNTA_MODULES), ts: Date.now(), updatedBy: user.uid });
         }
       }
 
