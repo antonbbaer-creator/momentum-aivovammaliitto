@@ -17,8 +17,10 @@ interface Step {
 function buildSteps(orgSlug: string): Step[] {
   const isLlff = orgSlug === 'llff';
   const isAvl = orgSlug === 'avl';
-  const orgLabel = isLlff ? 'Lapinlahden Lyhytelokuvajuhlien' : isAvl ? 'Aivovammaliiton' : 'organisaatiosi';
-  const orgShort = isLlff ? 'LLFF' : isAvl ? 'AVL' : 'organisaatio';
+  const isJtk = orgSlug === 'juhlatoimikunta';
+  const orgLabel = isLlff ? 'Lapinlahden Lyhytelokuvajuhlien' : isAvl ? 'Aivovammaliiton' : isJtk ? 'Juhlatoimikunnan' : 'organisaatiosi';
+  const orgShort = isLlff ? 'LLFF' : isAvl ? 'AVL' : isJtk ? 'Juhlatoimikunta' : 'organisaatio';
+  const orgGen = isLlff ? 'LLFF:n' : isAvl ? 'Aivovammaliiton' : isJtk ? 'Juhlatoimikunnan' : 'organisaation';
 
   return [
     {
@@ -27,8 +29,27 @@ function buildSteps(orgSlug: string): Step[] {
         ? 'Lapinlahden Lyhytelokuvajuhlien työkalu'
         : isAvl
         ? 'Aivovammaliiton viestinnan strateginen kumppani'
+        : isJtk
+        ? 'Juhlatoimikunta — Sirpan 70v juhlien järjestely'
         : 'Projektinhallinta ja viestintä samassa näkymässä',
-      body: (
+      body: isJtk ? (
+        <>
+          <p>
+            Momentum on Juhlatoimikunnan työkalu Sirpan 70-vuotis­syntymäpäiväjuhlien
+            järjestämiseen. Kaikki juhlien suunnittelu — vieraslista, ruokatarjoilut,
+            tehtävät, tilan valmistelu, ohjelma ja aikataulu — löytyy samasta paikasta.
+          </p>
+          <p>
+            Juhlat järjestetään <strong>la 25.4.2026 klo 15–24</strong> Tyttöjen
+            talolla Kalliossa (Hämeentie 13 A). Valmistelu alkaa klo 10.
+          </p>
+          <p className="ug-hint">
+            Tämä pikaopas esittelee jokaisen työkalun. Nuolinäppäimet
+            liikkuvat askelten välillä, Esc sulkee. Opas löytyy aina
+            vasemman reunan Käyttöohje-napista.
+          </p>
+        </>
+      ) : (
         <>
           <p>
             Momentum on {orgLabel} projektinhallinnan ja viestinnän työkalu.
@@ -50,10 +71,24 @@ function buildSteps(orgSlug: string): Step[] {
     },
     {
       title: 'Koti',
-      subtitle: 'Päivän tärkein työlista',
+      subtitle: isJtk ? 'Juhlatoimikunnan kokonaiskuva' : 'Päivän tärkein työlista',
       path: '/dashboard',
       moduleId: 'dashboard',
-      body: (
+      body: isJtk ? (
+        <>
+          <p>
+            Koti on Juhlatoimikunnan päänäkymä. Näet tilanteen
+            yhdellä silmäyksellä: montako päivää juhliin, avoimet
+            tehtävät ja sinulle osoitetut vastuut.
+          </p>
+          <p>
+            Alareunan <strong>Tilannekatsaus</strong> pyytää tekoälyltä
+            yhteenvedon järjestelyjen tilanteesta. <strong>Inspiraatio</strong>
+            -nappi antaa konkreettisia ideoita juhlien järjestämiseen —
+            ohjelmaideoita, koristelu­vinkkejä ja käytännön niksejä.
+          </p>
+        </>
+      ) : (
         <>
           <p>
             Koti kokoaa sen, mikä koskee juuri sinua. Et näe koko
@@ -86,7 +121,7 @@ function buildSteps(orgSlug: string): Step[] {
       body: (
         <>
           <p>
-            Strategia-sivu kokoaa {orgShort === 'LLFF' ? 'LLFF:n' : 'organisaation'}
+            Strategia-sivu kokoaa {orgGen}
             {' '}strategisen perustan. Näet kauden tavoitteet,
             viestinnän mission, sisältöpilarit, kohderyhmät, sävyt, arvot
             ja ydinviestit — eli sen pohjan, jolle kaikki viestintä
@@ -108,10 +143,23 @@ function buildSteps(orgSlug: string): Step[] {
     },
     {
       title: 'Tiimi',
-      subtitle: 'Jäsenet, roolit ja tiimikohtaiset projektit',
+      subtitle: isJtk ? 'Juhlatoimikunnan jäsenet ja vastuut' : 'Jäsenet, roolit ja tiimikohtaiset projektit',
       path: '/team',
       moduleId: 'team',
-      body: (
+      body: isJtk ? (
+        <>
+          <p>
+            Tiimi-sivu näyttää Juhlatoimikunnan jäsenet: Sonja, Raisa,
+            Elina ja Anton. Näet kunkin roolin, vastuualueet ja
+            yhteystiedot.
+          </p>
+          <p>
+            Voit lisätä uusia tiimejä ja jäseniä tarpeen mukaan — esimerkiksi
+            jos joku muu haluaa auttaa juhlapäivänä. Tiimiläiset
+            näkyvät myös tehtävien ja ruokahankintojen vastuuhenkilö­valinnoissa.
+          </p>
+        </>
+      ) : (
         <>
           <p>
             Tiimi-sivu kokoaa ihmiset ja heidän vastuunsa. Näet tiimit,
@@ -137,7 +185,7 @@ function buildSteps(orgSlug: string): Step[] {
       body: (
         <>
           <p>
-            Viestit on {orgShort === 'LLFF' ? 'LLFF:n' : 'organisaation'}
+            Viestit on {orgGen}
             {' '}sisäinen chat. Vasemmalta löytyvät <strong>tiimikanavat</strong>
             yleiseen keskusteluun ja <strong>suorat viestit</strong>
             yksittäisten tiimiläisten välille. Oikealla näkyy aktiivinen
@@ -154,10 +202,28 @@ function buildSteps(orgSlug: string): Step[] {
     },
     {
       title: 'Aikataulut',
-      subtitle: 'Vuosikello, Kalenteri ja Aikajana',
+      subtitle: isJtk ? 'Viikkoaikajana juhliin ja palautuksiin' : 'Vuosikello, Kalenteri ja Aikajana',
       path: '/aikataulut',
       moduleId: 'aikataulut',
-      body: (
+      body: isJtk ? (
+        <>
+          <p>
+            Juhlatoimikunnan aikataulut näyttävät viikkopohjaisen
+            aikajanan huhtikuun 12. päivästä toukokuun 2. päivään.
+            Jokainen päivä on omana sarakkeena, ja vaiheet näkyvät
+            Gantt-palkkeina.
+          </p>
+          <p>
+            <strong>Aikajana</strong> — näet viisi vaihetta: suunnittelu,
+            hankinnat, viimeistely, juhlapäivä ja purku/palautukset.
+            Klikkaa vaihetta auki nähdäksesi tehtävät ja merkitäksesi
+            niitä tehdyiksi. Ylhäällä näkyy laskuri juhlapäivään.
+            <br />
+            <strong>Kalenteri</strong> — yksittäisten tapahtumien ja
+            deadlinejen hallinta päivä- ja viikkonäkymissä.
+          </p>
+        </>
+      ) : (
         <>
           <p>
             Aikataulut-sivulla on kolme välilehteä, jotka käsittelevät
@@ -188,7 +254,7 @@ function buildSteps(orgSlug: string): Step[] {
       body: (
         <>
           <p>
-            Viestintä on {orgShort === 'LLFF' ? 'LLFF:n' : 'organisaation'}
+            Viestintä on {orgGen}
             {' '}sisällöntuotannon komentokeskus. Sivulla on kuusi
             välilehteä, jotka vievät idean suunnitelmasta julkaisuun asti:
           </p>
@@ -272,16 +338,247 @@ function buildSteps(orgSlug: string): Step[] {
         </>
       ),
     },
+    // ── Juhla-moduulit ──────────────────────────────
+    {
+      title: 'Vieraat',
+      subtitle: isJtk ? 'Sirpan juhlien vieraslista' : 'Vieraslista ja ilmoittautumiset',
+      path: '/vieraat',
+      moduleId: 'vieraat',
+      body: isJtk ? (
+        <>
+          <p>
+            Vieraslista kokoaa kaikki Sirpan 70-vuotisjuhlien kutsutut
+            ja ilmoittautuneet. Listalla on tällä hetkellä noin 60 vierasta
+            Facebook-kutsusta ja seinäkommenteista — arvio
+            todellisesta henkilömäärästä on 57–65.
+          </p>
+          <p>
+            Jokaiselle vieraalle voit merkitä <strong>statuksen</strong>
+            (saapuu, kutsuttu, epävarma, ei pääse), <strong>seurueen</strong>,
+            <strong> ruokavalion</strong> ja <strong>muistiinpanon</strong>.
+            Yläreunassa näkyy kokonaistilanne: montako saapuu, montako
+            odottaa vastausta ja arvioitu henkilömäärä ruokamitoitukseen.
+          </p>
+          <p>
+            Hae vieraita nimellä, suodata ryhmän tai statuksen mukaan.
+            Klikkaa <strong>Muokkaa</strong> muuttaaksesi mitä tahansa tietoa.
+          </p>
+        </>
+      ) : (
+        <>
+          <p>
+            Vieraslista hallinnoi kutsuttuja ja ilmoittautuneita. Näet
+            tilastot (saapuu, kutsuttu, odottaa, ei pääse) ja voit
+            suodattaa ryhmän tai statuksen mukaan.
+          </p>
+          <p>
+            Jokaiselle vieraalle voi merkitä ruokavalion, seurueen,
+            +1-avecin ja muistiinpanoja. Statusta voi vaihtaa suoraan
+            listanäkymässä.
+          </p>
+        </>
+      ),
+    },
+    {
+      title: 'Ruoka',
+      subtitle: isJtk ? 'Sirpan juhlien tarjoilut' : 'Ruoka- ja juomasuunnittelu',
+      path: '/ruoka',
+      moduleId: 'ruoka',
+      body: isJtk ? (
+        <>
+          <p>
+            Ruoka ja juomat -sivu kokoaa Juhlatoimikunnan tarjoilu­suunnitelman.
+            Lisää ruokia ja juomia kategorioittain: alkupalat, pääruoka,
+            jälkiruoka, kakku, juomat ja muu.
+          </p>
+          <p>
+            Jokaiselle kohteelle merkitään <strong>vastuuhenkilö</strong>
+            (kuka hoitaa), <strong>määrä</strong>, <strong>ruokavaliohuomio</strong>
+            ja <strong>pitääkö vielä hankkia</strong>. Yläreunassa näkyy
+            tilanne: montako kohdetta, montako hankittavana ja montako valmista.
+          </p>
+          <p>
+            Rastita kohde valmiiksi kun se on hoidossa. Hankittavat-merkintä
+            auttaa kauppalistana juhlapäivää edeltävinä päivinä.
+          </p>
+        </>
+      ) : (
+        <>
+          <p>
+            Ruoka-sivu hallinnoi tarjoiluja kategorioittain. Voit merkitä
+            vastuuhenkilön, määrän, ruokavaliorajoitukset ja hankinta­statuksen.
+          </p>
+        </>
+      ),
+    },
+    {
+      title: 'Tehtävät',
+      subtitle: isJtk ? 'Juhlatoimikunnan tehtävälista' : 'Yleinen tehtävälista',
+      path: '/tehtavat',
+      moduleId: 'tehtavat',
+      body: isJtk ? (
+        <>
+          <p>
+            Tehtävät on Juhlatoimikunnan yleinen tehtävälista kaikkeen
+            juhlajärjestelyyn liittyvään. Lisää nopeasti yläpalkin
+            pikalisäyksellä tai tarkemmat tiedot lomakkeella.
+          </p>
+          <p>
+            Jokaiselle tehtävälle voi merkitä <strong>tekijän</strong>
+            (Sonja, Raisa, Elina tai Anton), <strong>kategorian</strong>
+            (koristelu, ohjelma, kutsut, musiikki jne.),
+            <strong> deadlinen</strong>, <strong>prioriteetin</strong> ja
+            <strong> hankittava</strong>-lipun tavaroille joita pitää ostaa.
+          </p>
+          <p>
+            Suodata tekijän tai hankittava-statuksen mukaan. Tärkeät
+            tehtävät nousevat listan kärkeen, ja deadlinen lähestyessä
+            päivälaskuri muuttuu punaiseksi.
+          </p>
+        </>
+      ) : (
+        <>
+          <p>
+            Tehtävälista kokoaa yleiset tekemiset. Pikalisäys yläpalkissa,
+            tarkemmat tiedot lomakkeella. Suodata tekijän tai
+            hankittava-statuksen mukaan.
+          </p>
+        </>
+      ),
+    },
+    {
+      title: 'Tila',
+      subtitle: isJtk ? 'Tyttöjen talo — juhlapaikan tilat' : 'Juhlapaikan tilat ja pohjapiirros',
+      path: '/tila',
+      moduleId: 'tila',
+      body: isJtk ? (
+        <>
+          <p>
+            Tila-sivu kuvaa Tyttöjen talon (Hämeentie 13 A) eri
+            huoneet ja niiden käyttötarkoitukset juhlissa. Lisää
+            jokaiselle tilalle nimi, kuvaus, käyttötarkoitus ja kuvia.
+          </p>
+          <p>
+            Esimerkiksi: juhlahuone (pääjuhlatila, ruokailu ja puheet),
+            keittiö (ruokavalmistelu), eteinen (vastaanotto), piha
+            (lisätila kesäsäässä). Kapasiteetti auttaa mitoittamaan
+            istumajärjestyksen.
+          </p>
+          <p>
+            Klikkaa tilan korttia nähdäksesi yksityiskohdat ja kuvat
+            isompana. Muokkaa tai lisää kuvia valmisteluvaiheen aikana.
+          </p>
+        </>
+      ) : (
+        <>
+          <p>
+            Tila-sivu hallinnoi juhlapaikan eri tiloja. Jokaiselle
+            tilalle voi lisätä kuvat, käyttötarkoituksen, kapasiteetin
+            ja muistiinpanoja.
+          </p>
+        </>
+      ),
+    },
+    {
+      title: 'Ohjelma',
+      subtitle: isJtk ? 'Juhlapäivän aikataulu klo 10–24' : 'Päivän ohjelma-aikataulu',
+      path: '/ohjelma',
+      moduleId: 'ohjelma',
+      body: isJtk ? (
+        <>
+          <p>
+            Ohjelma-sivu on Sirpan 70-vuotisjuhlien päiväaikataulu
+            lauantaille 25.4.2026. Aikajana jakautuu kahteen osaan:
+          </p>
+          <p>
+            <strong>Valmistelu (10:00–15:00)</strong> — somistus,
+            ruokavalmistelu, tekniikka ja viimeiset tarkistukset ennen
+            vieraiden saapumista.
+            <br />
+            <strong>Juhlat (15:00–24:00)</strong> — vastaanotto, puheet,
+            maljat, ruokailu, musiikki, ohjelma ja juhlan päättäminen.
+          </p>
+          <p>
+            Lisää ohjelmanumeroita tyypeittäin: valmistelu, ohjelma,
+            ruoka/tarjoilu, musiikki, puhe/malja tai muu. Jokaiselle
+            merkitään alku- ja loppuaika, vastuuhenkilö ja kuvaus.
+            Klikkaa ohjelmanumeroa muokataksesi sitä.
+          </p>
+        </>
+      ) : (
+        <>
+          <p>
+            Ohjelma-sivu kokoaa päivän tapahtumat aikajanalle. Lisää
+            ohjelmanumeroita kategorioittain ja merkitse vastuuhenkilöt.
+          </p>
+        </>
+      ),
+    },
+    {
+      title: 'Muistiinpanot',
+      subtitle: isJtk ? 'Juhlatoimikunnan palaverimuistiinpanot' : 'Palaverimuistiinpanot',
+      path: '/muistiinpanot',
+      moduleId: 'muistiinpanot',
+      body: isJtk ? (
+        <>
+          <p>
+            Muistiinpanot-sivu on Juhlatoimikunnan palaverimuistiinpanojen
+            arkisto. Aina kun järjestelypalaverissa sovitaan jotain,
+            kirjaa se tänne — muistiinpanot tallentuvat aikajärjestyksessä.
+          </p>
+          <p>
+            Jokaisessa muistiinpanossa merkitään <strong>ketkä olivat
+            paikalla</strong> (valitaan tiimin jäsenistä) ja kirjoitetaan
+            vapaamuotoinen teksti. Myöhemmin voit pyytää <strong>tekoälyä
+            tiivistämään</strong> muistiinpanon — AI luo yhteenvedon
+            pääkohdista ja toimenpiteistä.
+          </p>
+          <p>
+            Muistiinpanot löytyvät listanäkymästä uusimmat ensin. Klikkaa
+            muistiinpanoa auki nähdäksesi koko sisällön ja AI-yhteenvedon.
+          </p>
+        </>
+      ) : (
+        <>
+          <p>
+            Muistiinpanot kokoaa palaverimuistiinpanot aikajärjestyksessä.
+            Merkitse osallistujat ja kirjoita vapaamuotoiset muistiinpanot.
+            Tekoäly voi tiivistää muistiinpanon pääkohdiksi ja
+            toimenpiteiksi.
+          </p>
+        </>
+      ),
+    },
     {
       title: 'Momentum AI',
-      subtitle: isLlff
+      subtitle: isJtk
+        ? 'Tekoäly juhlanjärjestäjän apuna'
+        : isLlff
         ? 'Kokeile tekoälyä — kysy mitä se osaa'
         : 'Tekoäly tuntee strategian ja datan',
-      body: (
+      body: isJtk ? (
         <>
           <p>
             Oikean alakulman <strong>M</strong>-nappi avaa Momentum AI:n
-            — tekoäly joka tuntee {orgShort === 'LLFF' ? 'LLFF:n ' : ''}
+            — tekoäly joka toimii juhlanjärjestäjän apurina. Se tuntee
+            Juhlatoimikunnan tiimin, aikataulun, vieraslistan ja
+            juhlapaikan tiedot.
+          </p>
+          <p>
+            Kysy siltä mitä tahansa: ohjelmaideoita, koristeluvinkkejä,
+            ruokamäärien mitoitusta, puherunkojen luonnostelua tai
+            aikataulun optimointia. <strong>Inspiraatio</strong>-napilla
+            saat suoraan ideoita juhlien järjestämiseen.
+          </p>
+          <p className="ug-hint">
+            Opas löytyy aina vasemman reunan Käyttöohje-napista.
+          </p>
+        </>
+      ) : (
+        <>
+          <p>
+            Oikean alakulman <strong>M</strong>-nappi avaa Momentum AI:n
+            — tekoäly joka tuntee {orgGen + ' '}
             strategian, kohderyhmät, kanavat, projektit ja tulevat
             tapahtumat. Kysy siltä mitä tahansa viestintään tai
             tuotantoon liittyvää.
@@ -313,6 +610,9 @@ const ORG_DEMO_PROMPTS: Record<string, string[]> = {
   ],
   avl: [
     'Mitä kaikkea osaat tehdä Momentumissa Aivovammaliiton viestintätiimille? Kerro konkreettisesti käyttötapaukset -- esimerkiksi viestintäsuunnitelman sparraus, postausten luonnostelu eri kanaviin (Facebook, Instagram, LinkedIn, Aivoitus-lehti), kampanjoiden ideointi, tietoisuuskampanjoiden sisällöt, ja muut tavat joilla voit auttaa. Vastaa tiiviisti jäsennellyllä listalla, älä tee vielä yhtään postausta -- tämä on esittely.',
+  ],
+  juhlatoimikunta: [
+    'Mitä kaikkea osaat tehdä Momentumissa Juhlatoimikunnan apuna Sirpan 70-vuotisjuhlien järjestämisessä? Kerro konkreettisesti -- esimerkiksi ohjelmaideoita, koristeluvinkkejä, ruokamäärien laskemista 60 vieraalle, puherunkojen luonnostelua, aikataulun optimointia, musiikkisuosituksia, ja muita tapoja joilla voit auttaa juhlatoimikuntaa. Vastaa tiiviisti jäsennellyllä listalla -- tämä on esittely.',
   ],
 };
 const DEFAULT_DEMO_PROMPTS = [

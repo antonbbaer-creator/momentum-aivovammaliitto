@@ -5,6 +5,9 @@ import AppShell from '@/components/AppShell';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
+import { useParams } from 'next/navigation';
+import { getOrgTeamMembers } from '@/lib/org-defaults';
+import { OrgTeamMember } from '@/lib/team-shared';
 
 interface FoodItem {
   id: string;
@@ -19,10 +22,8 @@ interface FoodItem {
 }
 
 const CATEGORIES: { id: string; label: string; color: string }[] = [
-  { id: 'alkuruoka',  label: 'Alkupalat',    color: '#2a8a86' },
-  { id: 'paaruoka',   label: 'Pääruoka',     color: '#056b9f' },
-  { id: 'jalkiruoka', label: 'Jälkiruoka',   color: '#9b7cf6' },
-  { id: 'kakku',      label: 'Kakku',        color: '#e45c81' },
+  { id: 'suolaiset',  label: 'Suolaiset',    color: '#056b9f' },
+  { id: 'makeat',     label: 'Makeat',       color: '#9b7cf6' },
   { id: 'juomat',     label: 'Juomat',       color: '#f1b434' },
   { id: 'muu',        label: 'Muu',          color: '#f09a52' },
 ];
@@ -30,6 +31,9 @@ const CATEGORIES: { id: string; label: string; color: string }[] = [
 export default function RuokaPage() {
   const { canEdit } = useAuth();
   const { toast } = useToast();
+  const params = useParams();
+  const orgSlug = (params.orgSlug as string) || '';
+  const [members] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const [items, setItems] = useOrgData<FoodItem[]>('food', []);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -44,7 +48,7 @@ export default function RuokaPage() {
   const [fDietary, setFDietary] = useState('');
 
   const openNew = (cat?: string) => {
-    setEditId(null); setFName(''); setFCategory(cat || 'alkuruoka'); setFQuantity('');
+    setEditId(null); setFName(''); setFCategory(cat || 'suolaiset'); setFQuantity('');
     setFResponsible(''); setFHankkia(true); setFNote(''); setFDietary('');
     setShowForm(true);
   };
@@ -190,7 +194,13 @@ export default function RuokaPage() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
               <div className="field"><label>Määrä</label><input className="input" value={fQuantity} onChange={e => setFQuantity(e.target.value)} placeholder="Esim. 30 kpl" /></div>
-              <div className="field"><label>Vastuussa</label><input className="input" value={fResponsible} onChange={e => setFResponsible(e.target.value)} placeholder="Kuka hoitaa?" /></div>
+              <div className="field">
+                <label>Vastuussa</label>
+                <select className="input" value={fResponsible} onChange={e => setFResponsible(e.target.value)}>
+                  <option value="">Ei määrätty</option>
+                  {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                </select>
+              </div>
             </div>
             <div className="field"><label>Ruokavalio / huomio</label><input className="input" value={fDietary} onChange={e => setFDietary(e.target.value)} placeholder="Esim. gluteeniton vaihtoehto" /></div>
             <div className="field" style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>

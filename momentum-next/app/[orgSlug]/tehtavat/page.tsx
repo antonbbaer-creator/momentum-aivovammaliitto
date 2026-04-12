@@ -190,6 +190,54 @@ export default function TehtavatPage() {
         })}
       </div>
 
+      {/* Hankintalista */}
+      {(() => {
+        const hankinnat = openTasks.filter(t => t.hankkia);
+        if (hankinnat.length === 0) return null;
+        return (
+          <div style={{ marginTop: '1.5rem' }}>
+            <div style={{
+              fontSize: '.72rem', fontWeight: 700, color: 'var(--yellow)', textTransform: 'uppercase',
+              letterSpacing: '.05em', marginBottom: '.5rem', padding: '0 .25rem',
+              display: 'flex', alignItems: 'center', gap: '.5rem',
+            }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--yellow)' }} />
+              Hankintalista ({hankinnat.length})
+            </div>
+            <div style={{
+              background: 'rgba(241,180,52,.04)', border: '1px solid rgba(241,180,52,.15)',
+              borderRadius: 'var(--rl)', padding: '1rem',
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                {hankinnat.map(t => (
+                  <div key={t.id} style={{
+                    display: 'flex', alignItems: 'center', gap: '.65rem',
+                    padding: '.5rem .7rem', background: 'var(--card)',
+                    border: '1px solid var(--border)', borderRadius: 'var(--r)',
+                    borderLeft: '3px solid var(--yellow)',
+                  }}>
+                    {canEdit && (
+                      <input type="checkbox" checked={t.done} onChange={() => toggleDone(t.id)}
+                        style={{ width: 18, height: 18, accentColor: 'var(--green)', flexShrink: 0, cursor: 'pointer' }} />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0, cursor: canEdit ? 'pointer' : 'default' }} onClick={() => canEdit && openEdit(t)}>
+                      <div style={{ fontSize: '.82rem', fontWeight: 600 }}>{t.text}</div>
+                      <div style={{ fontSize: '.65rem', color: 'var(--t3)', display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginTop: '.1rem' }}>
+                        {t.assignee && <span style={{ fontWeight: 600 }}>{t.assignee}</span>}
+                        {t.note && <span>{t.note}</span>}
+                      </div>
+                    </div>
+                    {t.deadline && (
+                      <span style={{ fontSize: '.6rem', fontWeight: 700, color: 'var(--t3)', flexShrink: 0 }}>{t.deadline}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Done tasks */}
       {showDone && doneTasks.length > 0 && (
         <div style={{ marginTop: '1.5rem' }}>
