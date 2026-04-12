@@ -27,7 +27,7 @@ import {
 import { OrgTeam, OrgTeamMember, DEFAULT_LLFF_TEAMS, DEFAULT_LLFF_TEAM_MEMBERS } from '@/lib/team-shared';
 import { CommsPlan, DEFAULT_LLFF_2026_PLAN, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
 
-const WORKER_URL = 'https://momentum-worker.anton-4f9.workers.dev';
+import { workerFetch, WORKER_URL } from '@/lib/worker-fetch';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
 
 interface MediaFile {
@@ -86,7 +86,7 @@ export default function PublicationDetailSection({ publicationId, onBack, onOpen
   useEffect(() => {
     if (!activeOrg || mediaFiles.length > 0) return;
     setMediaLoading(true);
-    fetch(`${WORKER_URL}/media/list?limit=500`, { headers: { 'X-Momentum-Org': activeOrg } })
+    workerFetch('/media/list?limit=500', { orgId: activeOrg })
       .then(r => r.json())
       .then(d => {
         if (d.files) {

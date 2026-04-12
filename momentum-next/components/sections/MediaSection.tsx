@@ -6,7 +6,7 @@ import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 
-const WORKER_URL = 'https://momentum-worker.anton-4f9.workers.dev';
+import { workerFetch, WORKER_URL } from '@/lib/worker-fetch';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
 
 interface MediaFile { id: string; name: string; size: number; type: string; ext: string; path: string; thumb: string; folder: string; source: string; r2Key?: string; added?: string; }
@@ -46,7 +46,7 @@ export default function MediaSection() {
 
   useEffect(() => {
     if (!activeOrg) return;
-    fetch(WORKER_URL + '/media/list?limit=500', { headers: { 'X-Momentum-Org': activeOrg } })
+    workerFetch('/media/list?limit=500', { orgId: activeOrg })
       .then(r => r.json())
       .then(d => {
         if (d.files) {
@@ -205,9 +205,9 @@ export default function MediaSection() {
     ].filter(Boolean).join('\n');
 
     try {
-      const res = await fetch(WORKER_URL + '/api/chat', {
+      const res = await workerFetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Momentum-Org': activeOrg || '' },
+        orgId: activeOrg || '',
         body: JSON.stringify({
           messages: [{ role: 'user', content: userMessage }],
           system: systemPrompt,
@@ -257,9 +257,9 @@ export default function MediaSection() {
         form.append('folder', 'uploaded');
         if (thumbBlob) form.append('thumb', thumbBlob, 'thumb.jpg');
 
-        const res = await fetch(WORKER_URL + '/media/upload', {
+        const res = await workerFetch('/media/upload', {
           method: 'POST', body: form,
-          headers: { 'X-Momentum-Org': activeOrg || '' },
+          orgId: activeOrg || '',
         });
         if (res.ok) {
           const data = await res.json();
@@ -313,7 +313,7 @@ export default function MediaSection() {
   const deleteFile = async (file: MediaFile) => {
     if (!canEdit) { toast('Vierailijat eivät voi poistaa tiedostoja', 'error'); return; }
     if (file.r2Key) {
-      try { await fetch(WORKER_URL + '/media/delete/' + file.r2Key, { method: 'DELETE', headers: { 'X-Momentum-Org': activeOrg || '' } }); } catch (e) {}
+      try { await workerFetch('/media/delete/' + file.r2Key, { method: 'DELETE', orgId: activeOrg || '' }); } catch (e) {}
       setR2Files(prev => prev.filter(f => f.id !== file.id));
     } else {
       setUploadedFiles(prev => prev.filter(f => f.id !== file.id));

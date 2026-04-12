@@ -18,7 +18,7 @@ import { useToast } from '@/lib/toast';
 import { normalizePublication } from '@/lib/publications-shared';
 import { CommsPlan, DEFAULT_LLFF_2026_PLAN, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
 
-const WORKER_URL = 'https://momentum-worker.anton-4f9.workers.dev';
+import { workerFetch, WORKER_URL } from '@/lib/worker-fetch';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
 // Worker-proxy kuville — R2_CDN ei lähetä CORS-headereitä, mikä saastuttaa
 // canvasin eikä julkaisua voi viedä toBlob:lla. Worker lähettää
@@ -614,8 +614,8 @@ export default function EditorSection() {
     if (!activeOrg || mediaLoading) return;
     setMediaLoading(true);
     try {
-      const res = await fetch(WORKER_URL + '/media/list?limit=500', {
-        headers: { 'X-Momentum-Org': activeOrg },
+      const res = await workerFetch('/media/list?limit=500', {
+        orgId: activeOrg,
       });
       const data = await res.json();
       const files: MediaFile[] = (data.files || [])
@@ -863,10 +863,10 @@ export default function EditorSection() {
     const form = new FormData();
     form.append('file', blob, filename);
     form.append('folder', folder);
-    const res = await fetch(WORKER_URL + '/media/upload', {
+    const res = await workerFetch('/media/upload', {
       method: 'POST',
       body: form,
-      headers: { 'X-Momentum-Org': activeOrg },
+      orgId: activeOrg,
     });
     if (!res.ok) {
       const msg = await res.text().catch(() => res.statusText);

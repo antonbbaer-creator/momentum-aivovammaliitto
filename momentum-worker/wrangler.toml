@@ -15,3 +15,4 @@ binding = "AI"
 
 [vars]
 ALLOWED_ORIGINS = "https://hetkimomentum.com,https://elegant-melba-ad4bcf.netlify.app,http://localhost:3000,http://localhost:8080"
+ENVIRONMENT = "production"

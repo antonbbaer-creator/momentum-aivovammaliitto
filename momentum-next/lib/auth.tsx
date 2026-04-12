@@ -61,6 +61,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (snap.exists()) {
       const data = snap.data();
       const allOrgs = (data.orgs || []) as UserOrg[];
+
+      // Ensure orgIds array is synced for Firestore Security Rules
+      const currentOrgIds = allOrgs.map(o => o.orgId);
+      const storedOrgIds = data.orgIds || [];
+      if (JSON.stringify(currentOrgIds.sort()) !== JSON.stringify([...storedOrgIds].sort())) {
+        await setDoc(doc(db, 'userOrgs', uid), { orgIds: currentOrgIds }, { merge: true });
+      }
+
       // Suodata pois ei-aktiiviset orgit (vain LLFF tällä hetkellä)
       // Data Firestoressa säilyy — rajoitus on pelkästään asiakaspään näkyvyydessä
       return allOrgs.filter(o => isOrgEnabled(o.orgId));

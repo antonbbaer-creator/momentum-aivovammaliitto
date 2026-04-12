@@ -3,8 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useOrgData } from '@/lib/firestore';
-
-const WORKER_URL = 'https://momentum-worker.anton-4f9.workers.dev';
+import { workerFetch } from '@/lib/worker-fetch';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -169,9 +168,9 @@ export default function ChatFAB() {
     setLoading(true);
 
     try {
-      const res = await fetch(WORKER_URL + '/api/chat', {
+      const res = await workerFetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Momentum-Org': activeOrg || '' },
+        orgId: activeOrg || '',
         body: JSON.stringify({
           messages: nextMessages.map(m => ({ role: m.role, content: m.content })),
           systemContext: buildContext(),

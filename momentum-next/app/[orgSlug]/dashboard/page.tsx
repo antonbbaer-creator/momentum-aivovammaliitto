@@ -19,7 +19,7 @@ import {
   resolveUserMember,
 } from '@/lib/team-shared';
 
-const WORKER_URL = 'https://momentum-worker.anton-4f9.workers.dev';
+import { workerFetch } from '@/lib/worker-fetch';
 
 export default function DashboardPage() {
   const { user, orgs, activeOrg } = useAuth();
@@ -182,9 +182,9 @@ export default function DashboardPage() {
     setAiLoading(true); setAiResponse('');
     try {
       const systemCtx = `Olet ${org.name || 'organisaation'} viestinnän AI-kumppani. Vastaa lyhyesti ja konkreettisesti suomeksi. ${org.commsMission ? 'Viestinnän missio: ' + org.commsMission : ''} ${org.tone?.length ? 'Sävyt: ' + org.tone.join(', ') : ''}`;
-      const res = await fetch(WORKER_URL + '/api/chat', {
+      const res = await workerFetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Momentum-Org': activeOrg || '' },
+        orgId: activeOrg || '',
         body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], systemContext: systemCtx }),
       });
       if (res.ok) { const data = await res.json(); setAiResponse(data.response || ''); }

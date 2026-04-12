@@ -10,7 +10,7 @@ import { Publication, normalizePublication, newBriefTemplate } from './publicati
 import { Channel } from './chat-shared';
 import { OrgTeam, OrgTeamMember } from './team-shared';
 
-const WORKER_URL = 'https://momentum-worker.anton-4f9.workers.dev';
+import { workerFetch, WORKER_URL } from './worker-fetch';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
 
 // ========== MOMENTUM-BOT IDENTITY ==========
@@ -208,8 +208,8 @@ export interface MediaFileLite {
 let mediaCache: MediaFileLite[] = [];
 
 async function fetchMedia(activeOrg: string, limit: number, folder?: string, search?: string): Promise<MediaFileLite[]> {
-  const res = await fetch(`${WORKER_URL}/media/list?limit=${Math.min(limit || 20, 50)}`, {
-    headers: { 'X-Momentum-Org': activeOrg },
+  const res = await workerFetch(`/media/list?limit=${Math.min(limit || 20, 50)}`, {
+    orgId: activeOrg,
   });
   if (!res.ok) throw new Error('Media fetch failed');
   const data = await res.json();
@@ -523,12 +523,9 @@ export async function runClaudeBot(
         );
 
   try {
-    const res = await fetch(`${WORKER_URL}/api/ai/assist`, {
+    const res = await workerFetch('/api/ai/assist', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Momentum-Org': ctx.activeOrg || 'llff',
-      },
+      orgId: ctx.activeOrg || 'llff',
       body: JSON.stringify({
         message: userMessage,
         history,

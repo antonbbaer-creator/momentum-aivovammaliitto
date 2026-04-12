@@ -3,17 +3,66 @@
  * Handles: Meta OAuth, Graph API proxy, R2 media storage
  */
 
+import { createRemoteJWKSet, jwtVerify } from 'jose';
+
+// ── HTML ESCAPE (XSS protection) ──
+function escapeHtml(str) {
+  return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// Escape for use inside JS string literals in inline <script> tags
+function escapeJs(str) {
+  return String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/</g, '\\x3c').replace(/>/g, '\\x3e').replace(/\n/g, '\\n');
+}
+
+// ── FIREBASE AUTH ──
+const FIREBASE_PROJECT_ID = 'momentum-69262';
+const GOOGLE_JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
+let jwks = null;
+
+async function verifyFirebaseToken(request) {
+  const authHeader = request.headers.get('Authorization') || '';
+  if (!authHeader.startsWith('Bearer ')) return null;
+  const token = authHeader.slice(7);
+  if (!token) return null;
+
+  try {
+    if (!jwks) {
+      jwks = createRemoteJWKSet(new URL(GOOGLE_JWKS_URL));
+    }
+    const { payload } = await jwtVerify(token, jwks, {
+      issuer: `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`,
+      audience: FIREBASE_PROJECT_ID,
+    });
+    if (!payload.sub) return null;
+    return { uid: payload.sub, email: payload.email || null };
+  } catch (e) {
+    return null;
+  }
+}
+
+// Routes that do NOT require authentication
+const PUBLIC_PATHS = new Set(['/', '/health']);
+function isPublicRoute(path) {
+  if (PUBLIC_PATHS.has(path)) return true;
+  if (path === '/auth/callback') return true; // OAuth redirect, no browser auth context
+  if (path.startsWith('/media/file/')) return true;  // public CDN
+  if (path.startsWith('/media/thumb/')) return true;
+  if (path.startsWith('/media/img/')) return true;
+  return false;
+}
+
 // ── CORS ──
 function corsHeaders(request, env) {
   const origin = request.headers.get('Origin') || '';
   const allowed = (env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
-  // Always allow localhost/127.0.0.1 on any port for development
-  const isLocalhost = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  // Only allow localhost in non-production environments
+  const isLocalhost = env.ENVIRONMENT !== 'production' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
   const isAllowed = isLocalhost || allowed.some(a => a === '*' || origin === a || origin.startsWith(a));
   return {
     'Access-Control-Allow-Origin': isAllowed && origin ? origin : (allowed[0] || '*'),
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Momentum-Org',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Momentum-Org, Authorization',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin',
   };
@@ -40,6 +89,16 @@ export default {
 
     const url = new URL(request.url);
     const path = url.pathname;
+
+    // ── AUTH MIDDLEWARE ──
+    let authUser = null;
+    if (!isPublicRoute(path)) {
+      authUser = await verifyFirebaseToken(request);
+      if (!authUser) {
+        return corsResponse(request, env, { error: 'Unauthorized — valid Firebase token required' }, 401);
+      }
+    }
+
     const orgId = request.headers.get('X-Momentum-Org') || 'avl';
 
     try {
@@ -131,7 +190,7 @@ async function handleFacebookCallback(request, env, url) {
   const error = url.searchParams.get('error');
 
   if (error) {
-    return new Response(`<html><script>window.close();alert('Meta-yhteys epaonnistui: ${error}');</script></html>`, {
+    return new Response(`<html><script>window.close();alert('Meta-yhteys epaonnistui: ${escapeJs(error)}');</script></html>`, {
       headers: { 'Content-Type': 'text/html' },
     });
   }
@@ -147,7 +206,7 @@ async function handleFacebookCallback(request, env, url) {
   );
   const tokenData = await tokenRes.json();
   if (tokenData.error) {
-    return new Response(`<html><script>window.close();alert('Token error: ${tokenData.error.message}');</script></html>`, {
+    return new Response(`<html><script>window.close();alert('Token error: ${escapeJs(tokenData.error.message)}');</script></html>`, {
       headers: { 'Content-Type': 'text/html' },
     });
   }
@@ -164,7 +223,7 @@ async function handleFacebookCallback(request, env, url) {
   const pagesData = await pagesRes.json();
 
   if (!pagesData.data || pagesData.data.length === 0) {
-    return new Response(`<html><script>window.close();alert('Ei Facebook-sivuja loydetty.');</script></html>`, {
+    return new Response(`<html><script>window.close();alert('Ei Facebook-sivuja l\\xf6ydetty.');</script></html>`, {
       headers: { 'Content-Type': 'text/html' },
     });
   }
@@ -195,9 +254,10 @@ async function handleFacebookCallback(request, env, url) {
 
   // Redirect back to SPA
   const spaUrl = env.ALLOWED_ORIGINS?.split(',')[0] || 'http://localhost:8080';
+  const spaOrigin = new URL(spaUrl).origin;
   return new Response(`<html><script>
-    if(window.opener){window.opener.postMessage({type:'meta_connected',pageName:'${pageName}',pageId:'${pageId}',igAccountId:'${igAccountId || ''}'},'*');window.close()}
-    else{window.location.href='${spaUrl}/momentum-aivovammaliitto.html?meta_connected=true'}
+    if(window.opener){window.opener.postMessage({type:'meta_connected',pageName:'${escapeJs(pageName)}',pageId:'${escapeJs(pageId)}',igAccountId:'${escapeJs(igAccountId || '')}'},'${escapeJs(spaOrigin)}');window.close()}
+    else{window.location.href='${escapeJs(spaUrl)}/momentum-aivovammaliitto.html?meta_connected=true'}
   </script></html>`, { headers: { 'Content-Type': 'text/html' } });
 }
 
