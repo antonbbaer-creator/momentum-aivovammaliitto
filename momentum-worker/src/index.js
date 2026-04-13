@@ -132,6 +132,11 @@ export default {
         return handleAiAssist(request, env, orgId);
       }
 
+      // ── TRANSCRIPTION (Whisper) ──
+      if (path === '/api/transcribe' && request.method === 'POST') {
+        return handleTranscribe(request, env);
+      }
+
       // ── MEDIA ROUTES ──
       if (path === '/media/upload' && request.method === 'POST') {
         return handleMediaUpload(request, env, orgId);
@@ -1016,4 +1021,55 @@ async function handleAiAssist(request, env, orgId) {
     actions: pendingActions,
     toolsUsed,
   });
+}
+
+// ── TRANSCRIPTION (OpenAI Whisper) ──
+async function handleTranscribe(request, env) {
+  if (!env.OPENAI_API_KEY) {
+    return corsResponse(request, env, { error: 'OPENAI_API_KEY puuttuu' }, 500);
+  }
+
+  let formData;
+  try {
+    formData = await request.formData();
+  } catch (e) {
+    return corsResponse(request, env, { error: 'FormData vaaditaan (audio-tiedosto)' }, 400);
+  }
+
+  const audioFile = formData.get('audio');
+  if (!audioFile || !(audioFile instanceof File)) {
+    return corsResponse(request, env, { error: 'audio-kenttä puuttuu tai ei ole tiedosto' }, 400);
+  }
+
+  // Max 25 MB (Whisper API limit)
+  if (audioFile.size > 25 * 1024 * 1024) {
+    return corsResponse(request, env, { error: 'Tiedosto liian suuri (max 25 MB)' }, 400);
+  }
+
+  // Forward to OpenAI Whisper API
+  const whisperForm = new FormData();
+  whisperForm.append('file', audioFile, audioFile.name || 'audio.webm');
+  whisperForm.append('model', 'whisper-1');
+  whisperForm.append('language', 'fi');
+  whisperForm.append('response_format', 'text');
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+      },
+      body: whisperForm,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      return corsResponse(request, env, { error: `Whisper API virhe: ${res.status} ${errText.slice(0, 300)}` }, 502);
+    }
+
+    const transcription = await res.text();
+    return corsResponse(request, env, { transcription: transcription.trim() });
+  } catch (e) {
+    return corsResponse(request, env, { error: `Litterointi epäonnistui: ${e.message}` }, 500);
+  }
 }

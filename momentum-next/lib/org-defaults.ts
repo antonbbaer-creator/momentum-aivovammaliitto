@@ -11,7 +11,7 @@ import { DEFAULT_LLFF_TEAMS, DEFAULT_LLFF_TEAM_MEMBERS } from './team-shared';
 import type { Grant, GrantsSettings } from './grants-shared';
 import { LLFF_GRANTS_DEFAULT, DEFAULT_GRANTS_SETTINGS } from './grants-shared';
 import type { CommsPlan } from './comms-plan-shared';
-import { DEFAULT_LLFF_2026_PLAN } from './comms-plan-shared';
+import { DEFAULT_LLFF_2026_PLAN, EMPTY_COMMS_PLAN } from './comms-plan-shared';
 import type { YearPhase } from './yearwheel-shared';
 import { defaultLlffYearwheel } from './yearwheel-shared';
 import {
@@ -78,8 +78,9 @@ export function getOrgGrantsSettings(orgSlug: string): GrantsSettings {
 
 export function getOrgCommsPlan(orgSlug: string): CommsPlan {
   if (orgSlug === 'llff') return DEFAULT_LLFF_2026_PLAN;
+  if (orgSlug === 'avl') return DEFAULT_AVL_COMMS_PLAN;
   if (orgSlug === 'juhlatoimikunta') return DEFAULT_JUHLATOIMIKUNTA_COMMS_PLAN;
-  return DEFAULT_AVL_COMMS_PLAN;
+  return EMPTY_COMMS_PLAN;
 }
 
 // ── Vuosikello ─────────────────────────────────────────────────

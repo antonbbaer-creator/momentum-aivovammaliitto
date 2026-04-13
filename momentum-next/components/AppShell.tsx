@@ -16,6 +16,14 @@ export default function AppShell({ children, title, subtitle }: Props) {
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Load preferences from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('momentum_textSize');
+    const scales: Record<string, number> = { sm: 1, md: 1.15, lg: 1.35 };
+    if (saved && scales[saved]) document.documentElement.style.fontSize = `${scales[saved] * 16}px`;
+    if (localStorage.getItem('momentum_compactMode') === 'true') document.documentElement.classList.add('compact');
+  }, []);
+
   useEffect(() => {
     if (sidebarOpen) {
       document.body.classList.add('no-scroll');
@@ -49,7 +57,7 @@ export default function AppShell({ children, title, subtitle }: Props) {
               </svg>
             </button>
           )}
-          <div>
+          <div style={{ flex: 1 }}>
             <h1>{title}</h1>
             {subtitle && <p>{subtitle}</p>}
           </div>

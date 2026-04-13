@@ -5,13 +5,17 @@ import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useIsMobile } from '@/lib/use-mobile';
+import { useParams } from 'next/navigation';
 import { Workshop, DEFAULT_WORKSHOPS, LLFF_VENUES, PROGRAMME_COLORS } from '@/lib/festival-shared';
+
+const EMPTY_WORKSHOPS: Workshop[] = [];
 
 export default function WorkshopsSection() {
   const { canEdit } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const [workshops, setWorkshops] = useOrgData<Workshop[]>('workshops', DEFAULT_WORKSHOPS);
+  const orgSlug = (useParams().orgSlug as string) || '';
+  const [workshops, setWorkshops] = useOrgData<Workshop[]>('workshops', orgSlug === 'llff' ? DEFAULT_WORKSHOPS : EMPTY_WORKSHOPS);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
 

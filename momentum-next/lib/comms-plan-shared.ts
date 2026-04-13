@@ -716,11 +716,26 @@ export const LLFF_2025_IMPROVEMENTS: Improvement[] = [
 ];
 
 // ============================================================
+// Tyhjä pohja uusille organisaatioille (ei org-spesifiä dataa)
+// ============================================================
+
+export const EMPTY_COMMS_PLAN: CommsPlan = {
+  id: '', year: new Date().getFullYear(),
+  festivalName: '', festivalDates: '', summary: '', mission: '',
+  visitorGoal: 0, visitorBaseline: 0, volunteerGoal: 0, volunteerBaseline: 0,
+  responsibleMemberId: '', responsibleTeamId: '',
+  activeFrom: '', visualIdentityDeadline: '', kickoffNote: '',
+  strategicMoves: [], kpis: [], audienceMix: [], brandPillars: [],
+  milestones: [], monthTargets: [], phases: [], campaigns: [],
+  channelMatrix: [], contentPillars: [], channels: [],
+};
+
+// ============================================================
 // Helperit
 // ============================================================
 
 export function normalizeCommsPlan(p: any): CommsPlan {
-  if (!p) return { ...DEFAULT_LLFF_2026_PLAN };
+  if (!p) return { ...EMPTY_COMMS_PLAN };
   // Käyttää annettua dataa sellaisenaan, täyttää puuttuvat rakenteelliset kentät
   // tyhjillä arvoilla — EI LLFF-datalla (estää cross-org datavuodon)
   return {

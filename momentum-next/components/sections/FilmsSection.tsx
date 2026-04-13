@@ -5,6 +5,7 @@ import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useIsMobile } from '@/lib/use-mobile';
+import { useParams } from 'next/navigation';
 
 interface Film {
   id: string;
@@ -58,11 +59,15 @@ const defaultNordicFilms: Film[] = [
   { id: 'nf8', title: 'Almost Forever', director: 'Lia Hietala & Hannah Reinikainen', directorBorn: '', country: 'Ruotsi/Suomi', countryFlag: '🇸🇪🇫🇮', year: '2026', genre: 'Documentary', type: 'esikoinen', festivals: 'CPH:DOX 2026', synopsis: '', status: 'consideration', section: 'nordic' },
 ];
 
+const EMPTY_FILMS: Film[] = [];
+const LLFF_DEFAULT_FILMS = [...defaultThemeFilms, ...defaultNordicFilms];
+
 export default function FilmsSection() {
   const { canEdit } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const [films, setFilms] = useOrgData<Film[]>('films', [...defaultThemeFilms, ...defaultNordicFilms]);
+  const orgSlug = (useParams().orgSlug as string) || '';
+  const [films, setFilms] = useOrgData<Film[]>('films', orgSlug === 'llff' ? LLFF_DEFAULT_FILMS : EMPTY_FILMS);
   const [tab, setTab] = useState<'theme' | 'nordic'>('theme');
   const [selectedFilm, setSelectedFilm] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);

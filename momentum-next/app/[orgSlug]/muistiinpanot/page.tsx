@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import AppShell from '@/components/AppShell';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
@@ -9,6 +9,13 @@ import { useParams } from 'next/navigation';
 import { getOrgTeamMembers } from '@/lib/org-defaults';
 import { OrgTeamMember } from '@/lib/team-shared';
 import { useIsMobile } from '@/lib/use-mobile';
+import { workerFetch } from '@/lib/worker-fetch';
+
+interface ActionItem {
+  text: string;
+  assignee: string;
+  confirmed?: boolean;
+}
 
 interface MeetingNote {
   id: string;
@@ -17,27 +24,43 @@ interface MeetingNote {
   attendees: string[];
   content: string;
   summary?: string; // AI-generated summary
+  actionItems?: ActionItem[]; // AI-ehdottamat toimenpiteet
+  rawTranscription?: string; // raaka litterointi sellaisenaan
+  cleanTranscription?: string; // kiteytetty, putsattu litterointi
   createdAt: number;
 }
 
 export default function MuistiinpanotPage() {
-  const { canEdit } = useAuth();
+  const { canEdit, activeOrg } = useAuth();
   const { toast } = useToast();
   const params = useParams();
   const orgSlug = (params.orgSlug as string) || '';
   const [notes, setNotes] = useOrgData<MeetingNote[]>('meetingNotes', []);
   const [members] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
+  const [tasks, setTasks] = useOrgData<{ id: string; text: string; assignee?: string; hankkia: boolean; done: boolean; priority: 'normal' | 'high'; deadline?: string; note?: string; category?: string }[]>('tasks', []);
   const isMobile = useIsMobile();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [selectedNote, setSelectedNote] = useState<string | null>(null);
   const [summarizing, setSummarizing] = useState(false);
+  const [summarizingId, setSummarizingId] = useState<string | null>(null);
+
+  // Recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [transcribing, setTranscribing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Form state
   const [nTitle, setNTitle] = useState('');
   const [nDate, setNDate] = useState(new Date().toISOString().split('T')[0]);
   const [nAttendees, setNAttendees] = useState<string[]>([]);
   const [nContent, setNContent] = useState('');
+  const [nRawTranscription, setNRawTranscription] = useState('');
+  const [nCleanTranscription, setNCleanTranscription] = useState('');
 
   const openNew = () => {
     setEditId(null);
@@ -45,6 +68,8 @@ export default function MuistiinpanotPage() {
     setNDate(new Date().toISOString().split('T')[0]);
     setNAttendees([]);
     setNContent('');
+    setNRawTranscription('');
+    setNCleanTranscription('');
     setShowForm(true);
   };
 
@@ -54,19 +79,24 @@ export default function MuistiinpanotPage() {
     setNDate(note.date);
     setNAttendees(note.attendees);
     setNContent(note.content);
+    setNRawTranscription(note.rawTranscription || '');
+    setNCleanTranscription(note.cleanTranscription || '');
     setShowForm(true);
   };
 
   const save = () => {
     if (!nTitle.trim() || !nContent.trim()) return;
+    const existing = editId ? notes.find(n => n.id === editId) : undefined;
     const note: MeetingNote = {
       id: editId || 'mn_' + Date.now(),
       title: nTitle.trim(),
       date: nDate,
       attendees: nAttendees,
       content: nContent.trim(),
-      summary: editId ? notes.find(n => n.id === editId)?.summary : undefined,
-      createdAt: editId ? (notes.find(n => n.id === editId)?.createdAt ?? Date.now()) : Date.now(),
+      summary: existing?.summary,
+      rawTranscription: nRawTranscription || existing?.rawTranscription || undefined,
+      cleanTranscription: nCleanTranscription || existing?.cleanTranscription || undefined,
+      createdAt: existing?.createdAt ?? Date.now(),
     };
     if (editId) setNotes(prev => prev.map(x => x.id === editId ? note : x));
     else setNotes(prev => [note, ...prev]);
@@ -91,37 +121,247 @@ export default function MuistiinpanotPage() {
     const note = notes.find(n => n.id === noteId);
     if (!note) return;
     setSummarizing(true);
+    setSummarizingId(noteId);
     try {
-      // Use the chat AI endpoint to summarize
-      const prompt = `Tee tiivis yhteenveto seuraavasta palaverimuistiinpanosta. Listaa pääkohdat ja mahdolliset toimenpiteet. Vastaa suomeksi.\n\nOtsikko: ${note.title}\nPäivämäärä: ${note.date}\nOsallistujat: ${note.attendees.join(', ') || 'Ei merkitty'}\n\nMuistiinpano:\n${note.content}`;
+      const prompt = `Tee tiivis yhteenveto seuraavasta palaverimuistiinpanosta. Vastaa SELKOTEKSTINA ilman markdown-muotoilua (ei #-otsikoita, ei **-boldausta, ei listamerkkejä). Kayta tavallisia kappaleita ja riveja.
 
-      // Try to use the AI chat endpoint
-      const response = await fetch('/api/chat', {
+Yhteenvedon jalkeen listaa kaikki toimenpiteet ja paatokset omalla rivillaan muodossa:
+---TOIMENPITEET---
+Vastuuhenkilo: Toimenpiteen kuvaus
+Vastuuhenkilo: Toinen toimenpide
+
+Jos vastuuhenkiloa ei tiedeta, kayta "Kaikki" tai "Ei maaritetty".
+Vastaa suomeksi.
+
+Otsikko: ${note.title}
+Paivamaara: ${note.date}
+Osallistujat: ${note.attendees.join(', ') || 'Ei merkitty'}
+
+Muistiinpano:
+${note.content}`;
+
+      const response = await workerFetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: prompt, orgSlug }),
+        orgId: activeOrg || '',
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: prompt }],
+          systemContext: 'Olet palaverimuistiinpanojen yhteenvetaja. Vastaa selkotekstina ilman markdown-muotoilua.',
+        }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        const summary = data.reply || data.message || '';
+        const raw = (data.response || '') as string;
+        // Parse summary and action items
+        const sepIdx = raw.indexOf('---TOIMENPITEET---');
+        const summary = (sepIdx >= 0 ? raw.slice(0, sepIdx) : raw).trim();
+        const actionItems: ActionItem[] = [];
+        if (sepIdx >= 0) {
+          const lines = raw.slice(sepIdx + '---TOIMENPITEET---'.length).trim().split('\n').filter(l => l.trim());
+          for (const line of lines) {
+            const colonIdx = line.indexOf(':');
+            if (colonIdx > 0) {
+              actionItems.push({
+                text: line.slice(colonIdx + 1).trim(),
+                assignee: line.slice(0, colonIdx).trim().replace(/^-\s*/, ''),
+                confirmed: false,
+              });
+            }
+          }
+        }
         if (summary) {
-          setNotes(prev => prev.map(n => n.id === noteId ? { ...n, summary } : n));
+          setNotes(prev => prev.map(n => n.id === noteId ? { ...n, summary, actionItems: actionItems.length > 0 ? actionItems : n.actionItems } : n));
           toast('Yhteenveto luotu', 'success');
         }
       } else {
-        // Fallback: simple bullet point extraction
         const lines = note.content.split('\n').filter(l => l.trim());
-        const summary = `Palaveri: ${note.title} (${note.date})\nOsallistujat: ${note.attendees.join(', ') || '-'}\n\nPääkohdat:\n${lines.slice(0, 5).map(l => '- ' + l.trim()).join('\n')}`;
+        const summary = `Palaveri: ${note.title} (${note.date})\nOsallistujat: ${note.attendees.join(', ') || '-'}\n\nPaakohdat:\n${lines.slice(0, 5).map(l => '- ' + l.trim()).join('\n')}`;
         setNotes(prev => prev.map(n => n.id === noteId ? { ...n, summary } : n));
         toast('Yhteenveto luotu (perusmuoto)', 'success');
       }
     } catch {
-      toast('Yhteenvedon luonti epäonnistui', 'error');
+      toast('Yhteenvedon luonti eponnistui', 'error');
     } finally {
       setSummarizing(false);
+      setSummarizingId(null);
     }
   };
+
+  // ── Action item management ──
+  const updateActionItem = (noteId: string, idx: number, updates: Partial<ActionItem>) => {
+    setNotes(prev => prev.map(n => {
+      if (n.id !== noteId || !n.actionItems) return n;
+      const items = [...n.actionItems];
+      items[idx] = { ...items[idx], ...updates };
+      return { ...n, actionItems: items };
+    }));
+  };
+
+  const createTaskFromAction = (noteId: string, idx: number) => {
+    const note = notes.find(n => n.id === noteId);
+    const item = note?.actionItems?.[idx];
+    if (!item) return;
+    const newTask = {
+      id: 't_' + Date.now(),
+      text: item.text,
+      assignee: item.assignee || undefined,
+      hankkia: false,
+      done: false,
+      priority: 'normal' as const,
+      note: `Palaverista: ${note.title} (${note.date})`,
+    };
+    setTasks(prev => [newTask, ...prev]);
+    updateActionItem(noteId, idx, { confirmed: true });
+    toast(`Tehtava luotu: ${item.assignee || 'Ei tekijaa'}`, 'success');
+  };
+
+  // ── Recording ──
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
+      const recorder = new MediaRecorder(stream, {
+        ...(mimeType ? { mimeType } : {}),
+        audioBitsPerSecond: 32000, // 32 kbps — tunti ~ 14 MB
+      });
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      recorder.start(1000);
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+    } catch {
+      toast('Mikrofonin käyttö ei onnistunut', 'error');
+    }
+  }, [toast]);
+
+  const stopRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder) return;
+    return new Promise<Blob>((resolve) => {
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        recorder.stream.getTracks().forEach(t => t.stop());
+        resolve(blob);
+      };
+      recorder.stop();
+      setIsRecording(false);
+      if (timerRef.current) clearInterval(timerRef.current);
+    });
+  }, []);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []);
+
+  // ── Send one audio blob to Whisper ──
+  const transcribeChunk = useCallback(async (blob: Blob, filename: string): Promise<string> => {
+    const form = new FormData();
+    form.append('audio', blob, filename);
+    const res = await workerFetch('/api/transcribe', {
+      method: 'POST',
+      orgId: activeOrg || '',
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Litterointi epäonnistui' }));
+      throw new Error((err as { error?: string }).error || 'Litterointi epäonnistui');
+    }
+    const { transcription } = await res.json() as { transcription: string };
+    return transcription || '';
+  }, [activeOrg]);
+
+  // ── AI cleanup + open form ──
+  const finishTranscription = useCallback(async (transcription: string) => {
+    let clean = '';
+    try {
+      const chatRes = await workerFetch('/api/chat', {
+        method: 'POST',
+        orgId: activeOrg || '',
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: `Olet litteroinnin putsaaja. Alla on raaka litterointi palaverista tai muistiinpanosta. Tee siitä selkeä, kiteytetty versio jossa kaikki oleelliset asiat ovat mukana.\n\nOhjeet:\n- Poista täytesanat, toistot ja epäselvyydet\n- Säilytä kaikki faktat, päätökset ja toimenpiteet\n- Jos puhujat mainitsevat nimensä tai nimiin viitataan keskustelussa, merkitse puheenvuorot muodossa "Nimi: sanoma asia"\n- Jos puhujia ei voi tunnistaa, kirjoita teksti ilman puhujamerkintöjä\n- Vastaa suomeksi\n\nRaaka litterointi:\n${transcription}` }],
+          systemContext: 'Olet litteroinnin putsaaja. Tunnista puhujat jos mahdollista ja tuota selkeä versio raa\'asta litteroinnista.',
+        }),
+      });
+      if (chatRes.ok) {
+        const chatData = await chatRes.json() as { response?: string };
+        clean = chatData.response || '';
+      }
+    } catch {
+      // Clean transcription is optional
+    }
+    setNRawTranscription(transcription);
+    setNCleanTranscription(clean);
+    setNContent(transcription);
+    if (!nTitle) setNTitle('Litteroitu ' + new Date().toISOString().split('T')[0]);
+    setShowForm(true);
+    toast('Litterointi valmis', 'success');
+  }, [activeOrg, nTitle, toast]);
+
+  // ── Transcription flow (supports large files via audio decoding + WAV chunking) ──
+  const transcribeAudio = useCallback(async (audioBlob: Blob) => {
+    setTranscribing(true);
+    try {
+      // Small files (< 24 MB): send directly
+      if (audioBlob.size <= 24 * 1024 * 1024) {
+        const ext = audioBlob.type.includes('mp4') ? 'mp4' : audioBlob.type.includes('mp3') || audioBlob.type.includes('mpeg') ? 'mp3' : audioBlob.type.includes('wav') ? 'wav' : 'webm';
+        const transcription = await transcribeChunk(audioBlob, `recording.${ext}`);
+        if (!transcription) throw new Error('Tyhjä litterointi — ei tunnistettu puhetta');
+        return await finishTranscription(transcription);
+      }
+
+      // Large files: decode to AudioBuffer, split into valid WAV chunks
+      toast('Puretaan äänitiedostoa...', 'success');
+      const ab = await audioBlob.arrayBuffer();
+      const audioCtx = new AudioContext({ sampleRate: 16000 });
+      const audioBuffer = await audioCtx.decodeAudioData(ab);
+      audioCtx.close();
+
+      // 16kHz mono 16-bit = ~1.92 MB/min → 12 min per ~23 MB chunk
+      const chunkSec = 720;
+      const samplesPerChunk = chunkSec * audioBuffer.sampleRate;
+      const totalChunks = Math.ceil(audioBuffer.length / samplesPerChunk);
+      const parts: string[] = [];
+
+      for (let i = 0; i < totalChunks; i++) {
+        const startSample = i * samplesPerChunk;
+        const endSample = Math.min(startSample + samplesPerChunk, audioBuffer.length);
+        // Encode chunk as valid WAV file
+        const wavBlob = encodeAudioBufferToWav(audioBuffer, startSample, endSample);
+        toast(`Litteroidaan osaa ${i + 1}/${totalChunks}...`, 'success');
+        const part = await transcribeChunk(wavBlob, `chunk_${i}.wav`);
+        if (part) parts.push(part);
+      }
+
+      const transcription = parts.join('\n\n');
+      if (!transcription) throw new Error('Tyhjä litterointi — ei tunnistettu puhetta');
+      await finishTranscription(transcription);
+    } catch (e) {
+      toast((e as Error).message || 'Litterointi epäonnistui', 'error');
+    } finally {
+      setTranscribing(false);
+    }
+  }, [toast, transcribeChunk, finishTranscription]);
+
+  // ── Record & transcribe flow ──
+  const handleStopAndTranscribe = useCallback(async () => {
+    const blob = await stopRecording();
+    if (blob) await transcribeAudio(blob);
+  }, [stopRecording, transcribeAudio]);
+
+  // ── File upload handler ──
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = ''; // reset input
+    await transcribeAudio(file);
+  }, [transcribeAudio]);
 
   // Sort newest first
   const sorted = [...notes].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -147,16 +387,7 @@ export default function MuistiinpanotPage() {
           </div>
         )}
 
-        {/* Content */}
-        <div style={{
-          background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
-          padding: '1.5rem', marginBottom: '1.25rem', whiteSpace: 'pre-wrap',
-          fontSize: '.88rem', lineHeight: 1.7, color: 'var(--t1)',
-        }}>
-          {detail.content}
-        </div>
-
-        {/* AI Summary */}
+        {/* AI Summary - FIRST when available */}
         {detail.summary && (
           <div style={{
             background: 'linear-gradient(135deg, rgba(155,124,246,.06), rgba(5,107,159,.04))',
@@ -172,6 +403,94 @@ export default function MuistiinpanotPage() {
           </div>
         )}
 
+        {/* Action items */}
+        {detail.actionItems && detail.actionItems.length > 0 && (
+          <div style={{
+            border: '1px solid rgba(155,124,246,.2)', borderRadius: 'var(--rl)',
+            marginBottom: '1.25rem', overflow: 'hidden',
+          }}>
+            <div style={{ padding: '.75rem 1.25rem', background: 'rgba(155,124,246,.06)' }}>
+              <span style={{ fontSize: '.68rem', fontWeight: 700, color: '#9b7cf6', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                Toimenpiteet ({detail.actionItems.filter(a => a.confirmed).length}/{detail.actionItems.length} vahvistettu)
+              </span>
+            </div>
+            {detail.actionItems.map((item, idx) => (
+              <div key={idx} style={{
+                padding: '.75rem 1.25rem', borderTop: '1px solid var(--border)',
+                display: 'flex', alignItems: 'center', gap: '.75rem',
+                background: item.confirmed ? 'rgba(24,94,91,.04)' : 'var(--card)',
+                opacity: item.confirmed ? 0.7 : 1,
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '.82rem', lineHeight: 1.5, color: 'var(--t1)' }}>{item.text}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginTop: '.35rem' }}>
+                    <select
+                      value={item.assignee}
+                      onChange={e => canEdit && updateActionItem(detail.id, idx, { assignee: e.target.value })}
+                      disabled={!canEdit || item.confirmed}
+                      style={{
+                        fontSize: '.7rem', padding: '.2rem .4rem', borderRadius: 'var(--r)',
+                        background: 'var(--elev)', border: '1px solid var(--border)', color: 'var(--t1)',
+                        fontWeight: 600, cursor: canEdit ? 'pointer' : 'default',
+                      }}
+                    >
+                      <option value="">Ei tekijaa</option>
+                      <option value="Kaikki">Kaikki</option>
+                      {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                {canEdit && !item.confirmed && (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => createTaskFromAction(detail.id, idx)}
+                    style={{ fontSize: '.65rem', padding: '.3rem .6rem', whiteSpace: 'nowrap' }}
+                  >
+                    Luo tehtava
+                  </button>
+                )}
+                {item.confirmed && (
+                  <span style={{ fontSize: '.65rem', color: 'var(--green)', fontWeight: 700 }}>Luotu</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Clean transcription */}
+        {detail.cleanTranscription && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(5,107,159,.04), rgba(24,94,91,.04))',
+            border: '1px solid rgba(5,107,159,.2)', borderRadius: 'var(--rl)',
+            padding: '1.25rem', marginBottom: '1.25rem',
+          }}>
+            <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--pri)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.5rem' }}>
+              Kiteytetty litterointi
+            </div>
+            <div style={{ fontSize: '.85rem', lineHeight: 1.7, color: 'var(--t1)', whiteSpace: 'pre-wrap' }}>
+              {detail.cleanTranscription}
+            </div>
+          </div>
+        )}
+
+        {/* Content - collapsible when summary exists */}
+        {detail.summary ? (
+          <TranscriptionCollapsible text={detail.content} label="Alkuperainen muistiinpano" />
+        ) : (
+          <div style={{
+            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+            padding: '1.5rem', marginBottom: '1.25rem', whiteSpace: 'pre-wrap',
+            fontSize: '.88rem', lineHeight: 1.7, color: 'var(--t1)',
+          }}>
+            {detail.content}
+          </div>
+        )}
+
+        {/* Raw transcription (collapsible) */}
+        {detail.rawTranscription && detail.rawTranscription !== detail.content && (
+          <TranscriptionCollapsible text={detail.rawTranscription} label="Raaka litterointi" />
+        )}
+
         {canEdit && (
           <div style={{ display: 'flex', gap: '.5rem' }}>
             <button className="btn btn-secondary btn-sm" onClick={() => openEdit(detail)}>Muokkaa</button>
@@ -181,7 +500,7 @@ export default function MuistiinpanotPage() {
               disabled={summarizing}
               style={{ color: '#9b7cf6' }}
             >
-              {summarizing ? 'Luodaan...' : detail.summary ? 'Päivitä yhteenveto' : 'Luo AI-yhteenveto'}
+              {summarizing ? 'Luodaan...' : detail.summary ? 'Paivita yhteenveto' : 'Luo AI-yhteenveto'}
             </button>
             <button className="btn btn-ghost btn-sm" onClick={() => remove(detail.id)} style={{ color: 'var(--red)', marginLeft: 'auto' }}>Poista</button>
           </div>
@@ -194,8 +513,63 @@ export default function MuistiinpanotPage() {
   return (
     <AppShell title="Muistiinpanot" subtitle={`${notes.length} muistiinpanoa`}>
       {canEdit && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.25rem' }}>
+        <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
           <button className="btn btn-primary btn-sm" onClick={openNew}>+ Uusi muistiinpano</button>
+          {!isRecording && !transcribing && (
+            <>
+              <button className="btn btn-secondary btn-sm" onClick={startRecording} style={{ display: 'flex', alignItems: 'center', gap: '.35rem' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--red)', display: 'inline-block' }} />
+                Äänitä
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()}>
+                Lataa äänite
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="audio/*,.mp3,.wav,.m4a,.webm,.mp4,.ogg"
+                style={{ display: 'none' }}
+                onChange={handleFileUpload}
+              />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Recording indicator */}
+      {isRecording && (
+        <div style={{
+          background: 'rgba(239,107,107,.08)', border: '1px solid rgba(239,107,107,.3)',
+          borderRadius: 'var(--r)', padding: '1rem 1.2rem', marginBottom: '1rem',
+          display: 'flex', alignItems: 'center', gap: '.75rem',
+        }}>
+          <span style={{
+            width: 12, height: 12, borderRadius: '50%', background: 'var(--red)',
+            animation: 'pulse 1.5s ease-in-out infinite',
+          }} />
+          <span style={{ fontSize: '.88rem', fontWeight: 600 }}>
+            Äänitetään... {Math.floor(recordingTime / 60).toString().padStart(2, '0')}:{(recordingTime % 60).toString().padStart(2, '0')}
+          </span>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={handleStopAndTranscribe}
+            style={{ marginLeft: 'auto' }}
+          >
+            Lopeta ja litteroi
+          </button>
+        </div>
+      )}
+
+      {/* Transcribing indicator */}
+      {transcribing && (
+        <div style={{
+          background: 'rgba(5,107,159,.06)', border: '1px solid rgba(5,107,159,.2)',
+          borderRadius: 'var(--r)', padding: '1rem 1.2rem', marginBottom: '1rem',
+          display: 'flex', alignItems: 'center', gap: '.75rem',
+        }}>
+          <span style={{ fontSize: '.88rem', fontWeight: 600, color: 'var(--pri)' }}>
+            Litteroidaan ja kiteytetään...
+          </span>
         </div>
       )}
 
@@ -221,16 +595,29 @@ export default function MuistiinpanotPage() {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.25rem' }}>
                 <span style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--pri-l)' }}>{formatDate(note.date)}</span>
+                {note.rawTranscription && (
+                  <span style={{ fontSize: '.58rem', padding: '.1rem .35rem', borderRadius: 9999, background: 'rgba(5,107,159,.1)', color: 'var(--pri)', fontWeight: 700 }}>Litteroitu</span>
+                )}
                 {note.summary && (
                   <span style={{ fontSize: '.58rem', padding: '.1rem .35rem', borderRadius: 9999, background: 'rgba(155,124,246,.1)', color: '#9b7cf6', fontWeight: 700 }}>AI-yhteenveto</span>
                 )}
               </div>
               <div style={{ fontSize: '.92rem', fontWeight: 700, marginBottom: '.2rem' }}>{note.title}</div>
-              <div style={{ fontSize: '.72rem', color: 'var(--t3)', display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+              <div style={{ fontSize: '.72rem', color: 'var(--t3)', display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                 {note.attendees.length > 0 && (
                   <span>Paikalla: {note.attendees.slice(0, 3).join(', ')}{note.attendees.length > 3 ? ` +${note.attendees.length - 3}` : ''}</span>
                 )}
-                <span>{note.content.split('\n').length} rivi��</span>
+                <span>{note.content.split('\n').length} rivia</span>
+                {canEdit && !note.summary && (
+                  <button
+                    className="btn btn-ghost"
+                    onClick={(e) => { e.stopPropagation(); requestSummary(note.id); }}
+                    disabled={summarizing}
+                    style={{ color: '#9b7cf6', fontSize: '.65rem', padding: '.15rem .4rem', marginLeft: 'auto' }}
+                  >
+                    {summarizingId === note.id ? 'Luodaan...' : 'Luo AI-yhteenveto'}
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -269,7 +656,7 @@ export default function MuistiinpanotPage() {
             </div>
 
             <div className="field">
-              <label>Muistiinpano *</label>
+              <label>Muistiinpano *{nRawTranscription ? ' (raaka litterointi)' : ''}</label>
               <textarea
                 className="input textarea"
                 value={nContent}
@@ -279,6 +666,19 @@ export default function MuistiinpanotPage() {
                 style={{ minHeight: 200, fontFamily: 'inherit', lineHeight: 1.6 }}
               />
             </div>
+
+            {nCleanTranscription && (
+              <div className="field">
+                <label>Kiteytetty litterointi (AI)</label>
+                <textarea
+                  className="input textarea"
+                  value={nCleanTranscription}
+                  onChange={e => setNCleanTranscription(e.target.value)}
+                  rows={6}
+                  style={{ minHeight: 120, fontFamily: 'inherit', lineHeight: 1.6 }}
+                />
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
               {editId && <button className="btn btn-ghost btn-sm" onClick={() => { remove(editId); setShowForm(false); }} style={{ color: 'var(--red)', marginRight: 'auto' }}>Poista</button>}
@@ -300,4 +700,58 @@ function formatDate(dateStr: string): string {
   } catch {
     return dateStr;
   }
+}
+
+/** Encode a segment of an AudioBuffer as a valid WAV file (mono 16-bit) */
+function encodeAudioBufferToWav(buffer: AudioBuffer, startSample: number, endSample: number): Blob {
+  const sampleRate = buffer.sampleRate;
+  const length = endSample - startSample;
+  const rawData = buffer.getChannelData(0).slice(startSample, endSample);
+  const dataSize = length * 2;
+  const ab = new ArrayBuffer(44 + dataSize);
+  const v = new DataView(ab);
+  const w = (o: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + dataSize, true); w(8, 'WAVE');
+  w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true); v.setUint32(24, sampleRate, true);
+  v.setUint32(28, sampleRate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, dataSize, true);
+  let off = 44;
+  for (let i = 0; i < length; i++) {
+    const s = Math.max(-1, Math.min(1, rawData[i]));
+    v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    off += 2;
+  }
+  return new Blob([ab], { type: 'audio/wav' });
+}
+
+function TranscriptionCollapsible({ text, label = 'Raaka litterointi' }: { text: string; label?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{
+      border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+      marginBottom: '1.25rem', overflow: 'hidden',
+    }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          width: '100%', background: 'var(--elev)', border: 'none', padding: '.75rem 1.25rem',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          cursor: 'pointer', fontSize: '.72rem', fontWeight: 700, color: 'var(--t2)',
+          textTransform: 'uppercase', letterSpacing: '.05em',
+        }}
+      >
+        <span>{label}</span>
+        <span style={{ fontSize: '.8rem' }}>{open ? '[-]' : '[+]'}</span>
+      </button>
+      {open && (
+        <div style={{
+          padding: '1.25rem', fontSize: '.82rem', lineHeight: 1.7,
+          color: 'var(--t2)', whiteSpace: 'pre-wrap', background: 'var(--card)',
+        }}>
+          {text}
+        </div>
+      )}
+    </div>
+  );
 }

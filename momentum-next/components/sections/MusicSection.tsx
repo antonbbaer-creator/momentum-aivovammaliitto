@@ -5,13 +5,17 @@ import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useIsMobile } from '@/lib/use-mobile';
+import { useParams } from 'next/navigation';
 import { MusicAct, DEFAULT_MUSIC, LLFF_VENUES, PROGRAMME_COLORS } from '@/lib/festival-shared';
+
+const EMPTY_MUSIC: MusicAct[] = [];
 
 export default function MusicSection() {
   const { canEdit } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const [acts, setActs] = useOrgData<MusicAct[]>('music', DEFAULT_MUSIC);
+  const orgSlug = (useParams().orgSlug as string) || '';
+  const [acts, setActs] = useOrgData<MusicAct[]>('music', orgSlug === 'llff' ? DEFAULT_MUSIC : EMPTY_MUSIC);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
 

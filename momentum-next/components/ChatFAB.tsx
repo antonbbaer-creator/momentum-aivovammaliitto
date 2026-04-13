@@ -65,6 +65,12 @@ export default function ChatFAB() {
     p.push(`Vastaa aina suomeksi. Ole lämmin mutta ammattimainen. Pilkettä silmäkulmassa kun tilanne sallii.`);
     p.push(`Kaikki sisältöehdotuksesi noudattavat organisaation strategiaa, arvoja ja viestinnän sävyä.`);
     if (org.tone?.length) p.push(`Viestinnän sävyt: ${org.tone.join(', ')}.`);
+    // Viestintä vs. tiedotus -määritelmät
+    if (org.viestintaDefinitions) {
+      const vd = org.viestintaDefinitions;
+      p.push(`\nViestintä (${vd.viestinta.dir}): ${vd.viestinta.goal}. Kanavat: ${vd.viestinta.examples.join(', ')}.`);
+      p.push(`Tiedotus (${vd.tiedotus.dir}): ${vd.tiedotus.goal}. Kanavat: ${vd.tiedotus.examples.join(', ')}.`);
+    }
 
     // Organization strategy (top level — guides everything)
     if (org.orgStrategy) {
@@ -78,10 +84,11 @@ export default function ChatFAB() {
     // Communications mission
     if (org.commsMission) p.push(`\nViestinnän missio: ${org.commsMission}`);
 
-    // Content pillars — the backbone of all content
-    if (org.contentPillars?.length) {
-      p.push(`\n═══ SISÄLTÖPILARIT (kaikki viestintä nojaa näihin) ═══`);
-      org.contentPillars.forEach((cp: any) => p.push(`- ${cp.name}: ${cp.desc}`));
+    // Core roles / content pillars — the backbone of all content
+    const coreRoles = org.commsCoreRoles || org.contentPillars;
+    if (coreRoles?.length) {
+      p.push(`\n═══ VIESTINNÄN PERUSTEHTÄVÄT (kaikki viestintä nojaa näihin) ═══`);
+      coreRoles.forEach((cp: any) => p.push(`- ${cp.name}: ${cp.desc}`));
     }
 
     // 2026 current context
@@ -93,6 +100,8 @@ export default function ChatFAB() {
       if (cc.accessibility) p.push(`Saavutettavuus: ${cc.accessibility}`);
       if (cc.elections2027) p.push(`Vaikuttaminen: ${cc.elections2027}`);
       if (cc.nameChange) p.push(`Nimenmuutos: ${cc.nameChange}`);
+      if (cc.visualIdentity) p.push(`Visuaalinen ilme: ${cc.visualIdentity}`);
+      if (cc.websiteUpdate) p.push(`Verkkosivut: ${cc.websiteUpdate}`);
     }
 
     // Organization context
@@ -114,14 +123,19 @@ export default function ChatFAB() {
     // Strategy
     if (org.strategyText) p.push(`\nViestintästrategia:\n${org.strategyText.slice(0, 3000)}`);
 
-    // Goals with full details
-    if (org.goals?.length) p.push(`\nViestinnän tavoitteet:\n${org.goals.map((g: any) => `- ${g.t} (${g.m || ''}): ${g.d || ''}`).join('\n')}`);
+    // Channel profiles (new) or legacy goals
+    if (org.channelProfiles?.length) {
+      p.push(`\n═══ KANAVAPROFIIILIT ═══`);
+      org.channelProfiles.forEach((cp: any) => p.push(`- ${cp.ch} (${cp.freq}): ${cp.role}. ${cp.desc} Kohderyhmät: ${cp.auds.join(', ')}. Mittarit: ${cp.metrics.join(', ')}.`));
+    } else if (org.goals?.length) {
+      p.push(`\nViestinnän tavoitteet:\n${org.goals.map((g: any) => `- ${g.t} (${g.m || ''}): ${g.d || ''}`).join('\n')}`);
+    }
 
     // Key messages
     if (org.keyMessages?.length) p.push(`\nYdinviestit:\n${org.keyMessages.map((m: any) => `- ${m.title}: ${m.desc} [${m.theme}]`).join('\n')}`);
 
-    // Audiences with channel preferences
-    if (org.auds?.length) p.push(`\nKohderyhmät:\n${org.auds.map((a: any) => `- ${a.n}: ${a.d || ''}${a.c ? ' → Kanavat: ' + a.c.join(', ') : ''}`).join('\n')}`);
+    // Audiences with channel preferences and tone
+    if (org.auds?.length) p.push(`\nKohderyhmät:\n${org.auds.map((a: any) => `- ${a.n}: ${a.d || ''}${a.tone ? ' Sävy: ' + a.tone + '.' : ''}${a.c ? ' Kanavat: ' + a.c.join(', ') : ''}`).join('\n')}`);
 
     // Brand values
     if (org.vals?.length) p.push(`\nBrändiarvot: ${org.vals.map((v: any) => `${v.t} (${v.d || ''})`).join(', ')}`);
@@ -132,8 +146,25 @@ export default function ChatFAB() {
     // Team with responsibilities
     if (org.team?.length) p.push(`\nViestintätiimi:\n${org.team.map((t: any) => `- ${t.name}, ${t.role}${t.desc ? ': ' + t.desc : ''}`).join('\n')}`);
 
-    // Campaigns
-    if (org.campaigns?.length) p.push(`\nVuosittaiset kampanjat:\n${org.campaigns.map((c: any) => `- ${c.name}${c.month ? ' (kk ' + c.month + ')' : ''}: ${c.desc}`).join('\n')}`);
+    // Quarterly themes (new) or legacy campaigns
+    if (org.quarterlyThemes?.length) {
+      p.push(`\n═══ KVARTAALITEEMAT 2026 ═══`);
+      org.quarterlyThemes.forEach((t: any) => p.push(`- Q${t.q} (${t.months}): ${t.name}. ${t.focus} Aivoitus: ${t.aivoitus}.`));
+    } else if (org.campaigns?.length) {
+      p.push(`\nVuosittaiset kampanjat:\n${org.campaigns.map((c: any) => `- ${c.name}${c.month ? ' (kk ' + c.month + ')' : ''}: ${c.desc}`).join('\n')}`);
+    }
+
+    // Development plan
+    if (org.developmentPlan2027) {
+      const dp = org.developmentPlan2027;
+      if (dp.currentProjects?.length) p.push(`\nMeneillään olevat hankkeet: ${dp.currentProjects.map((pr: any) => `${pr.name} (${pr.timing})`).join(', ')}.`);
+      if (dp.targets?.length) p.push(`Kehityskohteet 2027: ${dp.targets.map((t: any) => t.name).join(', ')}.`);
+    }
+
+    // Metrics framework
+    if (org.metricsFramework?.length) {
+      p.push(`\nMittaristo: ${org.metricsFramework.map((m: any) => `${m.area}: ${m.metrics.join(', ')} (${m.interval})`).join('. ')}.`);
+    }
 
     // Member survey insights
     if (org.memberSurvey) {

@@ -20,22 +20,28 @@ export const AVL_ORG = {
   // ═══ VIESTINNÄN MISSIO (johdettu strategiasta) ═══
   commsMission: 'Levitämme aivovauriotietoutta ja tuemme vertaisuutta niin, että jokainen aivovaurion kokenut ja läheinen saa tarvitsemansa tiedon ja tuen — riippumatta sijainnista, iästä tai vamman laadusta.',
 
-  // ═══ SISÄLTÖPILARIT (ohjaavat kaikkea viestintää) ═══
-  contentPillars: [
-    { id: 'tietoisuus', name: 'Tietoisuus', desc: 'Aivovauriotietous, näkymätön vamma, avainluvut, tutkimustieto. Tavoite: ihmiset ymmärtävät mitä aivovaurio tarkoittaa.', color: '#056b9f' },
-    { id: 'vertaistuki', name: 'Vertaistuki', desc: 'Tarinat toivosta, Toivo-sovellus, yhteisö, elämä jatkuu. Tavoite: kukaan ei jää yksin.', color: '#185e5b' },
-    { id: 'ennaltaehkaisy', name: 'Ennaltaehkäisy', desc: 'Alkoholi, liikenneturvallisuus, aivoterveys, kypäräkampanjat. Tavoite: vammojen määrä vähenee.', color: '#f1b434' },
-    { id: 'vaikuttaminen', name: 'Vaikuttaminen', desc: 'Kannanotot, lakialoitteet, yhdenvertaisuus, kuntoutusoikeudet. Tavoite: rakenteet muuttuvat.', color: '#e45c81' },
-    { id: 'yhteiso', name: 'Yhteisö', desc: 'Jäsentarinat, tapahtumat, webinaarit, vapaaehtoisuus. Tavoite: aktiivinen ja kasvava yhteisö.', color: '#9b7cf6' },
+  // ═══ VIESTINNÄN PERUSTEHTÄVÄT (ohjaavat kaikkea viestintää) ═══
+  commsCoreRoles: [
+    { id: 'tieto', name: 'Tiedon lisääminen', desc: 'Aivovaurioihin liittyvän tiedon ja ymmärryksen levittäminen niin sairastuneille, läheisille, ammattilaisille kuin suurelle yleisölle.', color: '#056b9f' },
+    { id: 'vertaisuus', name: 'Vertaisuuden vahvistaminen', desc: 'Vertaisuuden ja osallisuuden kokemuksen rakentaminen — kukaan ei ole yksin aivovaurion kanssa.', color: '#185e5b' },
+    { id: 'voimaantuminen', name: 'Voimaantumisen tuki', desc: 'Sairastuneiden ja läheisten oman toimijuuden ja voimaantumisen tukeminen.', color: '#f1b434' },
+    { id: 'nakyvyys', name: 'Näkyvyyden luominen', desc: 'Liiton toiminnan, palveluiden ja vaikuttavuuden tekeminen näkyväksi.', color: '#e45c81' },
   ],
+
+  // ═══ VIESTINTÄ vs. TIEDOTUS ═══
+  viestintaDefinitions: {
+    viestinta: { dir: 'Kaksisuuntainen, vuorovaikutteinen', goal: 'Merkitysten rakentaminen yhteisesti', metrics: 'Sitoutuminen, dialogi, kokemusten jakaminen', examples: ['Some', 'tapahtumat', 'vertaisryhmät'] },
+    tiedotus: { dir: 'Yksisuuntainen, informatiivinen', goal: 'Ajankohtaisten asioiden välittäminen', metrics: 'Tavoittavuus, avaamisprosentti, kattavuus', examples: ['Uutiskirjeet', 'tiedotteet', 'verkkosivut'] },
+  },
 
   // ═══ 2026 ERITYISHUOMIOT ═══
   currentContext: {
-    expansion: 'AVL laajentunut 1.1.2026 kattamaan myös aivoverenkiertohäiriöt (AVH) ja muut aivovauriot. Mahdollinen nimenmuutos valmistelussa.',
+    expansion: 'AVL laajentunut 1.1.2026 kattamaan myös aivoverenkiertohäiriöt (AVH) ja muut aivovauriot.',
+    visualIdentity: 'Visuaalisen ilmeen kokonaisuudistus keväällä 2026 yhteistyössä graafikko Jutta Kivilompolon kanssa. Kattaa brändi-ilmeen, graafiset elementit ja visuaalisen ohjeistuksen.',
+    websiteUpdate: 'Verkkosivuston rakenteen, sisältöjen ja käytettävyyden päivittäminen syksyllä 2026. Hyödyntää uudistettua visuaalista ilmettä.',
     steaCuts: 'STEA-avustukset pienenevät ~30M€ vuonna 2026. Viestinnän pitää priorisoida ja osoittaa vaikuttavuutta.',
     accessibility: 'Digipalvelulain saavutettavuusvaatimukset kiristyvät 28.6.2025. Erityisen tärkeää koska kohderyhmässä kognitiivisia haasteita.',
     elections2027: 'Eduskuntavaalit 2027 — vaikuttamisviestintä aloitettava 2026. Kuntoutus, palvelut, yhdenvertaisuus.',
-    nameChange: 'Mahdollinen nimenmuutos tulossa liittyen AVH-laajennukseen. Viestinnällisesti iso projekti joka vaikuttaa kaikkiin kanaviin.',
   },
 
   // ═══ ORGANISAATION PERUSTIEDOT ═══
@@ -68,17 +74,15 @@ export const AVL_ORG = {
     childrenSevere: '100-150 lasta/v saa vaikean aivovamman',
     dailyNew: 'Yli 100 suomalaista päivässä saa aivovamman tai aivoverenkiertohäiriön',
   },
-  goals: [
-    { m: '3x/vko', t: 'Some-näkyvyys (FB+IG)', d: 'Facebook ja Instagram vähintään 3 julkaisua viikossa. Loma-ajoille ajastetaan neutraalia materiaalia. Säännöllisyys, oikea-aikaisuus, sisältö ja sitoutumiseen panostus. Mittarit: tykkääjämäärä, tavoitetut, sitoutetut.', p: 40 },
-    { m: '4x/v', t: 'Aivoitus-lehti', d: 'Aivovauriotietouden levittäminen, vertaisuuden ja voimaantumisen kokemukset, tutkimustieto. Vastuuhenkilö: päätoimittaja. 2026 teemat: 1) Stop väkivallalle 2) Aivoterveyden asialla 3) Elämän rytmi 4) Toivoa tulevaan.', p: 50 },
-    { m: '4-6/v', t: 'Uutiskirjeet ammattilaisille', d: 'Tietoutta AVL:n asioista ja aivovaurioihin liittyvistä ajankohtaisista asioista tiiviisti. Ohjaa linkeillä verkkosivuille. Vastuuhenkilö: viestintävastaava.', p: 30 },
-    { m: '~10/v', t: 'Jäsenkirjeet', d: 'Aivovammaliiton ajankohtaisista asioista jäsenille joiden sähköposti on tiedossa. Vastuuhenkilö: järjestösihteeri.', p: 25 },
-    { m: 'jatkuva', t: 'Nettisivut aivovammaliitto.fi', d: 'Ajankohtaisen ja luotettavan tiedon lähde. Uudistus käynnissä. Jäsenkyselyssä 41% jäsenistä seuraa.', p: 35 },
-    { m: 'jatkuva', t: 'LinkedIn ammattilaiskärjellä', d: 'Ajankohtaisia asioita ja tutkimuksia ammattilaiskärjellä. Vastuuhenkilö: viestintävastaava + toiminnanjohtaja.', p: 20 },
-    { m: 'jatkuva', t: 'Tapahtumat ja webinaarit', d: 'Suuri yleisö: Kippista kohtuudella, kouluvierailut. Ammattilaiset: webinaarit, Sairaanhoitajapäivät. Aivovaurion kokeneet: Ensitietopäivät.', p: 30 },
-    { m: 'tarpeen mukaan', t: 'Lehdistötiedotteet ja vaikuttaminen', d: 'Lehdistötiedotteita medioille, kannanottoja kansanedustajille, lausuntoja lakivalmisteluista.', p: 15 },
-    { m: 'tarpeen mukaan', t: 'TikTok ja YouTube', d: 'TikTok: aivovauriotietoutta tunteella, kokemustoimijat. YouTube: webinaarit tekstitettyinä.', p: 10 },
-    { m: 'jatkuva', t: 'Esitteet', d: 'Aivovauriotietoutta vastavammautuneille, läheisille ja ammattilaisille.', p: 20 },
+  // ═══ KANAVAPROFIIILIT (strateginen rooli per kanava) ═══
+  channelProfiles: [
+    { ch: 'Aivoitus-lehti', role: 'Päätiedotusjulkaisu', freq: '4 numeroa/v', auds: ['Sairastuneet', 'Läheiset', 'Ammattilaiset', 'Suuri yleisö'], metrics: ['Levikki', 'Lukijapalaute', 'Teema-artikkelien määrä'], desc: 'Aivovauriotiedon levittäminen, vertaisuuden ja voimaantumisen kokemukset, tutkimustiedon välittäminen, tapahtumista viestiminen.' },
+    { ch: 'Facebook', role: 'Yhteisön kokoontumispaikka', freq: 'Väh. 3x/vko', auds: ['Sairastuneet', 'Läheiset', 'Ammattilaiset'], metrics: ['Seuraajamäärä', 'Tavoittavuus', 'Sitoutuminen'], desc: 'Aivovauriotietouden jakaminen, tapahtumaviestintä, linkitys omaan ja ulkoiseen sisältöön. Loma-aikoina ajastettua, neutraalia sisältöä.' },
+    { ch: 'Instagram', role: 'Visuaalinen tarinankerronta', freq: 'Säännöllinen', auds: ['Nuoremmat aikuiset', 'Suuri yleisö'], metrics: ['Seuraajamäärä', 'Tavoittavuus', 'Sitoutuminen'], desc: 'Tapahtumat, videot, ihmisläheisyys. Erityisesti nuoremmat aikuiset.' },
+    { ch: 'TikTok', role: 'Kokeileva, nuorten kanava', freq: 'Tarpeen ja resurssien mukaan', auds: ['Nuoret', 'Nuoret aikuiset'], metrics: ['Näytöt', 'Seuraajat'], desc: 'Lyhyet videot, kampanjat, kokemukset — tavoittaa nuoret ja nuoret aikuiset.' },
+    { ch: 'YouTube', role: 'Syventävä videokanava', freq: 'Tarpeen mukaan', auds: ['Ammattilaiset', 'Sairastuneet', 'Läheiset'], metrics: ['Näyttökerrat', 'Tilaukset'], desc: 'Webinaarien tallennus ja jakelu, kokemustarinat, asiantuntijahaastattelut.' },
+    { ch: 'LinkedIn', role: 'Ammattilaisviestintä ja yhteistyöt', freq: 'Säännöllinen', auds: ['Sidosryhmät', 'Ammattilaiset', 'Rahoittajat'], metrics: ['Seuraajat', 'Tavoittavuus'], desc: 'Ajankohtaisia asioita ja tutkimuksia ammattilaiskärjellä.' },
+    { ch: 'Tapahtumat ja webinaarit', role: 'Kohtaamiseen perustuva viestintä', freq: 'Kuukausittain', auds: ['Kaikki'], metrics: ['Osallistujamäärät', 'Palautteet'], desc: 'Viestintäkaari: ennen (kutsu, ennakkoviestintä) — aikana (live, some) — jälkeen (yhteenveto, tallenne).' },
   ],
   vals: [
     { i: 'V', t: 'Vertaisuus', d: 'Voimaantumisen ja vertaistuen kokemukset' },
@@ -88,27 +92,24 @@ export const AVL_ORG = {
     { i: 'V', t: 'Vuorovaikutteisuus', d: 'Kaksisuuntaista merkitysten rakentamista' },
   ],
   auds: [
-    { n: 'Aivovaurion kokeneet ja läheiset', d: 'Vammautuneet, sairastuneet ja heidän läheisensä. Erityisesti vastavammautuneet.', c: ['Facebook', 'Instagram', 'Nettisivut', 'Aivoitus-lehti', 'Esitteet', 'TikTok', 'YouTube'] },
-    { n: 'Ammattilaiset', d: 'Sosiaali- ja terveysalan ammattilaiset. Tavoitetaan uutiskirjeillä, webinaareilla, LinkedIn-sisällöillä.', c: ['LinkedIn', 'Uutiskirje', 'Nettisivut', 'Esitteet'] },
-    { n: 'Suuri yleisö', d: 'Aivoterveydestä kiinnostuneet, ennaltaehkäisy. Kippista kohtuudella -kampanja, kouluvierailut.', c: ['Facebook', 'Instagram', 'TikTok', 'Messut ja tapahtumat'] },
-    { n: 'Jäsenet', d: 'Nykyiset ja potentiaaliset jäsenet joiden sähköposti on tiedossa.', c: ['Jäsenkirje', 'Facebook', 'Nettisivut'] },
-    { n: 'Media ja päättäjät', d: 'Medioiden lukijat, kansanedustajat ja päättäjät.', c: ['Lehdistötiedotteet'] },
-    { n: 'Nuoret', d: 'Nuoret aivovaurion kokeneet 18-35v. @aivovammanuoret Instagram, TikTok.', c: ['Instagram', 'TikTok'] },
+    { n: 'Aivovamman/AVH:n kokeneet', d: 'Vertaistuki, arjen selviytyminen, palvelut ja oikeudet.', tone: 'Lämmin, voimaannuttava, selkokielinen', c: ['Facebook', 'Aivoitus-lehti', 'Tapahtumat'] },
+    { n: 'Läheiset', d: 'Ymmärrys, jaksaminen, konkreettiset vinkit.', tone: 'Empaattinen, tukeva, käytännönläheinen', c: ['Facebook', 'Aivoitus-lehti', 'Webinaarit'] },
+    { n: 'Ammattilaiset (sote, kuntoutus, opetus)', d: 'Tutkimustieto, kuntoutuskäytännöt, yhteistyömahdollisuudet.', tone: 'Asiantunteva, näyttöön perustuva', c: ['LinkedIn', 'Aivoitus-lehti', 'Webinaarit'] },
+    { n: 'Suuri yleisö / aivoterveydestä kiinnostuneet', d: 'Aivoterveys, ennaltaehkäisy, tietoisuuden lisääminen.', tone: 'Helposti lähestyttävä, tarinapohjainen', c: ['Instagram', 'TikTok', 'Kampanjat'] },
   ],
-  tone: ['Asiallinen', 'Empaattinen', 'Rohkaiseva', 'Selkeä', 'Luotettava', 'Lämmin'],
   channels: [
-    { name: 'Facebook', color: '#1877F2', ic: 'FB' },
-    { name: 'Instagram', color: '#E1306C', ic: 'IG' },
-    { name: 'LinkedIn', color: '#0A66C2', ic: 'LI' },
-    { name: 'TikTok', color: '#00f2ea', ic: 'TT' },
-    { name: 'YouTube', color: '#FF0000', ic: 'YT' },
-    { name: 'Nettisivut', color: '#34d399', ic: 'WW' },
-    { name: 'Uutiskirje', color: '#fb923c', ic: 'UK' },
-    { name: 'Jäsenkirje', color: '#f5c542', ic: 'JK' },
-    { name: 'Aivoitus-lehti', color: '#9b7cf6', ic: 'AL' },
-    { name: 'Messut ja tapahtumat', color: '#e879a8', ic: 'MT' },
-    { name: 'Lehdistötiedotteet', color: '#4ad8d8', ic: 'LT' },
-    { name: 'Esitteet', color: '#ef6b6b', ic: 'ES' },
+    { name: 'Facebook', slug: 'facebook', color: '#1877F2', ic: 'FB', url: 'https://www.facebook.com/Aivovammaliitto/', enabled: true },
+    { name: 'Instagram', slug: 'instagram', color: '#E1306C', ic: 'IG', url: 'https://www.instagram.com/aivovammaliitto/', enabled: true },
+    { name: 'LinkedIn', slug: 'linkedin', color: '#0A66C2', ic: 'LI', url: 'https://www.linkedin.com/company/aivovammaliitto', enabled: true },
+    { name: 'TikTok', slug: 'tiktok', color: '#00f2ea', ic: 'TT', url: 'https://www.tiktok.com/@aivovammaliitto', enabled: true },
+    { name: 'YouTube', slug: 'youtube', color: '#FF0000', ic: 'YT', url: 'https://www.youtube.com/@aivovammaliitto', enabled: true },
+    { name: 'Nettisivut', slug: 'nettisivut', color: '#34d399', ic: 'WW', url: 'https://aivovammaliitto.fi/', enabled: true },
+    { name: 'Uutiskirje', slug: 'uutiskirje', color: '#fb923c', ic: 'UK', url: null, enabled: true },
+    { name: 'Jäsenkirje', slug: 'jasenkirje', color: '#f5c542', ic: 'JK', url: null, enabled: true },
+    { name: 'Aivoitus-lehti', slug: 'aivoitus', color: '#9b7cf6', ic: 'AL', url: 'https://www.aivovammaliitto.fi/tiedotus/aivoitus-lehti/', enabled: true },
+    { name: 'Messut ja tapahtumat', slug: 'tapahtumat', color: '#e879a8', ic: 'MT', url: null, enabled: true },
+    { name: 'Lehdistötiedotteet', slug: 'tiedotteet', color: '#4ad8d8', ic: 'LT', url: null, enabled: false },
+    { name: 'Esitteet', slug: 'esitteet', color: '#ef6b6b', ic: 'ES', url: null, enabled: false },
   ],
   team: [
     { name: 'Pia Kilpeläinen', role: 'Viestintävastaava / Aivoitus-lehden päätoimittaja', avatar: 'P', desc: 'Viestinnän koordinointi, Aivoitus-lehden päätoimittaja, jäsenkirjeet, nettisivujen päivitykset, tapahtumajärjestelyt.' },
@@ -116,24 +117,71 @@ export const AVL_ORG = {
     { name: 'Jani Saarinen', role: 'Sisällöntuottaja', avatar: 'J', desc: 'Sosiaalisen median sisällöntuotanto (Facebook, Instagram, TikTok), somekanavien analytiikka, sisältökalenterin ylläpito.' },
     { name: 'Päivi Hakkarainen', role: 'Toiminnanjohtaja', avatar: 'P', desc: 'LinkedIn-sisällöt, lehdistötiedotteet, kannanotot, lausunnot, kriisiviestinnän vastuuhenkilö, vaikuttamisviestintä.' },
   ],
-  // Key messages for AI context
+  // Key messages for AI context (theme = commsCoreRoles id)
   keyMessages: [
-    { title: 'Näkymätön vamma', desc: 'Aivovaurion kognitiiviset oireet ovat näkymättömiä, mikä tekee ymmärtämisestä vaikeaa jopa läheisille. #nakymattonnäkyväksi', theme: 'tietoisuus' },
-    { title: 'Vaikuttavuuden laajuus', desc: 'Äkillinen aivovaurio koskettaa jopa miljoonaa suomalaista. 200 000 elää seurausten kanssa.', theme: 'vaikuttaminen' },
-    { title: 'Ennaltaehkäisy', desc: '~50% aivovammoista tapahtuu alkoholin vaikutuksen alaisena. Kypärän käyttö ja turvallinen liikenne ehkäisevät.', theme: 'ennaltaehkäisy' },
-    { title: 'Elämä jatkuu', desc: 'Toipuminen ja mielekäs elämä ovat mahdollisia aivovaurion jälkeen. Tarinat toivosta. elamajatkuu.fi', theme: 'vertaistuki' },
-    { title: 'Aivoterveys kaikille', desc: 'Ennaltaehkäisy, varhainen tunnistaminen ja oikea-aikainen kuntoutus.', theme: 'terveys' },
-    { title: 'Laajentunut missio 2026', desc: 'Nyt myös AVH ja muut aivovauriot. 36 000 + 25 000 = yli 60 000 uutta tapausta vuodessa.', theme: 'organisaatio' },
-    { title: 'Yhdenvertaisuus', desc: 'Aivovaurion kokeneiden yhdenvertainen ja omatoiminen osallistuminen yhteiskuntaan.', theme: 'vaikuttaminen' },
-    { title: 'Vertaistuen saavutettavuus', desc: 'Tukea pitää olla saatavilla sijainnista riippumatta. Toivo-sovellus, verkkovertaisryhmät.', theme: 'vertaistuki' },
+    { title: 'Näkymätön vamma', desc: 'Aivovaurion kognitiiviset oireet ovat näkymättömiä, mikä tekee ymmärtämisestä vaikeaa jopa läheisille. #nakymattonnäkyväksi', theme: 'tieto' },
+    { title: 'Vaikuttavuuden laajuus', desc: 'Äkillinen aivovaurio koskettaa jopa miljoonaa suomalaista. 200 000 elää seurausten kanssa.', theme: 'nakyvyys' },
+    { title: 'Ennaltaehkäisy', desc: '~50% aivovammoista tapahtuu alkoholin vaikutuksen alaisena. Kypärän käyttö ja turvallinen liikenne ehkäisevät.', theme: 'tieto' },
+    { title: 'Elämä jatkuu', desc: 'Toipuminen ja mielekäs elämä ovat mahdollisia aivovaurion jälkeen. Tarinat toivosta. elamajatkuu.fi', theme: 'vertaisuus' },
+    { title: 'Aivoterveys kaikille', desc: 'Ennaltaehkäisy, varhainen tunnistaminen ja oikea-aikainen kuntoutus.', theme: 'tieto' },
+    { title: 'Laajentunut missio 2026', desc: 'Nyt myös AVH ja muut aivovauriot. 36 000 + 25 000 = yli 60 000 uutta tapausta vuodessa.', theme: 'nakyvyys' },
+    { title: 'Yhdenvertaisuus', desc: 'Aivovaurion kokeneiden yhdenvertainen ja omatoiminen osallistuminen yhteiskuntaan.', theme: 'nakyvyys' },
+    { title: 'Vertaistuen saavutettavuus', desc: 'Tukea pitää olla saatavilla sijainnista riippumatta. Toivo-sovellus, verkkovertaisryhmät.', theme: 'vertaisuus' },
   ],
-  // Annual campaigns
-  campaigns: [
-    { name: 'Aivoviikko / Brain Awareness Week', month: 3, desc: 'Kansainvälinen aivoviikko (vko 11). Ilmaisia luentoja, sairaaloiden näyttelyt.', channels: ['Facebook', 'Instagram', 'Nettisivut', 'Messut ja tapahtumat'] },
-    { name: 'Aivovammatietoisuuden kuukausi', month: 3, desc: 'Koko maaliskuu. Tietoisuuskampanja sosiaalisessa mediassa.', channels: ['Facebook', 'Instagram', 'TikTok', 'Nettisivut'] },
-    { name: 'Kippista kohtuudella', month: 4, desc: 'Ennen vappua. EHYT ry:n kanssa. Alkoholin kohtuukäyttö, ennaltaehkäisy.', channels: ['Facebook', 'Instagram', 'Messut ja tapahtumat', 'Lehdistötiedotteet'] },
-    { name: 'Selvänä liikenteessä', month: 5, desc: 'Liikenneturvallisuuskampanja EHYT ry:n kanssa. Nuoret aikuiset.', channels: ['Instagram', 'TikTok', 'Facebook'] },
-    { name: 'Elämä jatkuu -kampanja', month: null, desc: 'Jatkuva. Lähettilaspohjainen tarinakampanja. elamajatkuu.fi', channels: ['Facebook', 'Instagram', 'Nettisivut', 'YouTube'] },
+
+  // ═══ MITTARISTO ═══
+  metricsFramework: [
+    { area: 'Sosiaalinen media', metrics: ['Seuraajamäärä', 'Tavoittavuus', 'Sitoutumisaste'], interval: 'Kuukausittain', target: 'Kasvutrendi ed. vuoteen' },
+    { area: 'Aivoitus-lehti', metrics: ['Levikki', 'Lukijapalaute', 'Teema-artikkelit'], interval: 'Numeron jälkeen', target: 'Tyytyväisyys ja kattavuus' },
+    { area: 'Tapahtumat', metrics: ['Osallistujamäärät', 'Palautteet'], interval: 'Tapahtumittain', target: 'Osallistujatrendi' },
+    { area: 'Uutiskirjeet/tiedotteet', metrics: ['Avausprosentit', 'Klikkaukset'], interval: 'Lähetyksittäin', target: 'Ala-/ylärajat' },
+  ],
+
+  // ═══ OPERATIIVINEN KVARTAALIKALENTERI 2026 ═══
+  quarterlyCalendar: [
+    { q: 1, theme: 'Älä anna sen kasvaa — STOP väkivallalle', months: [
+      { m: 1, content: 'Vuoden aloitus: kampanjan lanseeraus, teeman esittely, vertaistarinat', channels: ['Facebook', 'Instagram', 'Nettisivut'], aud: 'Kaikki' },
+      { m: 2, content: 'Ammattilaissisältö: väkivallan ja aivovaurion yhteys tutkimustiedon valossa', channels: ['Facebook', 'LinkedIn', 'Webinaarit'], aud: 'Ammattilaiset, läheiset' },
+      { m: 3, content: 'Aivoitus 1/2026 ilmestyy. Teemakokonaisuuden koonti ja jatkovuorovaikutus.', channels: ['Aivoitus-lehti', 'Some', 'Tapahtumat'], aud: 'Kaikki' },
+    ]},
+    { q: 2, theme: 'Aivoterveyden asialla', months: [
+      { m: 4, content: 'Aivoterveyskampanja: lyhyet videot, infografiikat, haasteet. Visuaalisen ilmeuudistuksen julkaisu.', channels: ['Facebook', 'Instagram', 'TikTok'], aud: 'Suuri yleisö, nuoret' },
+      { m: 5, content: 'Tutkimustiedon jakaminen, asiantuntijahaastattelut, Aivoitus 2/2026', channels: ['LinkedIn', 'Aivoitus-lehti'], aud: 'Ammattilaiset' },
+      { m: 6, content: 'Kesän sisältö: aivoterveys arjessa, liikunta, uni. Kevyempää sisältöä.', channels: ['Some (ajastettu)'], aud: 'Kaikki' },
+    ]},
+    { q: 3, theme: 'Elämän rytmi', months: [
+      { m: 7, content: 'Kesäloma-sisältö: palautuminen, arjen rytmi, vinkit', channels: ['Some (ajastettu)'], aud: 'Sairastuneet, läheiset' },
+      { m: 8, content: 'Syksyn kauden käynnistys. Vertaistoiminta, ryhmät, Aivoitus 3/2026. Verkkosivupäivityksen käynnistys.', channels: ['Facebook', 'Instagram', 'Tapahtumat'], aud: 'Kaikki' },
+      { m: 9, content: 'Elämän rytmi -teema täysillä: arjenhallinta, väsymys, jaksaminen. Webinaarit.', channels: ['Kaikki kanavat'], aud: 'Sairastuneet, läheiset, ammattilaiset' },
+    ]},
+    { q: 4, theme: 'Toivoa tulevaan', months: [
+      { m: 10, content: 'Kuntoutumistarinat, uudet mahdollisuudet. Vaikuttamisviestintä.', channels: ['Facebook', 'LinkedIn', 'Tapahtumat'], aud: 'Kaikki' },
+      { m: 11, content: 'Aivoitus 4/2026, vuoden teemojen koonti, kiitollisuus ja yhteisöllisyys.', channels: ['Kaikki kanavat'], aud: 'Kaikki' },
+      { m: 12, content: 'Vuoden katsaus, kiitokset, tulevaisuudensuuntia. 2027-ennakointi.', channels: ['Some', 'Uutiskirje'], aud: 'Kaikki' },
+    ]},
+  ],
+
+  // ═══ KEHITYSSUUNNITELMA 2027 ═══
+  developmentPlan2027: {
+    currentProjects: [
+      { name: 'Visuaalisen viestinnän uudistus', desc: 'Visuaalisen ilmeen kokonaisuudistus yhteistyössä graafikko Jutta Kivilompolon kanssa. Kattaa brändi-ilmeen, graafiset elementit ja visuaalisen ohjeistuksen.', timing: 'Kevät 2026' },
+      { name: 'Verkkosivujen päivitys', desc: 'Verkkosivuston rakenteen, sisältöjen ja käytettävyyden päivittäminen. Hyödyntää uudistettua visuaalista ilmettä.', timing: 'Syksy 2026' },
+    ],
+    targets: [
+      { id: 1, name: 'Uusi viestintästrategia', desc: '2015-strategian päivitys vastaamaan nykyistä toimintaympäristöä, digitaalisia kanavia ja liiton kehittyneitä tavoitteita.', prep: 'Q3–Q4 2026' },
+      { id: 2, name: 'Teemasuunnittelu 2027', desc: 'Uusien vuositeemojen määrittely. Huomioidaan vuoden 2026 kokemukset, kohderyhmäpalaute ja ajankohtaiset ilmiöt.', prep: 'Q4 2026' },
+      { id: 3, name: 'Mittariston kehittäminen', desc: 'Nykyisten mittareiden täydentäminen vaikuttavuusmittareilla: ydinviestien läpimenon laatu, kohderyhmien tavoittamisen laatu.', prep: 'Q2–Q3 2026' },
+      { id: 4, name: 'Kanavastrategian tarkennus', desc: 'TikTokin ja YouTuben roolin selkeyttäminen: resurssitarve, tavoitteet ja sisältösuunnitelma.', prep: 'Q2 2026' },
+      { id: 5, name: 'Kohderyhmien syvempi profilointi', desc: 'Kohderyhmäkohtaisten persoonien ja sisältöpolkujen kehittäminen palvelemaan tarkemmin eri ryhmiä.', prep: 'Q3 2026' },
+      { id: 6, name: 'Sisäisen viestinnän kehittäminen', desc: 'Liiton henkilöstön ja jäsenistön sisäisen viestinnän prosessien ja työkalujen arviointi.', prep: 'Q4 2026' },
+    ],
+  },
+  // ═══ KVARTAALITEEMAT 2026 ═══
+  quarterlyThemes: [
+    { q: 1, name: 'Älä anna sen kasvaa — STOP väkivallalle', months: 'Tammi–maaliskuu', aivoitus: '1/2026: Stop väkivallalle', focus: 'Tietoisuuden lisääminen väkivallan ja aivovaurion yhteydestä. Ennaltaehkäisy, tunnistaminen ja tuen tarjoaminen.' },
+    { q: 2, name: 'Aivoterveyden asialla', months: 'Huhti–kesäkuu', aivoitus: '2/2026: Aivoterveyden asialla', focus: 'Aivojen hyvinvointi, ennaltaehkäisy ja tutkimustieto. Tavoittaa erityisesti suuren yleisön ja ammattilaiset.' },
+    { q: 3, name: 'Elämän rytmi', months: 'Heinä–syyskuu', aivoitus: '3/2026: Elämän rytmi', focus: 'Arjen hallinta aivovaurion jälkeen: jaksaminen, rutiinit, väsymys, palautuminen. Vertaisuus ja käytännön vinkit.' },
+    { q: 4, name: 'Toivoa tulevaan', months: 'Loka–joulukuu', aivoitus: '4/2026: Toivoa tulevaan', focus: 'Tulevaisuudenuskoa, kuntoutumistarinoita, uusia mahdollisuuksia ja yhteiskunnan tukea. Voimaantuminen.' },
   ],
   // Member survey insights
   memberSurvey: {
@@ -148,19 +196,20 @@ export const AVL_ORG = {
     brainInjurySurvivors: 74,
     preferFaceToFace: 75,
   },
-  strategyText: `Viestintäsuunnitelma 2026 - Aivovammaliitto
-Päivitetty 3.3.2026
-Työryhmä: Anton Baer, Päivi Hakkarainen, Pia Kilpeläinen, Jani Saarinen
+  strategyText: `Momentum — Aivovammaliiton viestinnän strateginen työkalu 2026–2027
+Versio 1.0, huhtikuu 2026
 
-Viestintä = kaksisuuntaista merkityksien rakentamista – lähettäjä ja vastaanottaja ovat vuorovaikutuksessa.
-Tiedotus = yksisuuntaista ajankohtaisen tiedon välittämistä.
+Viestintä on Aivovammaliiton ydintoimintaa läpileikkaava strateginen funktio. Sen neljä perustehtävää ovat: tiedon lisääminen, vertaisuuden vahvistaminen, voimaantumisen tuki ja näkyvyyden luominen.
 
-1. ULKOINEN VIESTINTÄ: Aivoitus, Facebook, Instagram, TikTok, YouTube, LinkedIn, messut ja tapahtumat
-2. ULKOINEN TIEDOTUS: nettisivut, lehdistötiedotteet, esitteet, uutiskirje, jäsenkirje
-3. SISÄINEN VIESTINTÄ: sähköposti (ensisijainen), puhelu (kiireelliset), WhatsApp (epävirallinen)
-4. KRIISIVIESTINTÄ: erillinen suunnitelma, vastuuhenkilö toiminnanjohtaja
+Viestintä = kaksisuuntaista merkitysten rakentamista (some, tapahtumat, vertaisryhmät).
+Tiedotus = yksisuuntaista tiedon välittämistä (uutiskirjeet, tiedotteet, verkkosivut).
 
-Laajennus 2026: AVL kattaa nyt myös AVH:n ja muut aivovauriot. Yli 60 000 uutta tapausta vuodessa.`,
+Kohderyhmät: 1) Aivovamman/AVH:n kokeneet 2) Läheiset 3) Ammattilaiset 4) Suuri yleisö. Sävy vaihtelee kohderyhmittäin.
+
+2026 kvartaaliteemat: Q1 Älä anna sen kasvaa — STOP väkivallalle, Q2 Aivoterveyden asialla, Q3 Elämän rytmi, Q4 Toivoa tulevaan.
+
+Kehityshankkeet 2026: visuaalisen ilmeen uudistus (kevät, Jutta Kivilompolo) ja verkkosivupäivitys (syksy).
+Valmistelu 2027: uusi viestintästrategia, teemasuunnittelu, mittariston kehittäminen, kanavastrategian tarkennus.`,
 };
 
 export const AVL_EVENTS = [

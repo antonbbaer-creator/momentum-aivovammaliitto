@@ -85,7 +85,7 @@ export function useOrgData<T>(key: string, defaultValue: T): [T, (val: T | ((pre
         console.error(`Failed to write ${key}:`, e);
       }
     }, 500);
-  }, [activeOrg, user, key]);
+  }, [activeOrg, user, key, canEdit]);
 
   const setValue = useCallback((valOrFn: T | ((prev: T) => T)) => {
     setValueState(prev => {

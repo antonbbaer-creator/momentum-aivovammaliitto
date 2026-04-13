@@ -5,6 +5,7 @@ import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useIsMobile } from '@/lib/use-mobile';
+import { useParams } from 'next/navigation';
 import {
   FestivalWeek,
   ProgrammeItem,
@@ -16,12 +17,16 @@ import {
   daysInFestivalWeek,
 } from '@/lib/festival-shared';
 
+const EMPTY_FESTIVAL_WEEK: FestivalWeek = { year: new Date().getFullYear(), startDate: '', endDate: '', venues: [], venuesByDay: {} };
+const EMPTY_PROGRAMME: ProgrammeItem[] = [];
+
 export default function ProgrammeGridSection() {
   const { canEdit } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const [festivalWeek, setFestivalWeek] = useOrgData<FestivalWeek>('festivalWeek', LLFF_FESTIVAL_WEEK_2026);
-  const [programme, setProgramme] = useOrgData<ProgrammeItem[]>('programme', DEFAULT_PROGRAMME);
+  const orgSlug = (useParams().orgSlug as string) || '';
+  const [festivalWeek, setFestivalWeek] = useOrgData<FestivalWeek>('festivalWeek', orgSlug === 'llff' ? LLFF_FESTIVAL_WEEK_2026 : EMPTY_FESTIVAL_WEEK);
+  const [programme, setProgramme] = useOrgData<ProgrammeItem[]>('programme', orgSlug === 'llff' ? DEFAULT_PROGRAMME : EMPTY_PROGRAMME);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [prefillDate, setPrefillDate] = useState('');

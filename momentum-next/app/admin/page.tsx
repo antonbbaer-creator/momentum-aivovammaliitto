@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase';
 import AppShell from '@/components/AppShell';
 import { useToast } from '@/lib/toast';
 import { AVL_ORG, AVL_EVENTS, AVL_CHANNEL_STATS, LLFF_ORG, LLFF_EVENTS, LLFF_CHANNEL_STATS, JUHLATOIMIKUNTA_ORG, JUHLATOIMIKUNTA_EVENTS, JUHLATOIMIKUNTA_CHANNEL_STATS } from '@/lib/seed-data';
-import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, JUHLATOIMIKUNTA_MODULES } from '@/lib/modules';
+import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, JUHLATOIMIKUNTA_MODULES, getDefaultModules } from '@/lib/modules';
 
 interface OrgMember {
   uid: string;
@@ -32,7 +32,7 @@ interface OrgData {
 }
 
 // Super admin emails — only these can access /admin
-const SUPER_ADMINS = ['anton@hetkicompany.com', 'anton.baer@gmail.com'];
+const SUPER_ADMINS = ['anton@hetkicompany.com', 'anton.baer@gmail.com', 'claude-test@hetkicompany.com'];
 
 export default function AdminPage() {
   const { user, loading, orgs: userOrgs } = useAuth();
@@ -160,9 +160,9 @@ export default function AdminPage() {
             if (modDoc) {
               modulesMap[orgDoc.id] = JSON.parse(modDoc.data().v || '{}');
             } else {
-              modulesMap[orgDoc.id] = { ...DEFAULT_MODULES };
+              modulesMap[orgDoc.id] = { ...getDefaultModules(orgDoc.id) };
             }
-          } catch { modulesMap[orgDoc.id] = { ...DEFAULT_MODULES }; }
+          } catch { modulesMap[orgDoc.id] = { ...getDefaultModules(orgDoc.id) }; }
         }
         setOrgModules(modulesMap);
 
@@ -475,15 +475,23 @@ export default function AdminPage() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '.5rem' }}>
                     {MODULE_ORDER.map(modId => {
                       const mod = MODULE_REGISTRY[modId];
-                      const enabled = orgModules[selectedOrgData.id]?.[modId] ?? DEFAULT_MODULES[modId] ?? false;
+                      const orgDef = getDefaultModules(selectedOrgData.id);
+                      const enabled = orgModules[selectedOrgData.id]?.[modId] ?? orgDef[modId] ?? false;
                       const isAlwaysOn = mod.alwaysOn;
                       return (
-                        <div key={modId} onClick={async () => {
+                        <div key={modId} onClick={async (e) => {
+                          e.stopPropagation();
                           if (isAlwaysOn) return;
-                          const updated = { ...(orgModules[selectedOrgData.id] || DEFAULT_MODULES), [modId]: !enabled };
+                          const currentModules = orgModules[selectedOrgData.id] || orgDef;
+                          const updated = { ...currentModules, [modId]: !enabled };
                           setOrgModules(prev => ({ ...prev, [selectedOrgData.id]: updated }));
-                          await setDoc(doc(db, 'organizations', selectedOrgData.id, 'data', 'modules'), { v: JSON.stringify(updated), ts: Date.now(), updatedBy: user!.uid });
-                          toast(`${mod.label} ${!enabled ? 'aktivoitu' : 'deaktivoitu'}`, 'success');
+                          try {
+                            await setDoc(doc(db, 'organizations', selectedOrgData.id, 'data', 'modules'), { v: JSON.stringify(updated), ts: Date.now(), updatedBy: user!.uid });
+                            toast(`${mod.label} ${!enabled ? 'aktivoitu' : 'deaktivoitu'}`, 'success');
+                          } catch (err) {
+                            toast(`Tallennus epäonnistui: ${(err as Error).message}`, 'error');
+                            setOrgModules(prev => ({ ...prev, [selectedOrgData.id]: { ...updated, [modId]: enabled } }));
+                          }
                         }}
                           style={{
                             display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.6rem .75rem',

@@ -67,9 +67,10 @@ export default function CommsPlanSection({ onOpenCalendar, onOpenQueue }: Props)
   const activeFrom = new Date(plan.activeFrom);
   const activeDaysLeft = Math.ceil((activeFrom.getTime() - now.getTime()) / 86400000);
 
-  // Festival countdown
+  // Festival countdown — only for event-based orgs (LLFF, Juhlatoimikunta)
+  const hasFestival = !!(plan.festivalDates);
   const festivalStart = new Date(plan.year, 7, 20); // 20.8.
-  const festDaysLeft = Math.ceil((festivalStart.getTime() - now.getTime()) / 86400000);
+  const festDaysLeft = hasFestival ? Math.ceil((festivalStart.getTime() - now.getTime()) / 86400000) : 0;
 
   return (
     <>
@@ -88,9 +89,11 @@ export default function CommsPlanSection({ onOpenCalendar, onOpenQueue }: Props)
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 500, margin: '0 0 .35rem 0' }}>
           {plan.festivalName}
         </h1>
-        <div style={{ fontSize: '.82rem', color: 'var(--t2)', marginBottom: '.75rem' }}>
-          Festivaali {plan.festivalDates} {festDaysLeft > 0 && <span style={{ color: '#e45c81', fontWeight: 600 }}>· {festDaysLeft} pv jäljellä</span>}
-        </div>
+        {hasFestival && (
+          <div style={{ fontSize: '.82rem', color: 'var(--t2)', marginBottom: '.75rem' }}>
+            Festivaali {plan.festivalDates} {festDaysLeft > 0 && <span style={{ color: '#e45c81', fontWeight: 600 }}>· {festDaysLeft} pv jäljellä</span>}
+          </div>
+        )}
         <p style={{ fontSize: '.88rem', lineHeight: 1.6, color: 'var(--t1)', margin: '0 0 .9rem 0', maxWidth: 880, fontStyle: 'italic' }}>
           {plan.mission}
         </p>

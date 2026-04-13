@@ -50,6 +50,24 @@ export const DEFAULT_MODULES: Record<string, boolean> = {
   muistiinpanot: false,
 };
 
+// AVL:n oletusmoduulit — ei ruokaa eika ohjelmistoa (jatkuva viestintatyo, ei tapahtuma)
+export const AVL_MODULES: Record<string, boolean> = {
+  dashboard: true,
+  strategy: true,
+  team: true,
+  viestit: true,
+  aikataulut: true,
+  viestinta: true,
+  ohjelmisto: false,
+  budget: true,
+  vieraat: false,
+  ruoka: false,
+  tehtavat: false,
+  tila: false,
+  ohjelma: false,
+  muistiinpanot: true,
+};
+
 // Juhlatoimikunnan oletusmoduulit
 export const JUHLATOIMIKUNTA_MODULES: Record<string, boolean> = {
   dashboard: true,
@@ -69,6 +87,7 @@ export const JUHLATOIMIKUNTA_MODULES: Record<string, boolean> = {
 };
 
 export function getDefaultModules(orgSlug: string): Record<string, boolean> {
+  if (orgSlug === 'avl') return AVL_MODULES;
   if (orgSlug === 'juhlatoimikunta') return JUHLATOIMIKUNTA_MODULES;
   return DEFAULT_MODULES;
 }

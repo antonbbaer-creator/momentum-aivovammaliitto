@@ -27,8 +27,32 @@ export default function SettingsPage() {
   const [confirm, setConfirm] = useState(false);
   const [orgJoinCode, setOrgJoinCode] = useState('');
   const [codeCopied, setCodeCopied] = useState(false);
+  const [textSize, setTextSizeState] = useState('sm');
+  const [compactMode, setCompactModeState] = useState(false);
 
   const isAdmin = activeOrgRole === 'owner' || activeOrgRole === 'admin';
+
+  // Load personal preferences
+  useEffect(() => {
+    const savedSize = localStorage.getItem('momentum_textSize');
+    if (savedSize && ['sm', 'md', 'lg'].includes(savedSize)) setTextSizeState(savedSize);
+    const savedCompact = localStorage.getItem('momentum_compactMode');
+    if (savedCompact === 'true') setCompactModeState(true);
+  }, []);
+
+  const setTextSize = (key: string) => {
+    setTextSizeState(key);
+    localStorage.setItem('momentum_textSize', key);
+    const scales: Record<string, number> = { sm: 1, md: 1.15, lg: 1.35 };
+    document.documentElement.style.fontSize = `${(scales[key] || 1) * 16}px`;
+  };
+
+  const setCompactMode = (on: boolean) => {
+    setCompactModeState(on);
+    localStorage.setItem('momentum_compactMode', String(on));
+    if (on) document.documentElement.classList.add('compact');
+    else document.documentElement.classList.remove('compact');
+  };
 
   // Fetch join code from org doc
   useEffect(() => {
@@ -78,7 +102,61 @@ export default function SettingsPage() {
   };
 
   return (
-    <AppShell title="Asetukset" subtitle="Organisaation hallinta">
+    <AppShell title="Asetukset" subtitle={org.name || ''}>
+
+      {/* ── Omat asetukset (kaikille) ── */}
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', marginBottom: '1.5rem' }}>
+        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em' }}>Omat asetukset</h3>
+          <p style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.15rem' }}>Nama asetukset tallentuvat selaimeesi ja koskevat vain sinua.</p>
+        </div>
+        <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+          {/* Tekstin koko */}
+          <div>
+            <div style={{ fontSize: '.82rem', fontWeight: 600, marginBottom: '.6rem' }}>Tekstin koko</div>
+            <div style={{ display: 'flex', gap: '.5rem' }}>
+              {[
+                { key: 'sm', label: 'Pieni', desc: 'Oletus, mahtuu enemman' },
+                { key: 'md', label: 'Keski', desc: 'Helpompi lukea' },
+                { key: 'lg', label: 'Iso', desc: 'Saavutettava' },
+              ].map(s => (
+                <button key={s.key} onClick={() => setTextSize(s.key)} style={{
+                  flex: 1, padding: '.85rem 1rem', borderRadius: 'var(--r)', cursor: 'pointer',
+                  background: textSize === s.key ? 'rgba(5,107,159,.1)' : 'var(--elev)',
+                  border: `1.5px solid ${textSize === s.key ? 'var(--pri)' : 'var(--border)'}`,
+                  textAlign: 'center', transition: 'all .15s ease',
+                }}>
+                  <div style={{ fontSize: s.key === 'sm' ? '.78rem' : s.key === 'md' ? '.92rem' : '1.1rem', fontWeight: 700, color: textSize === s.key ? 'var(--pri-l)' : 'var(--t1)', marginBottom: '.2rem' }}>A</div>
+                  <div style={{ fontSize: '.72rem', fontWeight: 600, color: textSize === s.key ? 'var(--pri-l)' : 'var(--t2)' }}>{s.label}</div>
+                  <div style={{ fontSize: '.6rem', color: 'var(--t3)', marginTop: '.1rem' }}>{s.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Kompakti tila */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '.75rem 1rem', background: 'var(--elev)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}>
+            <div>
+              <div style={{ fontSize: '.82rem', fontWeight: 600 }}>Kompakti tila</div>
+              <div style={{ fontSize: '.68rem', color: 'var(--t3)' }}>Pienentaa valimatkat elementtien valilla</div>
+            </div>
+            <button onClick={() => setCompactMode(!compactMode)} style={{
+              width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+              background: compactMode ? 'var(--pri)' : 'var(--border)',
+              position: 'relative', transition: 'background .2s ease',
+            }}>
+              <div style={{
+                width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                position: 'absolute', top: 3,
+                left: compactMode ? 23 : 3,
+                transition: 'left .2s ease',
+              }} />
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Org switcher */}
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', marginBottom: '1.5rem' }}>
         <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>

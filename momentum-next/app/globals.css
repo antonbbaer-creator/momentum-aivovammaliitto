@@ -29,6 +29,7 @@
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:var(--font);font-weight:300;background:var(--bg);color:var(--t1);line-height:1.55;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
     body.no-scroll{overflow:hidden;position:fixed;width:100%;touch-action:none}
+    .compact .page{padding:.75rem !important}.compact .page-enter>*{margin-bottom:.75rem !important}
     ::selection{background:var(--hetki-blue);color:#fff}
     ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--border-l)}
 
