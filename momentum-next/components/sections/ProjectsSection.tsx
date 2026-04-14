@@ -7,13 +7,12 @@ import { useToast } from '@/lib/toast';
 import { useIsMobile } from '@/lib/use-mobile';
 import { useParams } from 'next/navigation';
 import { OrgTeam, OrgTeamMember } from '@/lib/team-shared';
-import { getOrgTeams } from '@/lib/org-defaults';
+import { getOrgTeams, getOrgTeamMembers } from '@/lib/org-defaults';
 import { YearPhase, normalizePhase } from '@/lib/yearwheel-shared';
 import { getOrgYearwheel } from '@/lib/org-defaults';
 
 interface Task { id: number; text: string; done: boolean; assignee: string; deadline: string; }
 interface TeamMember { name: string; role: string; avatar: string; }
-interface TeamDataMember { id: string; name: string; role: string; type: string; avatar: string; }
 export interface Project {
   id: number;
   t: string;
@@ -51,7 +50,7 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
   const orgSlug = (useParams().orgSlug as string) || '';
   const isMobile = useIsMobile();
   const [projects, setProjects] = useOrgData<Project[]>('projects', []);
-  const [teamData] = useOrgData<TeamDataMember[]>('teamMembers', []);
+  const [teamData] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
   const [rawPhases] = useOrgData<YearPhase[]>('yearwheel', getOrgYearwheel(orgSlug));
   const phases = rawPhases.map(normalizePhase);

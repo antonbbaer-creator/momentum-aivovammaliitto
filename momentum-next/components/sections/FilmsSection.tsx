@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useIsMobile } from '@/lib/use-mobile';
 import { useParams } from 'next/navigation';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 interface Film {
   id: string;
@@ -26,41 +28,57 @@ interface Film {
   notes?: string;
   section: 'theme' | 'nordic';
   altFilm?: string;
+  // Uudet kentat
+  duration?: number;
+  language?: string;
+  subtitles?: string;
+  format?: string;
+  premiereStatus?: string;
+  salesAgent?: string;
+  images?: string[];
 }
 
 const statusOptions = [
   { id: 'consideration', label: 'Harkinnassa', color: 'var(--yellow)', bg: 'rgba(241,180,52,.1)' },
   { id: 'shortlist', label: 'Lyhytlista', color: 'var(--pri-l)', bg: 'rgba(5,107,159,.1)' },
   { id: 'confirmed', label: 'Vahvistettu', color: 'var(--green)', bg: 'rgba(45,212,160,.1)' },
-  { id: 'rejected', label: 'Hylätty', color: 'var(--red)', bg: 'rgba(239,107,107,.1)' },
+  { id: 'rejected', label: 'Hylatty', color: 'var(--red)', bg: 'rgba(239,107,107,.1)' },
 ];
 
+const formatDuration = (min: number) => {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h > 0 ? `${h}h ${m > 0 ? `${m}min` : ''}`.trim() : `${m}min`;
+};
+
 const defaultThemeFilms: Film[] = [
-  { id: 'tf1', title: 'Mogul Mowgli', director: '', country: 'GB', year: '2020', genre: '', type: '', festivals: 'charades library', synopsis: '', status: 'consideration', section: 'theme', altFilm: 'Memory (elke 2023 USA)' },
-  { id: 'tf2', title: 'The Decline of Western Civilization', director: '', country: 'USA', year: '1981', genre: '', type: '', festivals: 'elke', synopsis: '', status: 'consideration', section: 'theme' },
+  { id: 'tf1', title: 'Mogul Mowgli', director: '', country: 'GB', year: '2020', genre: '', type: '', festivals: 'charades library', synopsis: '', status: 'consideration', section: 'theme', altFilm: 'Memory (elke 2023 USA)', duration: 89 },
+  { id: 'tf2', title: 'The Decline of Western Civilization', director: '', country: 'USA', year: '1981', genre: '', type: '', festivals: 'elke', synopsis: '', status: 'consideration', section: 'theme', duration: 100 },
   { id: 'tf3', title: 'A Place to Heal', director: '', country: 'FR', year: '2026', genre: '', type: '', festivals: 'charades', synopsis: '', status: 'consideration', section: 'theme' },
-  { id: 'tf4', title: 'Palestine 36', director: '', country: 'MULTI', year: '2026', genre: '', type: '', festivals: 'Lucky Number', synopsis: '', status: 'consideration', section: 'theme', altFilm: 'Europa (1931 POL, alkukuva, Aatos Ketvel säestys)' },
-  { id: 'tf5', title: 'Aelita Queen of Mars', director: '', country: 'RU', year: '1924', genre: '', type: '', festivals: '', synopsis: '', status: 'consideration', section: 'theme', altFilm: 'Cleaning Women säestys' },
+  { id: 'tf4', title: 'Palestine 36', director: '', country: 'MULTI', year: '2026', genre: '', type: '', festivals: 'Lucky Number', synopsis: '', status: 'consideration', section: 'theme', altFilm: 'Europa (1931 POL, alkukuva, Aatos Ketvel saestys)' },
+  { id: 'tf5', title: 'Aelita Queen of Mars', director: '', country: 'RU', year: '1924', genre: '', type: '', festivals: '', synopsis: '', status: 'consideration', section: 'theme', altFilm: 'Cleaning Women saestys', duration: 111 },
   { id: 'tf6', title: 'River Dreams', director: '', country: 'KAZ', year: '2026', genre: '', type: '', festivals: 'Cinephil', synopsis: '', status: 'consideration', section: 'theme' },
-  { id: 'tf7', title: 'Love Lies Bleeding', director: '', country: 'GM', year: '2024', genre: '', type: '', festivals: 'Scanbox', synopsis: '', status: 'consideration', section: 'theme' },
+  { id: 'tf7', title: 'Love Lies Bleeding', director: '', country: 'GM', year: '2024', genre: '', type: '', festivals: 'Scanbox', synopsis: '', status: 'consideration', section: 'theme', duration: 104 },
   { id: 'tf8', title: 'Rose of Nevada', director: '', country: 'GB', year: '2025', genre: '', type: '', festivals: 'Protagonist', synopsis: '', status: 'consideration', section: 'theme', altFilm: 'Holy Destructors (2025 LAT/LIE)' },
   { id: 'tf9', title: 'The Piano Accident', director: '', country: 'FR', year: '2025', genre: '', type: '', festivals: 'Lucky Number library', synopsis: '', status: 'consideration', section: 'theme', altFilm: 'After Yang (elke 2021 USA)' },
-  { id: 'tf10', title: 'Shoplifters', director: '', country: 'JAP', year: '2018', genre: '', type: '', festivals: 'mondo', synopsis: '', status: 'consideration', section: 'theme', altFilm: 'Aftersun (manse 2022 USA)' },
+  { id: 'tf10', title: 'Shoplifters', director: '', country: 'JAP', year: '2018', genre: '', type: '', festivals: 'mondo', synopsis: '', status: 'consideration', section: 'theme', altFilm: 'Aftersun (manse 2022 USA)', duration: 121 },
 ];
 
 const defaultNordicFilms: Film[] = [
-  { id: 'nf1', title: 'Butterfly', director: 'Itonje Søimer Guttormsen', directorBorn: '1979', country: 'Norja', countryFlag: '🇳🇴', year: '2026', genre: 'Drama/Comedy', type: 'toisinkoinen', festivals: 'IFFR / Göteborg 2026', trailer: '', screener: '', synopsis: 'Two estranged sisters reunite in Gran Canaria after their parents\u2019 deaths, only to inherit an unfinished resort and esoteric retreat.', status: 'consideration', section: 'nordic' },
-  { id: 'nf2', title: 'The Ugly Stepsister', director: 'Emilie Blichfeldt', directorBorn: '1991', country: 'Norja', countryFlag: '🇳🇴', year: '2025', genre: 'Comedy Body Horror', type: 'esikoinen', festivals: 'Sundance 2025 (R&A 2025)', trailer: 'https://youtu.be/8zDgCKH83Nk', synopsis: 'Determined to outshine her beautiful stepsister, Elvira resorts to extreme measures in this dark re-imagining of the Cinderella fairy tale.', status: 'consideration', section: 'nordic' },
-  { id: 'nf3', title: 'The Patron', director: 'Julia Thelin', directorBorn: '1991', country: 'Ruotsi', countryFlag: '🇸🇪', year: '2026', genre: 'Drama', type: 'esikoinen', festivals: 'Göteborg 2026', trailer: 'https://youtu.be/7Jt-nKUdWGA', screener: 'https://vimeo.com/reviews/bf3075a1-b354-4e42-bb47-573c4313abad/videos/1087716149', screenerPw: 'Th3P4tr0n', synopsis: 'A cleaner dreams of a more exciting life.', status: 'consideration', section: 'nordic' },
-  { id: 'nf4', title: 'Birita', director: 'Búi Dam', directorBorn: '', country: 'Färsaaret', countryFlag: '🇫🇴', year: '2026', genre: 'Documentary', type: 'esikoinen', festivals: 'CPH:DOX 2026', trailer: 'https://vimeo.com/1172175877/ef6328226c', screener: 'https://vimeo.com/1164762351', screenerPw: 'Copenhagen2026', synopsis: 'In the Faroe Islands, a family of theatre people are working on staging King Lear.', status: 'consideration', section: 'nordic' },
-  { id: 'nf5', title: 'If Luck Will Come', director: 'Camille Bildøe', directorBorn: '1994', country: 'Tanska', countryFlag: '🇩🇰', year: '2026', genre: 'Documentary', type: 'toisinkoinen', festivals: 'CPH:DOX 2026', synopsis: '', status: 'consideration', section: 'nordic', altFilm: 'Christiania (Karl Friis Forchhammer, doc, CPH:DOX 2026)' },
-  { id: 'nf6', title: 'The Squirrel (Orava)', director: 'Markus Lehmusruusu', directorBorn: '1983', country: 'Suomi', countryFlag: '🇫🇮', year: '', genre: 'Scifi', type: 'toisinkoinen', festivals: '', synopsis: '', status: 'consideration', section: 'nordic' },
-  { id: 'nf7', title: 'A Light That Never Goes Out', director: 'Lauri-Matti Parppei', directorBorn: '1985', country: 'Suomi', countryFlag: '🇫🇮', year: '', genre: 'Drama', type: 'esikoinen', festivals: 'Saatavilla Ruutu+', synopsis: '', status: 'consideration', section: 'nordic', notes: 'Jossain on valo joka ei sammu' },
-  { id: 'nf8', title: 'Almost Forever', director: 'Lia Hietala & Hannah Reinikainen', directorBorn: '', country: 'Ruotsi/Suomi', countryFlag: '🇸🇪🇫🇮', year: '2026', genre: 'Documentary', type: 'esikoinen', festivals: 'CPH:DOX 2026', synopsis: '', status: 'consideration', section: 'nordic' },
+  { id: 'nf1', title: 'Butterfly', director: 'Itonje S\u00f8imer Guttormsen', directorBorn: '1979', country: 'Norja', countryFlag: '\ud83c\uddf3\ud83c\uddf4', year: '2026', genre: 'Drama/Comedy', type: 'toisinkoinen', festivals: 'IFFR / G\u00f6teborg 2026', trailer: '', screener: '', synopsis: 'Two estranged sisters reunite in Gran Canaria after their parents\u2019 deaths, only to inherit an unfinished resort and esoteric retreat.', status: 'consideration', section: 'nordic' },
+  { id: 'nf2', title: 'The Ugly Stepsister', director: 'Emilie Blichfeldt', directorBorn: '1991', country: 'Norja', countryFlag: '\ud83c\uddf3\ud83c\uddf4', year: '2025', genre: 'Comedy Body Horror', type: 'esikoinen', festivals: 'Sundance 2025 (R&A 2025)', trailer: 'https://youtu.be/8zDgCKH83Nk', synopsis: 'Determined to outshine her beautiful stepsister, Elvira resorts to extreme measures in this dark re-imagining of the Cinderella fairy tale.', status: 'consideration', section: 'nordic', duration: 105 },
+  { id: 'nf3', title: 'The Patron', director: 'Julia Thelin', directorBorn: '1991', country: 'Ruotsi', countryFlag: '\ud83c\uddf8\ud83c\uddea', year: '2026', genre: 'Drama', type: 'esikoinen', festivals: 'G\u00f6teborg 2026', trailer: 'https://youtu.be/7Jt-nKUdWGA', screener: 'https://vimeo.com/reviews/bf3075a1-b354-4e42-bb47-573c4313abad/videos/1087716149', screenerPw: 'Th3P4tr0n', synopsis: 'A cleaner dreams of a more exciting life.', status: 'consideration', section: 'nordic' },
+  { id: 'nf4', title: 'Birita', director: 'B\u00fai Dam', directorBorn: '', country: 'F\u00e4rsaaret', countryFlag: '\ud83c\uddeb\ud83c\uddf4', year: '2026', genre: 'Documentary', type: 'esikoinen', festivals: 'CPH:DOX 2026', trailer: 'https://vimeo.com/1172175877/ef6328226c', screener: 'https://vimeo.com/1164762351', screenerPw: 'Copenhagen2026', synopsis: 'In the Faroe Islands, a family of theatre people are working on staging King Lear.', status: 'consideration', section: 'nordic' },
+  { id: 'nf5', title: 'If Luck Will Come', director: 'Camille Bild\u00f8e', directorBorn: '1994', country: 'Tanska', countryFlag: '\ud83c\udde9\ud83c\uddf0', year: '2026', genre: 'Documentary', type: 'toisinkoinen', festivals: 'CPH:DOX 2026', synopsis: '', status: 'consideration', section: 'nordic', altFilm: 'Christiania (Karl Friis Forchhammer, doc, CPH:DOX 2026)' },
+  { id: 'nf6', title: 'The Squirrel (Orava)', director: 'Markus Lehmusruusu', directorBorn: '1983', country: 'Suomi', countryFlag: '\ud83c\uddeb\ud83c\uddee', year: '', genre: 'Scifi', type: 'toisinkoinen', festivals: '', synopsis: '', status: 'consideration', section: 'nordic' },
+  { id: 'nf7', title: 'A Light That Never Goes Out', director: 'Lauri-Matti Parppei', directorBorn: '1985', country: 'Suomi', countryFlag: '\ud83c\uddeb\ud83c\uddee', year: '', genre: 'Drama', type: 'esikoinen', festivals: 'Saatavilla Ruutu+', synopsis: '', status: 'consideration', section: 'nordic', notes: 'Jossain on valo joka ei sammu' },
+  { id: 'nf8', title: 'Almost Forever', director: 'Lia Hietala & Hannah Reinikainen', directorBorn: '', country: 'Ruotsi/Suomi', countryFlag: '\ud83c\uddf8\ud83c\uddea\ud83c\uddeb\ud83c\uddee', year: '2026', genre: 'Documentary', type: 'esikoinen', festivals: 'CPH:DOX 2026', synopsis: '', status: 'consideration', section: 'nordic' },
 ];
 
 const EMPTY_FILMS: Film[] = [];
 const LLFF_DEFAULT_FILMS = [...defaultThemeFilms, ...defaultNordicFilms];
+
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export default function FilmsSection() {
   const { canEdit } = useAuth();
@@ -71,6 +89,8 @@ export default function FilmsSection() {
   const [tab, setTab] = useState<'theme' | 'nordic'>('theme');
   const [selectedFilm, setSelectedFilm] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formTitle, setFormTitle] = useState('');
   const [formDirector, setFormDirector] = useState('');
@@ -83,6 +103,13 @@ export default function FilmsSection() {
   const [formSynopsis, setFormSynopsis] = useState('');
   const [formNotes, setFormNotes] = useState('');
   const [formAlt, setFormAlt] = useState('');
+  const [formDuration, setFormDuration] = useState('');
+  const [formLanguage, setFormLanguage] = useState('');
+  const [formSubtitles, setFormSubtitles] = useState('');
+  const [formFormat, setFormFormat] = useState('');
+  const [formPremiere, setFormPremiere] = useState('');
+  const [formSalesAgent, setFormSalesAgent] = useState('');
+  const [formImages, setFormImages] = useState<string[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
 
   const sectionFilms = films.filter(f => f.section === tab);
@@ -90,34 +117,96 @@ export default function FilmsSection() {
 
   const updateFilmStatus = (id: string, status: Film['status']) => {
     setFilms(prev => prev.map(f => f.id === id ? { ...f, status } : f));
-    toast('Status päivitetty', 'success');
+    toast('Status paivitetty', 'success');
   };
 
   const openNew = () => {
     setEditId(null); setFormTitle(''); setFormDirector(''); setFormCountry(''); setFormYear('');
     setFormGenre(''); setFormType(''); setFormFestivals(''); setFormTrailer(''); setFormSynopsis('');
-    setFormNotes(''); setFormAlt(''); setShowForm(true);
+    setFormNotes(''); setFormAlt('');
+    setFormDuration(''); setFormLanguage(''); setFormSubtitles('');
+    setFormFormat(''); setFormPremiere(''); setFormSalesAgent('');
+    setFormImages([]);
+    setShowForm(true);
   };
 
   const openEdit = (f: Film) => {
     setEditId(f.id); setFormTitle(f.title); setFormDirector(f.director); setFormCountry(f.country);
     setFormYear(f.year || ''); setFormGenre(f.genre || ''); setFormType(f.type || '');
     setFormFestivals(f.festivals || ''); setFormTrailer(f.trailer || ''); setFormSynopsis(f.synopsis);
-    setFormNotes(f.notes || ''); setFormAlt(f.altFilm || ''); setShowForm(true);
+    setFormNotes(f.notes || ''); setFormAlt(f.altFilm || '');
+    setFormDuration(f.duration ? String(f.duration) : '');
+    setFormLanguage(f.language || '');
+    setFormSubtitles(f.subtitles || '');
+    setFormFormat(f.format || '');
+    setFormPremiere(f.premiereStatus || '');
+    setFormSalesAgent(f.salesAgent || '');
+    setFormImages(f.images || []);
+    setShowForm(true);
+  };
+
+  const uploadImage = async (file: File, filmId: string): Promise<string | null> => {
+    if (file.size > MAX_IMAGE_SIZE) {
+      toast('Kuva liian suuri (max 5MB)', 'error');
+      return null;
+    }
+    if (!file.type.startsWith('image/')) {
+      toast('Vain kuvatiedostot sallittu', 'error');
+      return null;
+    }
+    const path = `organizations/${orgSlug}/films/${filmId}/${Date.now()}_${file.name}`;
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, file);
+    return getDownloadURL(storageRef);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    const filmId = editId || 'film_' + Date.now();
+    if (!editId) setEditId(filmId);
+    const newUrls: string[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const url = await uploadImage(files[i], filmId);
+      if (url) newUrls.push(url);
+    }
+    setFormImages(prev => [...prev, ...newUrls]);
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (newUrls.length > 0) toast(`${newUrls.length} kuva${newUrls.length > 1 ? 'a' : ''} ladattu`, 'success');
+  };
+
+  const removeImage = async (url: string) => {
+    try {
+      const storageRef = ref(storage, url);
+      await deleteObject(storageRef);
+    } catch (e) {
+      // URL might not be a valid storage ref, ignore
+    }
+    setFormImages(prev => prev.filter(u => u !== url));
   };
 
   const saveFilm = () => {
     if (!formTitle.trim()) return;
+    const filmId = editId || 'film_' + Date.now();
     const film: Film = {
-      id: editId || 'film_' + Date.now(), title: formTitle.trim(), director: formDirector.trim(),
+      id: filmId, title: formTitle.trim(), director: formDirector.trim(),
       country: formCountry.trim(), year: formYear.trim(), genre: formGenre.trim(), type: formType.trim(),
       festivals: formFestivals.trim(), trailer: formTrailer.trim(), synopsis: formSynopsis.trim(),
       notes: formNotes.trim(), altFilm: formAlt.trim(), status: 'consideration', section: tab,
+      duration: formDuration ? parseInt(formDuration) : undefined,
+      language: formLanguage.trim() || undefined,
+      subtitles: formSubtitles.trim() || undefined,
+      format: formFormat.trim() || undefined,
+      premiereStatus: formPremiere.trim() || undefined,
+      salesAgent: formSalesAgent.trim() || undefined,
+      images: formImages.length > 0 ? formImages : undefined,
     };
     if (editId) { setFilms(prev => prev.map(f => f.id === editId ? { ...f, ...film, status: f.status } : f)); }
     else { setFilms(prev => [...prev, film]); }
     setShowForm(false);
-    toast(editId ? 'Elokuva päivitetty' : 'Elokuva lisätty', 'success');
+    toast(editId ? 'Elokuva paivitetty' : 'Elokuva lisatty', 'success');
   };
 
   const removeFilm = (id: string) => {
@@ -126,10 +215,23 @@ export default function FilmsSection() {
     toast('Elokuva poistettu', 'success');
   };
 
+  // === YKSITYISKOHTANAKYMA ===
   if (selected) {
     return (
       <>
-        <button className="btn btn-ghost" onClick={() => setSelectedFilm(null)} style={{ marginBottom: '1rem' }}>{'←'} Takaisin</button>
+        <button className="btn btn-ghost" onClick={() => setSelectedFilm(null)} style={{ marginBottom: '1rem' }}>{'<-'} Takaisin</button>
+
+        {/* Kuvagalleria */}
+        {selected.images && selected.images.length > 0 && (
+          <div style={{ marginBottom: '1.25rem', display: 'flex', gap: '.5rem', overflowX: 'auto', paddingBottom: '.5rem' }}>
+            {selected.images.map((url, i) => (
+              <img key={i} src={url} alt={`${selected.title} ${i + 1}`} style={{
+                height: 180, borderRadius: 'var(--r)', objectFit: 'cover',
+                border: '1px solid var(--border)', flexShrink: 0,
+              }} />
+            ))}
+          </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 340px', gap: '1.5rem' }}>
           <div>
@@ -145,11 +247,34 @@ export default function FilmsSection() {
                 {selected.countryFlag && <span style={{ fontSize: '1.1rem' }}>{selected.countryFlag}</span>}
                 <span style={{ fontSize: '.78rem', padding: '.2rem .55rem', borderRadius: 9999, background: 'var(--elev)', border: '1px solid var(--border)', fontWeight: 600 }}>{selected.country}</span>
                 {selected.year && <span style={{ fontSize: '.78rem', padding: '.2rem .55rem', borderRadius: 9999, background: 'var(--elev)', border: '1px solid var(--border)' }}>{selected.year}</span>}
+                {selected.duration && <span style={{ fontSize: '.78rem', padding: '.2rem .55rem', borderRadius: 9999, background: 'var(--elev)', border: '1px solid var(--border)' }}>{formatDuration(selected.duration)}</span>}
                 {selected.genre && <span style={{ fontSize: '.78rem', padding: '.2rem .55rem', borderRadius: 9999, background: 'var(--elev)', border: '1px solid var(--border)' }}>{selected.genre}</span>}
                 {selected.type && <span style={{ fontSize: '.78rem', padding: '.2rem .55rem', borderRadius: 9999, background: 'rgba(5,107,159,.1)', color: 'var(--pri-l)', fontWeight: 600 }}>{selected.type}</span>}
+                {selected.premiereStatus && <span style={{ fontSize: '.78rem', padding: '.2rem .55rem', borderRadius: 9999, background: 'rgba(45,212,160,.1)', color: 'var(--green)', fontWeight: 600 }}>{selected.premiereStatus}</span>}
               </div>
               {selected.synopsis && <p style={{ fontSize: '.88rem', color: 'var(--t2)', lineHeight: 1.8 }}>{selected.synopsis}</p>}
             </div>
+
+            {/* Tekniset tiedot */}
+            {(selected.format || selected.language || selected.subtitles || selected.salesAgent) && (
+              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.25rem', marginBottom: '1.25rem' }}>
+                <h3 style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', marginBottom: '.75rem' }}>Tekniset tiedot</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.5rem .75rem' }}>
+                  {selected.format && (
+                    <div><span style={{ fontSize: '.72rem', color: 'var(--t3)' }}>Formaatti:</span> <span style={{ fontSize: '.82rem', fontWeight: 600 }}>{selected.format}</span></div>
+                  )}
+                  {selected.language && (
+                    <div><span style={{ fontSize: '.72rem', color: 'var(--t3)' }}>Kieli:</span> <span style={{ fontSize: '.82rem', fontWeight: 600 }}>{selected.language}</span></div>
+                  )}
+                  {selected.subtitles && (
+                    <div><span style={{ fontSize: '.72rem', color: 'var(--t3)' }}>Tekstitys:</span> <span style={{ fontSize: '.82rem', fontWeight: 600 }}>{selected.subtitles}</span></div>
+                  )}
+                  {selected.salesAgent && (
+                    <div><span style={{ fontSize: '.72rem', color: 'var(--t3)' }}>Myyntiagentti:</span> <span style={{ fontSize: '.82rem', fontWeight: 600 }}>{selected.salesAgent}</span></div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {selected.altFilm && (
               <div style={{ background: 'rgba(241,180,52,.04)', border: '1px solid rgba(241,180,52,.15)', borderRadius: 'var(--rl)', padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
@@ -183,8 +308,8 @@ export default function FilmsSection() {
             <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.25rem', marginBottom: '1rem' }}>
               <h3 style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', marginBottom: '.75rem' }}>Linkit</h3>
               {selected.festivals && <div style={{ fontSize: '.82rem', color: 'var(--t2)', marginBottom: '.5rem' }}><strong>Festivaalit:</strong> {selected.festivals}</div>}
-              {selected.trailer && <a href={selected.trailer} target="_blank" rel="noopener" className="btn btn-secondary btn-sm" style={{ width: '100%', marginBottom: '.35rem', textDecoration: 'none', justifyContent: 'center' }}>Traileri {'↗'}</a>}
-              {selected.screener && <a href={selected.screener} target="_blank" rel="noopener" className="btn btn-secondary btn-sm" style={{ width: '100%', textDecoration: 'none', justifyContent: 'center' }}>Screener {'↗'}</a>}
+              {selected.trailer && <a href={selected.trailer} target="_blank" rel="noopener" className="btn btn-secondary btn-sm" style={{ width: '100%', marginBottom: '.35rem', textDecoration: 'none', justifyContent: 'center' }}>Traileri {'->'}  </a>}
+              {selected.screener && <a href={selected.screener} target="_blank" rel="noopener" className="btn btn-secondary btn-sm" style={{ width: '100%', textDecoration: 'none', justifyContent: 'center' }}>Screener {'->'}</a>}
               {selected.screenerPw && <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.35rem' }}>Salasana: <code style={{ background: 'var(--elev)', padding: '.1rem .3rem', borderRadius: 3 }}>{selected.screenerPw}</code></div>}
             </div>
 
@@ -195,6 +320,7 @@ export default function FilmsSection() {
     );
   }
 
+  // === LISTANAKYMA ===
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '.5rem' }}>
@@ -202,7 +328,7 @@ export default function FilmsSection() {
           <button className={`cal-view-btn ${tab === 'theme' ? 'act' : ''}`} onClick={() => setTab('theme')}>Teemaohjelmisto ({films.filter(f => f.section === 'theme').length})</button>
           <button className={`cal-view-btn ${tab === 'nordic' ? 'act' : ''}`} onClick={() => setTab('nordic')}>Nordic Frames ({films.filter(f => f.section === 'nordic').length})</button>
         </div>
-        {canEdit && <button className="btn btn-primary btn-sm" onClick={openNew}>+ Lisää elokuva</button>}
+        {canEdit && <button className="btn btn-primary btn-sm" onClick={openNew}>+ Lisaa elokuva</button>}
       </div>
 
       <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
@@ -217,6 +343,7 @@ export default function FilmsSection() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
         {sectionFilms.map((f, i) => {
           const st = statusOptions.find(s => s.id === f.status);
+          const thumb = f.images && f.images.length > 0 ? f.images[0] : null;
           return (
             <div key={f.id} onClick={() => setSelectedFilm(f.id)} style={{
               display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem',
@@ -224,49 +351,107 @@ export default function FilmsSection() {
               cursor: 'pointer', transition: 'border-color .15s',
             }} onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--pri)')} onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}>
               <div style={{ fontSize: '.82rem', fontWeight: 700, color: 'var(--t3)', minWidth: 24 }}>{i + 1}.</div>
-              {f.countryFlag && <span style={{ fontSize: '1.2rem' }}>{f.countryFlag}</span>}
+              {thumb ? (
+                <img src={thumb} alt="" style={{ width: 48, height: 36, objectFit: 'cover', borderRadius: 4, flexShrink: 0, border: '1px solid var(--border)' }} />
+              ) : f.countryFlag ? (
+                <span style={{ fontSize: '1.2rem' }}>{f.countryFlag}</span>
+              ) : null}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                   <span style={{ fontSize: '.95rem', fontWeight: 700, fontStyle: 'italic' }}>{f.title}</span>
                   {f.year && <span style={{ fontSize: '.68rem', color: 'var(--t3)' }}>({f.year})</span>}
+                  {f.duration && <span style={{ fontSize: '.65rem', color: 'var(--t2)', fontWeight: 600 }}>{formatDuration(f.duration)}</span>}
                 </div>
                 <div style={{ fontSize: '.75rem', color: 'var(--t3)', marginTop: '.15rem' }}>
                   {f.director && <span>{f.director}</span>}
-                  {f.country && <span> {'·'} {f.country}</span>}
-                  {f.genre && <span> {'·'} {f.genre}</span>}
-                  {f.type && <span> {'·'} <em>{f.type}</em></span>}
+                  {f.country && <span> {'/'} {f.country}</span>}
+                  {f.genre && <span> {'/'} {f.genre}</span>}
+                  {f.type && <span> {'/'} <em>{f.type}</em></span>}
                 </div>
                 {f.altFilm && <div style={{ fontSize: '.68rem', color: 'var(--yellow)', marginTop: '.2rem' }}>tai: {f.altFilm}</div>}
               </div>
               {f.festivals && <span style={{ fontSize: '.65rem', color: 'var(--t3)', maxWidth: 120, textAlign: 'right' }}>{f.festivals}</span>}
               <span style={{ fontSize: '.65rem', padding: '.2rem .5rem', borderRadius: 9999, background: st?.bg, color: st?.color, fontWeight: 600, flexShrink: 0 }}>{st?.label}</span>
-              <span style={{ color: 'var(--t3)' }}>{'›'}</span>
+              <span style={{ color: 'var(--t3)' }}>{'>'}</span>
             </div>
           );
         })}
-        {sectionFilms.length === 0 && <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--t3)' }}>Ei elokuvia. Lisää ensimmäinen ylhäältä.</div>}
+        {sectionFilms.length === 0 && <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--t3)' }}>Ei elokuvia. Lisaa ensimmainen ylhaalta.</div>}
       </div>
 
+      {/* === LOMAKE === */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowForm(false)}>
-          <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '2rem', width: isMobile ? '100%' : 560, maxWidth: isMobile ? '100%' : '90vw', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? '100%' : '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa elokuvaa' : 'Lisää elokuva'} ({tab === 'theme' ? 'Teemaohjelmisto' : 'Nordic Frames'})</h3>
+          <div style={{ background: 'var(--card)', border: isMobile ? 'none' : '1px solid var(--border)', borderRadius: isMobile ? 0 : 'var(--rl)', padding: isMobile ? '1.25rem' : '2rem', width: isMobile ? '100%' : 620, maxWidth: isMobile ? '100%' : '90vw', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? '100%' : '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '1.25rem' }}>{editId ? 'Muokkaa elokuvaa' : 'Lisaa elokuva'} ({tab === 'theme' ? 'Teemaohjelmisto' : 'Nordic Frames'})</h3>
+
+            {/* Perustiedot */}
             <div className="field"><label>Elokuvan nimi *</label><input className="input" value={formTitle} onChange={e => setFormTitle(e.target.value)} autoFocus /></div>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
               <div className="field"><label>Ohjaaja</label><input className="input" value={formDirector} onChange={e => setFormDirector(e.target.value)} /></div>
               <div className="field"><label>Maa</label><input className="input" value={formCountry} onChange={e => setFormCountry(e.target.value)} /></div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: '.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: '.75rem' }}>
               <div className="field"><label>Vuosi</label><input className="input" value={formYear} onChange={e => setFormYear(e.target.value)} /></div>
+              <div className="field"><label>Kesto (min)</label><input type="number" className="input" value={formDuration} onChange={e => setFormDuration(e.target.value)} placeholder="esim. 105" /></div>
               <div className="field"><label>Genre</label><input className="input" value={formGenre} onChange={e => setFormGenre(e.target.value)} /></div>
               <div className="field"><label>Tyyppi</label><input className="input" value={formType} onChange={e => setFormType(e.target.value)} placeholder="esikoinen / toisinkoinen" /></div>
             </div>
-            <div className="field"><label>Festivaalit / lähde</label><input className="input" value={formFestivals} onChange={e => setFormFestivals(e.target.value)} /></div>
-            <div className="field"><label>Traileri URL</label><input className="input" value={formTrailer} onChange={e => setFormTrailer(e.target.value)} /></div>
+
+            {/* Tekniset tiedot */}
+            <div style={{ borderTop: '1px solid var(--border)', marginTop: '.75rem', paddingTop: '.75rem' }}>
+              <div style={{ fontSize: '.72rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', marginBottom: '.5rem' }}>Tekniset tiedot</div>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '.75rem' }}>
+                <div className="field"><label>Kieli</label><input className="input" value={formLanguage} onChange={e => setFormLanguage(e.target.value)} placeholder="esim. englanti" /></div>
+                <div className="field"><label>Tekstitys</label><input className="input" value={formSubtitles} onChange={e => setFormSubtitles(e.target.value)} placeholder="esim. FIN/ENG" /></div>
+                <div className="field"><label>Formaatti</label><input className="input" value={formFormat} onChange={e => setFormFormat(e.target.value)} placeholder="DCP, BluRay..." /></div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
+                <div className="field"><label>Ensi-iltastatus</label><input className="input" value={formPremiere} onChange={e => setFormPremiere(e.target.value)} placeholder="Suomen ensi-ilta, maailmanensi-ilta..." /></div>
+                <div className="field"><label>Myyntiagentti / levittaja</label><input className="input" value={formSalesAgent} onChange={e => setFormSalesAgent(e.target.value)} /></div>
+              </div>
+            </div>
+
+            {/* Lahteet ja linkit */}
+            <div style={{ borderTop: '1px solid var(--border)', marginTop: '.75rem', paddingTop: '.75rem' }}>
+              <div style={{ fontSize: '.72rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', marginBottom: '.5rem' }}>Lahteet ja linkit</div>
+              <div className="field"><label>Festivaalit / lahde</label><input className="input" value={formFestivals} onChange={e => setFormFestivals(e.target.value)} /></div>
+              <div className="field"><label>Traileri URL</label><input className="input" value={formTrailer} onChange={e => setFormTrailer(e.target.value)} /></div>
+            </div>
+
             <div className="field"><label>Synopsis</label><textarea className="input textarea" value={formSynopsis} onChange={e => setFormSynopsis(e.target.value)} /></div>
             <div className="field"><label>Vaihtoehto (tai)</label><input className="input" value={formAlt} onChange={e => setFormAlt(e.target.value)} placeholder="Vaihtoehtoinen elokuva" /></div>
             <div className="field"><label>Muistiinpanot</label><textarea className="input textarea" value={formNotes} onChange={e => setFormNotes(e.target.value)} style={{ minHeight: 60 }} /></div>
-            <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
+
+            {/* Kuvat */}
+            <div style={{ borderTop: '1px solid var(--border)', marginTop: '.75rem', paddingTop: '.75rem' }}>
+              <div style={{ fontSize: '.72rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', marginBottom: '.5rem' }}>Kuvat</div>
+              {formImages.length > 0 && (
+                <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '.75rem' }}>
+                  {formImages.map((url, i) => (
+                    <div key={i} style={{ position: 'relative' }}>
+                      <img src={url} alt="" style={{ width: 80, height: 60, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--border)' }} />
+                      {canEdit && (
+                        <button onClick={() => removeImage(url)} style={{
+                          position: 'absolute', top: -6, right: -6,
+                          width: 20, height: 20, borderRadius: '50%',
+                          background: 'var(--red)', color: '#fff',
+                          border: 'none', cursor: 'pointer', fontSize: '.7rem',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>x</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} style={{ display: 'none' }} />
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                {uploading ? 'Ladataan...' : '+ Lisaa kuvia'}
+              </button>
+              <div style={{ fontSize: '.62rem', color: 'var(--t3)', marginTop: '.25rem' }}>Max 5MB per kuva. JPG, PNG, WebP.</div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
               {editId && <button className="btn btn-ghost btn-sm" onClick={() => { removeFilm(editId); setShowForm(false); }} style={{ color: 'var(--red)', marginRight: 'auto' }}>Poista</button>}
               <button className="btn btn-ghost" onClick={() => setShowForm(false)}>Peruuta</button>
               <button className="btn btn-primary" onClick={saveFilm} disabled={!formTitle.trim()}>Tallenna</button>

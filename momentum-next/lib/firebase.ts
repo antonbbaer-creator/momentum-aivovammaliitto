@@ -1,6 +1,7 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, browserSessionPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyB6MGUyOveOl1zaV_1c0TdBVldZM09Sm8E",
@@ -17,4 +18,5 @@ export const auth = getAuth(app);
 auth.settings.appVerificationDisabledForTesting = false;
 export const persistenceReady = auth.setPersistence(browserSessionPersistence);
 export const db = getFirestore(app);
+export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
