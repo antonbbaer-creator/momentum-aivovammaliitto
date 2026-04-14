@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useIsMobile } from '@/lib/use-mobile';
 import { useOrgData } from '@/lib/firestore';
@@ -18,6 +18,7 @@ import {
 } from '@/lib/grants-shared';
 import { getGrantsKey, getOrgGrants, getOrgTeams, getOrgTeamMembers } from '@/lib/org-defaults';
 import ProjectsSection, { Project } from './ProjectsSection';
+import { softDelete, filterActive } from '@/lib/trash';
 
 type TabView = 'overview' | 'members' | 'projects';
 
@@ -42,7 +43,7 @@ export default function TeamSection() {
   const [members, setMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const [projects] = useOrgData<Project[]>('projects', []);
   const [rawGrants] = useOrgData<Grant[]>(getGrantsKey(orgSlug), getOrgGrants(orgSlug));
-  const grants = rawGrants.map(normalizeGrant);
+  const grants = useMemo(() => rawGrants.map(normalizeGrant), [rawGrants]);
 
   // Helper: kaikki vastuullasi olevat apurahat (jossakin tilassa joka ei ole rejected)
   const grantsForMember = (memberId: string): Grant[] =>
@@ -94,10 +95,10 @@ export default function TeamSection() {
   };
 
   const removeTeam = (id: string) => {
-    const teamMemCount = members.filter(m => m.teamId === id).length;
+    const teamMemCount = filterActive(members).filter(m => m.teamId === id).length;
     if (teamMemCount > 0 && !window.confirm(`Tiimissa on ${teamMemCount} jasenta. Poistetaanko silti?`)) return;
-    setOrgTeams(prev => prev.filter(x => x.id !== id));
-    toast('Tiimi poistettu', 'success');
+    setOrgTeams(prev => softDelete(prev, id));
+    toast('Siirretty roskakoriin', 'success');
   };
 
   // Member form state
@@ -147,12 +148,12 @@ export default function TeamSection() {
   };
 
   const removeMember = (id: string) => {
-    setMembers(prev => prev.filter(x => x.id !== id));
-    toast('Jäsen poistettu', 'success');
+    setMembers(prev => softDelete(prev, id));
+    toast('Siirretty roskakoriin', 'success');
   };
 
-  const selectedTeam = selectedTeamId ? orgTeams.find(t => t.id === selectedTeamId) : null;
-  const teamMembers = selectedTeamId ? members.filter(m => m.teamId === selectedTeamId) : [];
+  const selectedTeam = selectedTeamId ? filterActive(orgTeams).find(t => t.id === selectedTeamId) : null;
+  const teamMembers = selectedTeamId ? filterActive(members).filter(m => m.teamId === selectedTeamId) : [];
   const teamProjects = selectedTeamId ? projects.filter(p => p.teamId === selectedTeamId && !p.archived) : [];
 
   // ========================= TEAM DETAIL VIEW =========================
@@ -385,8 +386,8 @@ export default function TeamSection() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
-        {orgTeams.map(team => {
-          const tMembers = members.filter(m => m.teamId === team.id);
+        {filterActive(orgTeams).map(team => {
+          const tMembers = filterActive(members).filter(m => m.teamId === team.id);
           const tProjects = projects.filter(p => p.teamId === team.id && !p.archived);
           const urgent = tProjects.filter(p => p.deadline).map(p => ({ p, dlc: deadlineColor(p.deadline) })).filter(x => x.dlc && (x.dlc.color === 'var(--red)' || x.dlc.color === 'var(--yellow)'));
           const lead = team.leadId ? members.find(m => m.id === team.leadId) : null;
@@ -535,7 +536,7 @@ export default function TeamSection() {
           <div className="field">
             <label>Tiimi *</label>
             <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap' }}>
-              {orgTeams.map(t => {
+              {filterActive(orgTeams).map(t => {
                 const active = mTeamId === t.id;
                 return (
                   <button key={t.id} type="button" onClick={() => setMTeamId(t.id)} style={{

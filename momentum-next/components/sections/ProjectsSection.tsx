@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -8,6 +8,7 @@ import { useIsMobile } from '@/lib/use-mobile';
 import { useParams } from 'next/navigation';
 import { OrgTeam, OrgTeamMember } from '@/lib/team-shared';
 import { getOrgTeams, getOrgTeamMembers } from '@/lib/org-defaults';
+import { softDelete, filterActive } from '@/lib/trash';
 import { YearPhase, normalizePhase } from '@/lib/yearwheel-shared';
 import { getOrgYearwheel } from '@/lib/org-defaults';
 
@@ -26,6 +27,7 @@ export interface Project {
   createdAt: number;
   teamId?: string;   // NEW: organizational team id (executive/elokuva/viestinta/tekninen)
   phaseId?: string;  // NEW: optional link to a yearwheel phase
+  deletedAt?: number;
 }
 
 interface Props {
@@ -53,7 +55,7 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
   const [teamData] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
   const [rawPhases] = useOrgData<YearPhase[]>('yearwheel', getOrgYearwheel(orgSlug));
-  const phases = rawPhases.map(normalizePhase);
+  const phases = useMemo(() => rawPhases.map(normalizePhase), [rawPhases]);
 
   const [mode, setMode] = useState<'kanban' | 'new' | 'detail'>('kanban');
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -71,11 +73,12 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
 
   // If parent passed a fixed team, always filter by it (no override)
   const effectiveFilter = fixedTeamId || teamFilter;
-  const filteredByTeam = effectiveFilter === 'all'
-    ? projects
-    : projects.filter(p => p.teamId === effectiveFilter);
-  const active = filteredByTeam.filter(p => !p.archived);
-  const archived = filteredByTeam.filter(p => p.archived);
+  const activeProjects = useMemo(() => filterActive(projects), [projects]);
+  const filteredByTeam = useMemo(() => effectiveFilter === 'all'
+    ? activeProjects
+    : activeProjects.filter(p => p.teamId === effectiveFilter), [activeProjects, effectiveFilter]);
+  const active = useMemo(() => filteredByTeam.filter(p => !p.archived), [filteredByTeam]);
+  const archived = useMemo(() => filteredByTeam.filter(p => p.archived), [filteredByTeam]);
 
   const createProject = () => {
     if (!title.trim()) return;
@@ -97,7 +100,7 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
   const moveProject = (id: number, newSt: string) => setProjects(prev => prev.map(p => p.id === id ? { ...p, st: newSt } : p));
   const archiveProject = (id: number) => setProjects(prev => prev.map(p => p.id === id ? { ...p, archived: true } : p));
   const unarchiveProject = (id: number) => setProjects(prev => prev.map(p => p.id === id ? { ...p, archived: false } : p));
-  const deleteProject = (id: number) => setProjects(prev => prev.filter(p => p.id !== id));
+  const deleteProject = (id: number) => { setProjects(prev => softDelete(prev, id)); toast('Siirretty roskakoriin', 'success'); };
   const updateProject = (id: number, updates: Partial<Project>) => setProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
 
   const selected = selectedId ? projects.find(p => p.id === selectedId) : null;
@@ -298,9 +301,9 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
             background: teamFilter === 'all' ? 'var(--t1)' : 'var(--elev)',
             color: teamFilter === 'all' ? 'var(--bg)' : 'var(--t2)',
             border: '1px solid var(--border)', fontWeight: 600, cursor: 'pointer',
-          }}>Kaikki tiimit ({projects.filter(p => !p.archived).length})</button>
+          }}>Kaikki tiimit ({activeProjects.filter(p => !p.archived).length})</button>
           {orgTeams.map(t => {
-            const count = projects.filter(p => !p.archived && p.teamId === t.id).length;
+            const count = activeProjects.filter(p => !p.archived && p.teamId === t.id).length;
             const isActive = teamFilter === t.id;
             return (
               <button key={t.id} onClick={() => setTeamFilter(t.id)} style={{

@@ -34,6 +34,11 @@ const EMPTY_MEMBERS: OrgTeamMember[] = [];
 const EMPTY_GRANTS: Grant[] = [];
 const EMPTY_GRANTS_SETTINGS: GrantsSettings = { yearTargets: {}, defaultYear: 2026 };
 const EMPTY_YEARWHEEL: YearPhase[] = [];
+import type { Meeting, MeetingPoll } from './meetings-shared';
+
+const EMPTY_MEETINGS: Meeting[] = [];
+const EMPTY_MEETING_POLLS: MeetingPoll[] = [];
+
 const DEFAULT_CHANNELS: string[] = ['Instagram', 'Facebook', 'LinkedIn', 'Nettisivut'];
 
 // ── Firestore-avaimet ──────────────────────────────────────────
@@ -90,6 +95,16 @@ export function getOrgYearwheel(orgSlug: string): YearPhase[] {
   if (orgSlug === 'avl') return DEFAULT_AVL_YEARWHEEL;
   if (orgSlug === 'juhlatoimikunta') return DEFAULT_JUHLATOIMIKUNTA_YEARWHEEL;
   return EMPTY_YEARWHEEL;
+}
+
+// ── Palaverit ─────────────────────────────────────────────────
+
+export function getOrgMeetings(_orgSlug: string): Meeting[] {
+  return EMPTY_MEETINGS;
+}
+
+export function getOrgMeetingPolls(_orgSlug: string): MeetingPoll[] {
+  return EMPTY_MEETING_POLLS;
 }
 
 // ── Näyttönimet ────────────────────────────────────────────────

@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { useIsMobile } from '@/lib/use-mobile';
+import { softDelete, filterActive } from '@/lib/trash';
 
 interface Guest {
   id: string;
@@ -20,6 +21,7 @@ interface Guest {
   headcount?: number;
   source?: string;
   companions?: string;
+  deletedAt?: number;
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }> = {
@@ -171,8 +173,8 @@ export default function VieraatPage() {
   };
 
   const remove = (id: string) => {
-    setGuests(prev => prev.filter(x => x.id !== id));
-    toast('Vieras poistettu', 'success');
+    setGuests(prev => softDelete(prev, id));
+    toast('Siirretty roskakoriin', 'success');
   };
 
   const setStatus = (id: string, status: Guest['status']) => {
@@ -180,7 +182,7 @@ export default function VieraatPage() {
   };
 
   // Filtered guests
-  const filtered = guests.filter(g => {
+  const filtered = filterActive(guests).filter(g => {
     if (filterGroup && g.group !== filterGroup) return false;
     if (filterStatus && g.status !== filterStatus) return false;
     if (searchTerm && !g.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
@@ -188,18 +190,19 @@ export default function VieraatPage() {
   });
 
   // Stats
-  const attending = guests.filter(g => g.status === 'saapuu');
+  const activeGuests = filterActive(guests);
+  const attending = activeGuests.filter(g => g.status === 'saapuu');
   const totalHeadcount = attending.reduce((sum, g) => sum + (g.headcount ?? 1), 0);
   const plusOnes = attending.filter(g => g.plusOne).length;
-  const waiting = guests.filter(g => g.status === 'odottaa' || g.status === 'kutsuttu').length;
-  const uncertain = guests.filter(g => g.status === 'epavarma').length;
+  const waiting = activeGuests.filter(g => g.status === 'odottaa' || g.status === 'kutsuttu').length;
+  const uncertain = activeGuests.filter(g => g.status === 'epavarma').length;
 
   return (
-    <AppShell title="Vieraslista" subtitle={`${guests.length} vierasta · arvio ~${totalHeadcount + plusOnes} hloa`}>
+    <AppShell title="Vieraslista" subtitle={`${activeGuests.length} vierasta · arvio ~${totalHeadcount + plusOnes} hloa`}>
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '.75rem', marginBottom: '1.5rem' }}>
         {Object.entries(STATUS_LABELS).map(([key, s]) => {
-          const count = guests.filter(g => g.status === key).length;
+          const count = activeGuests.filter(g => g.status === key).length;
           return (
             <div key={key} onClick={() => setFilterStatus(filterStatus === key ? '' : key)} style={{
               background: filterStatus === key ? s.bg : 'var(--card)',

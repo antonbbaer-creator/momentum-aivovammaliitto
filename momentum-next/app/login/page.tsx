@@ -232,9 +232,9 @@ export default function LoginPage() {
 
       {/* ═══ RIGHT: Two preloaded videos, crossfade ═══ */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        <video ref={v1} autoPlay muted playsInline preload="auto" onCanPlay={() => setVideoLoaded(true)} src="/brand/hero-video.mp4"
+        <video ref={v1} autoPlay muted playsInline preload="metadata" onCanPlay={() => setVideoLoaded(true)} src="/brand/hero-video.mp4"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: showFirst ? 1 : 0, transition: 'opacity 1s ease-in-out' }} />
-        <video ref={v2} muted playsInline preload="auto" src="/brand/hero-video-2.mp4"
+        <video ref={v2} muted playsInline preload="none" src="/brand/hero-video-2.mp4"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: showFirst ? 0 : 1, transition: 'opacity 1s ease-in-out' }} />
         {!videoLoaded && (
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, var(--pri-d) 0%, var(--hetki-pink) 50%, var(--hetki-yellow) 100%)' }} />

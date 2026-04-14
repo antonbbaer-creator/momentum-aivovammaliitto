@@ -7,6 +7,7 @@ import { useToast } from '@/lib/toast';
 import { useIsMobile } from '@/lib/use-mobile';
 import { useParams } from 'next/navigation';
 import { MusicAct, DEFAULT_MUSIC, LLFF_VENUES, PROGRAMME_COLORS } from '@/lib/festival-shared';
+import { softDelete, filterActive } from '@/lib/trash';
 
 const EMPTY_MUSIC: MusicAct[] = [];
 
@@ -51,19 +52,19 @@ export default function MusicSection() {
     setShowForm(false);
     toast(editId ? 'Esiintyjä päivitetty' : 'Esiintyjä lisätty', 'success');
   };
-  const remove = (id: string) => { setActs(prev => prev.filter(a => a.id !== id)); toast('Poistettu', 'success'); };
+  const remove = (id: string) => { setActs(prev => softDelete(prev, id)); toast('Siirretty roskakoriin', 'success'); };
 
   const col = PROGRAMME_COLORS.music;
 
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '.5rem' }}>
-        <div style={{ fontSize: '.78rem', color: 'var(--t3)' }}>{acts.length} esiintyjää / kokoonpanoa</div>
+        <div style={{ fontSize: '.78rem', color: 'var(--t3)' }}>{filterActive(acts).length} esiintyjää / kokoonpanoa</div>
         {canEdit && <button className="btn btn-primary btn-sm" onClick={openNew}>+ Lisää musiikkiesitys</button>}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
-        {acts.map(a => (
+        {filterActive(acts).map(a => (
           <div key={a.id} style={{
             background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
             padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem',
@@ -93,7 +94,7 @@ export default function MusicSection() {
             )}
           </div>
         ))}
-        {acts.length === 0 && <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--t3)' }}>Ei musiikkiesityksiä. Lisää ensimmäinen ylhäältä.</div>}
+        {filterActive(acts).length === 0 && <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--t3)' }}>Ei musiikkiesityksiä. Lisää ensimmäinen ylhäältä.</div>}
       </div>
 
       {showForm && (

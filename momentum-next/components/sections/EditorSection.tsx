@@ -20,6 +20,7 @@ import { normalizePublication } from '@/lib/publications-shared';
 import { CommsPlan, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
 import { getOrgCommsPlan } from '@/lib/org-defaults';
 
+import { softDelete, filterActive } from '@/lib/trash';
 import { workerFetch, WORKER_URL } from '@/lib/worker-fetch';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
 // Worker-proxy kuville — R2_CDN ei lähetä CORS-headereitä, mikä saastuttaa
@@ -164,6 +165,7 @@ interface Design {
   createdAt: number;
   updatedAt: number;
   thumbnail?: string;
+  deletedAt?: number;
 }
 
 interface MediaFile {
@@ -897,9 +899,9 @@ export default function EditorSection() {
   };
 
   const deleteDesign = (id: string) => {
-    setDesigns(prev => prev.filter(d => d.id !== id));
+    setDesigns(prev => softDelete(prev, id));
     if (currentId === id) { setCurrentId(null); setDraft(blankDesign()); setCurrentSlideIndex(0); }
-    toast('Suunnitelma poistettu', 'success');
+    toast('Siirretty roskakoriin', 'success');
   };
 
   // Export a single slide as PNG
@@ -1804,7 +1806,7 @@ export default function EditorSection() {
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.5rem',
               }}>
                 <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-                  Tallennetut ({designs.length})
+                  Tallennetut ({filterActive(designs).length})
                 </div>
                 {canEdit && (
                   <button className="btn btn-ghost btn-sm" onClick={() => startNew(draft.templateId)} style={{ fontSize: '.62rem', padding: '.15rem .4rem' }}>
@@ -1812,12 +1814,12 @@ export default function EditorSection() {
                   </button>
                 )}
               </div>
-              {designs.length === 0 && (
+              {filterActive(designs).length === 0 && (
                 <div style={{ fontSize: '.65rem', color: 'var(--t3)', textAlign: 'center', padding: '.5rem' }}>
                   Ei tallennettuja
                 </div>
               )}
-              {designs.map(d => (
+              {filterActive(designs).map(d => (
                 <div
                   key={d.id}
                   onClick={() => loadDesign(d.id)}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { doc, getDoc, setDoc, onSnapshot, collection, getDocs } from 'firebase/firestore';
 import { db } from './firebase';
 import { useAuth } from './auth';
@@ -19,6 +19,9 @@ export function useOrgData<T>(key: string, defaultValue: T): [T, (val: T | ((pre
   // Pidetään default-arvoa refissä jotta useEffect voi käyttää sitä muuttamatta dep-listaa
   const defaultValueRef = useRef(defaultValue);
   defaultValueRef.current = defaultValue;
+  // Throttle remote snapshot updates to avoid excessive re-renders
+  const snapshotThrottleRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingSnapshotRef = useRef<T | null>(null);
 
   // Subscribe to real-time updates. Kun key tai org muuttuu,
   // nollataan tila default-arvoon jotta edellisen avaimen data ei vuoda uuteen.
@@ -28,6 +31,11 @@ export function useOrgData<T>(key: string, defaultValue: T): [T, (val: T | ((pre
       clearTimeout(debounceRef.current);
       debounceRef.current = null;
     }
+    if (snapshotThrottleRef.current) {
+      clearTimeout(snapshotThrottleRef.current);
+      snapshotThrottleRef.current = null;
+    }
+    pendingSnapshotRef.current = null;
     // Nollaa tila default-arvoon kun key vaihtuu (tai kirjautuminen muuttuu)
     setValueState(defaultValueRef.current);
     isLocalUpdate.current = false;
@@ -39,6 +47,31 @@ export function useOrgData<T>(key: string, defaultValue: T): [T, (val: T | ((pre
 
     setLoading(true);
     const docRef = doc(db, 'organizations', activeOrg, 'data', key);
+    let isFirst = true;
+
+    const applyUpdate = (val: T) => {
+      // First snapshot always applies immediately (initial load)
+      if (isFirst) {
+        isFirst = false;
+        setValueState(val);
+        setLoading(false);
+        return;
+      }
+      // Throttle subsequent remote updates: max 1 per 150ms
+      if (snapshotThrottleRef.current) {
+        pendingSnapshotRef.current = val;
+        return;
+      }
+      setValueState(val);
+      setLoading(false);
+      snapshotThrottleRef.current = setTimeout(() => {
+        snapshotThrottleRef.current = null;
+        if (pendingSnapshotRef.current !== null) {
+          setValueState(pendingSnapshotRef.current as T);
+          pendingSnapshotRef.current = null;
+        }
+      }, 150);
+    };
 
     const unsub = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
@@ -47,7 +80,9 @@ export function useOrgData<T>(key: string, defaultValue: T): [T, (val: T | ((pre
           const parsed = JSON.parse(data.v) as T;
           // Only update if this wasn't our own write
           if (!isLocalUpdate.current) {
-            setValueState(parsed);
+            applyUpdate(parsed);
+          } else {
+            isFirst = false; // count local writes towards first-load flag
           }
           isLocalUpdate.current = false;
         } catch (e) {
@@ -56,7 +91,7 @@ export function useOrgData<T>(key: string, defaultValue: T): [T, (val: T | ((pre
       } else {
         // Dokumenttia ei ole vielä olemassa — varmistetaan että tila on default
         if (!isLocalUpdate.current) {
-          setValueState(defaultValueRef.current);
+          applyUpdate(defaultValueRef.current);
         }
       }
       setLoading(false);
@@ -65,7 +100,13 @@ export function useOrgData<T>(key: string, defaultValue: T): [T, (val: T | ((pre
       setLoading(false);
     });
 
-    return () => unsub();
+    return () => {
+      unsub();
+      if (snapshotThrottleRef.current) {
+        clearTimeout(snapshotThrottleRef.current);
+        snapshotThrottleRef.current = null;
+      }
+    };
   }, [activeOrg, user, key]);
 
   // Debounced write to Firestore (blocked for visitors)

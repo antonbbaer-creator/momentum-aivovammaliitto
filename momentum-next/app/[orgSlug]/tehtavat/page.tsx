@@ -9,6 +9,7 @@ import { useParams } from 'next/navigation';
 import { getOrgTeamMembers } from '@/lib/org-defaults';
 import { OrgTeamMember } from '@/lib/team-shared';
 import { useIsMobile } from '@/lib/use-mobile';
+import { softDelete, filterActive } from '@/lib/trash';
 
 interface Task {
   id: string;
@@ -20,6 +21,7 @@ interface Task {
   deadline?: string;
   note?: string;
   category?: string;
+  deletedAt?: number;
 }
 
 const TASK_CATEGORIES = ['Koristelu', 'Ohjelma', 'Kutsut', 'Musiikki', 'Valokuvaus', 'Kuljetus', 'Siivous', 'Muu'];
@@ -92,12 +94,14 @@ export default function TehtavatPage() {
   };
 
   const remove = (id: string) => {
-    setTasks(prev => prev.filter(x => x.id !== id));
+    setTasks(prev => softDelete(prev, id));
+    toast('Siirretty roskakoriin', 'success');
   };
 
   // Filter
-  const openTasks = tasks.filter(t => !t.done);
-  const doneTasks = tasks.filter(t => t.done);
+  const activeTasks = filterActive(tasks);
+  const openTasks = activeTasks.filter(t => !t.done);
+  const doneTasks = activeTasks.filter(t => t.done);
   const filtered = openTasks.filter(t => {
     if (filterAssignee && t.assignee !== filterAssignee) return false;
     if (filterHankkia && !t.hankkia) return false;
@@ -111,7 +115,7 @@ export default function TehtavatPage() {
     return 0;
   });
 
-  const assignees = [...new Set(tasks.map(t => t.assignee).filter(Boolean))] as string[];
+  const assignees = [...new Set(activeTasks.map(t => t.assignee).filter(Boolean))] as string[];
   const hankkiaCount = openTasks.filter(t => t.hankkia).length;
 
   return (

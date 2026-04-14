@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import AppShell from '@/components/AppShell';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
@@ -32,22 +32,16 @@ export default function DashboardPage() {
   const [teamMessages, setTeamMessages] = useOrgData<any[]>('teamMessages', []);
   const [rawGrants] = useOrgData<Grant[]>(getGrantsKey(orgSlug), getOrgGrants(orgSlug));
   const [orgMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
-  const grants = rawGrants.map(normalizeGrant);
+  const grants = useMemo(() => rawGrants.map(normalizeGrant), [rawGrants]);
 
   // Match currently-logged-in user to their OrgTeamMember record
-  // Käyttää jaettua resolveUserMember-helperia joka tarkistaa:
-  //   1. linkedUserEmails-array (tukee useita Firebase-tilejä per jäsen)
-  //   2. email-kenttä
-  //   3. displayName tarkka
-  //   4. etunimi (fuzzy fallback)
-  const myMember = resolveUserMember(orgMembers, user);
+  const myMember = useMemo(() => resolveUserMember(orgMembers, user), [orgMembers, user]);
 
   // Grants assigned to me (exclude rejected AND past deadlines)
-  const myGrants = myMember ? grants
+  const myGrants = useMemo(() => myMember ? grants
     .filter(g => {
       if (g.responsibleId !== myMember.id) return false;
       if (g.status === 'rejected') return false;
-      // Suodata menneet pois — jos deadline on annettu ja se on menneisyydessä, hyppää yli
       const days = daysUntilDeadline(g);
       if (days !== null && days < 0) return false;
       return true;
@@ -56,7 +50,7 @@ export default function DashboardPage() {
       const da = daysUntilDeadline(a) ?? 999999;
       const db = daysUntilDeadline(b) ?? 999999;
       return da - db;
-    }) : [];
+    }) : [], [grants, myMember]);
 
   const isMobile = useIsMobile();
   const [aiResponse, setAiResponse] = useState('');
@@ -66,16 +60,15 @@ export default function DashboardPage() {
   const firstName = user?.displayName?.split(' ')[0] || 'käyttäjä';
 
   // My open project tasks — match by displayName OR first name (if nickname)
-  const myTasks = projects.flatMap((p: any) =>
+  const myTasks = useMemo(() => projects.flatMap((p: any) =>
     (p.tasks || []).map((t: any, ti: number) => ({ ...t, projectName: p.t, projectId: p.id, taskIndex: ti }))
   ).filter((t: any) => {
     if (t.done) return false;
     if (!t.assignee) return false;
     if (t.assignee === user?.displayName) return true;
-    // Jos teht\u00e4v\u00e4 on merkitty tiimil\u00e4isen nimell\u00e4 ja tiimil\u00e4inen on match
     if (myMember && t.assignee === myMember.name) return true;
     return false;
-  });
+  }), [projects, user?.displayName, myMember]);
 
   // Yhdistetty tehtävälista — sisältää sekä projektitehtävät että apurahat
   // yhdessä, lajiteltuna kiireellisyyden mukaan
@@ -93,7 +86,7 @@ export default function DashboardPage() {
     taskRef?: { projectId: number; taskIndex: number };
   }
 
-  const unifiedList: UnifiedItem[] = [
+  const unifiedList: UnifiedItem[] = useMemo(() => [
     ...myTasks.map((t: any): UnifiedItem => ({
       id: `task_${t.projectId}_${t.taskIndex}`,
       kind: 'task',
@@ -121,20 +114,21 @@ export default function DashboardPage() {
       };
     }),
   ].sort((a, b) => {
-    // Sort by days (ascending), items without deadlines go to the end
     const da = a.days ?? 999999;
     const db = b.days ?? 999999;
     return da - db;
-  });
+  }), [myTasks, myGrants, router, orgSlug]);
 
   // My projects (where I have open tasks)
-  const myProjectIds = [...new Set(myTasks.map(t => t.projectId))];
-  const myProjects = projects.filter((p: any) => myProjectIds.includes(p.id));
+  const myProjects = useMemo(() => {
+    const ids = new Set(myTasks.map((t: any) => t.projectId));
+    return projects.filter((p: any) => ids.has(p.id));
+  }, [myTasks, projects]);
 
   // Unassigned tasks across active projects
-  const unassignedTasks = projects.filter((p: any) => !p.archived && p.st !== 'done').flatMap((p: any) =>
+  const unassignedTasks = useMemo(() => projects.filter((p: any) => !p.archived && p.st !== 'done').flatMap((p: any) =>
     (p.tasks || []).map((t: any, ti: number) => ({ ...t, projectName: p.t, projectId: p.id, taskIndex: ti }))
-  ).filter((t: any) => !t.assignee && !t.done);
+  ).filter((t: any) => !t.assignee && !t.done), [projects]);
 
   const todayStr = new Date().toISOString().slice(0, 10);
 

@@ -31,6 +31,8 @@ export default function SettingsPage() {
   const [compactMode, setCompactModeState] = useState(false);
 
   const isAdmin = activeOrgRole === 'owner' || activeOrgRole === 'admin';
+  const SUPER_ADMINS = ['anton@hetkicompany.com', 'anton.baer@gmail.com', 'claude-test@hetkicompany.com'];
+  const isSuperAdmin = !!user?.email && SUPER_ADMINS.includes(user.email);
 
   // Load personal preferences
   useEffect(() => {
@@ -270,7 +272,7 @@ export default function SettingsPage() {
                   <select className="input" value={m.role} onChange={e => changeRole(m.uid, e.target.value)} style={{ width: 'auto', fontSize: '.78rem', padding: '.3rem .5rem' }}>
                     <option value="owner">Omistaja</option><option value="admin">Admin</option><option value="member">Jäsen</option>
                   </select>
-                  <button className="btn btn-ghost btn-sm" onClick={() => { if (window.confirm('Poistetaanko?')) removeMember(m.uid); }} style={{ color: 'var(--red)' }}>Poista</button>
+                  {isSuperAdmin && <button className="btn btn-ghost btn-sm" onClick={() => { if (window.confirm('Poistetaanko jäsen yhteisöstä?')) removeMember(m.uid); }} style={{ color: 'var(--red)' }}>Poista</button>}
                 </>
               ) : (
                 <span style={{ fontSize: '.72rem', padding: '.2rem .6rem', borderRadius: 9999, background: 'rgba(5,107,159,.1)', color: 'var(--pri-l)', fontWeight: 600 }}>{m.role}</span>

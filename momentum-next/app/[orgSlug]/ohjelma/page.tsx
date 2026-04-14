@@ -9,6 +9,7 @@ import { useParams } from 'next/navigation';
 import { getOrgTeamMembers } from '@/lib/org-defaults';
 import { OrgTeamMember } from '@/lib/team-shared';
 import { useIsMobile } from '@/lib/use-mobile';
+import { softDelete, filterActive } from '@/lib/trash';
 
 interface ProgramItem {
   id: string;
@@ -19,6 +20,7 @@ interface ProgramItem {
   responsible?: string;
   category: 'valmistelu' | 'ohjelma' | 'ruoka' | 'musiikki' | 'puhe' | 'muu';
   note?: string;
+  deletedAt?: number;
 }
 
 const CATEGORIES: { id: string; label: string; color: string }[] = [
@@ -84,12 +86,12 @@ export default function OhjelmaPage() {
   };
 
   const remove = (id: string) => {
-    setItems(prev => prev.filter(x => x.id !== id));
-    toast('Poistettu', 'success');
+    setItems(prev => softDelete(prev, id));
+    toast('Siirretty roskakoriin', 'success');
   };
 
   // Sort by time
-  const sorted = [...items].sort((a, b) => a.time.localeCompare(b.time));
+  const sorted = [...filterActive(items)].sort((a, b) => a.time.localeCompare(b.time));
 
   // Group items by phase
   const preparationItems = sorted.filter(i => {
@@ -149,11 +151,11 @@ export default function OhjelmaPage() {
         </div>
         <div>
           <div style={{ fontSize: '.6rem', color: 'var(--t3)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.05em' }}>Ohjelmanumeroita</div>
-          <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--t1)' }}>{items.length}</div>
+          <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--t1)' }}>{filterActive(items).length}</div>
         </div>
       </div>
 
-      {items.length === 0 ? (
+      {sorted.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--t3)' }}>
           <p style={{ fontSize: '.92rem', marginBottom: '.5rem' }}>Ei ohjelmanumeroita vielä.</p>
           <p style={{ fontSize: '.75rem' }}>Lisää ensimmäinen ohjelmanumero ylhäältä. Voit merkitä valmistelut (10-15) ja itse juhlan ohjelman (15-24).</p>

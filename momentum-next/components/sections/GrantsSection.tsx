@@ -7,7 +7,7 @@
  * deadlinet, vastuut ja edistymisen vuositavoitteeseen.
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
@@ -54,11 +54,11 @@ export default function GrantsSection() {
   const [members] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
 
   // Normalize for backward compat with old saves
-  const allGrants = rawGrants.map(normalizeGrant);
+  const allGrants = useMemo(() => rawGrants.map(normalizeGrant), [rawGrants]);
   // Aktiiviset apurahat (ei roskakorissa) — kaikki näkymät käyttävät tätä
-  const grants = allGrants.filter(g => !g.deletedAt);
+  const grants = useMemo(() => allGrants.filter(g => !g.deletedAt), [allGrants]);
   // Roskakorin sisältö (soft-deleted)
-  const trashedGrants = allGrants.filter(g => !!g.deletedAt).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+  const trashedGrants = useMemo(() => allGrants.filter(g => !!g.deletedAt).sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0)), [allGrants]);
   // Oletusapurahat joita ei löydy nykyisestä listasta (esim. aiemmin kovalla poistolla poistetut) —
   // ne voi palauttaa roskakorin "Palauta oletuksista" -osiosta
   const orgDefGrants = getOrgGrants(orgSlug);
@@ -89,8 +89,8 @@ export default function GrantsSection() {
   const [fNotes, setFNotes] = useState('');
 
   // Filter grants by selected year
-  const yearGrants = grants.filter(g => g.year === selectedYear);
-  const totals = getStatusTotals(yearGrants);
+  const yearGrants = useMemo(() => grants.filter(g => g.year === selectedYear), [grants, selectedYear]);
+  const totals = useMemo(() => getStatusTotals(yearGrants), [yearGrants]);
   const confirmedAmount = totals.confirmed;
   const appliedAmount = totals.applied;
   const planningAmount = totals.planning;

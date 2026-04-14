@@ -12,6 +12,7 @@ export interface MusicAct {
   scheduledDate?: string;  // 'YYYY-MM-DD'
   scheduledTime?: string;  // 'HH:MM'
   venue?: string;
+  deletedAt?: number;
 }
 
 export interface Workshop {
@@ -25,6 +26,7 @@ export interface Workshop {
   scheduledDate?: string;
   scheduledTime?: string;
   venue?: string;
+  deletedAt?: number;
 }
 
 export interface FestivalWeek {
@@ -120,6 +122,7 @@ export interface ProgrammeItem {
   startTime: string;         // 'HH:MM'
   endTime?: string;          // 'HH:MM'
   venue: string;
+  deletedAt?: number;
 }
 
 export const DEFAULT_PROGRAMME: ProgrammeItem[] = [

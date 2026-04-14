@@ -6,6 +6,7 @@ import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useIsMobile } from '@/lib/use-mobile';
+import { softDelete, filterActive } from '@/lib/trash';
 
 interface Venue {
   id: string;
@@ -16,6 +17,7 @@ interface Venue {
   images: string[]; // base64 or URLs
   note?: string;
   order: number;
+  deletedAt?: number;
 }
 
 export default function TilaPage() {
@@ -87,13 +89,13 @@ export default function TilaPage() {
   };
 
   const remove = (id: string) => {
-    setVenues(prev => prev.filter(x => x.id !== id));
+    setVenues(prev => softDelete(prev, id));
     if (selectedVenue === id) setSelectedVenue(null);
-    toast('Tila poistettu', 'success');
+    toast('Siirretty roskakoriin', 'success');
   };
 
-  const sorted = [...venues].sort((a, b) => a.order - b.order);
-  const detail = selectedVenue ? venues.find(v => v.id === selectedVenue) : null;
+  const sorted = [...filterActive(venues)].sort((a, b) => a.order - b.order);
+  const detail = selectedVenue ? filterActive(venues).find(v => v.id === selectedVenue) : null;
 
   // Detail view
   if (detail) {

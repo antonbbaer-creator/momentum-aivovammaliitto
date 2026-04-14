@@ -16,6 +16,7 @@ import {
   dayLabelsShort,
   daysInFestivalWeek,
 } from '@/lib/festival-shared';
+import { softDelete, filterActive } from '@/lib/trash';
 
 const EMPTY_FESTIVAL_WEEK: FestivalWeek = { year: new Date().getFullYear(), startDate: '', endDate: '', venues: [], venuesByDay: {} };
 const EMPTY_PROGRAMME: ProgrammeItem[] = [];
@@ -72,10 +73,10 @@ export default function ProgrammeGridSection() {
     setShowForm(false);
     toast(editId ? 'Tapahtuma päivitetty' : 'Tapahtuma lisätty', 'success');
   };
-  const remove = (id: string) => { setProgramme(prev => prev.filter(p => p.id !== id)); toast('Poistettu', 'success'); };
+  const remove = (id: string) => { setProgramme(prev => softDelete(prev, id)); toast('Siirretty roskakoriin', 'success'); };
 
   const itemsFor = (date: string, venue: string) =>
-    [...programme].filter(p => p.date === date && p.venue === venue).sort((a, b) => a.startTime.localeCompare(b.startTime));
+    [...filterActive(programme)].filter(p => p.date === date && p.venue === venue).sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   const toggleVenueOnDay = (date: string, venue: string) => {
     setFestivalWeek(prev => {
@@ -98,7 +99,7 @@ export default function ProgrammeGridSection() {
             Festivaaliviikko {new Date(festivalWeek.startDate).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' })}–
             {new Date(festivalWeek.endDate).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric', year: 'numeric' })}
           </div>
-          <div style={{ fontSize: '.72rem', color: 'var(--t3)' }}>{programme.length} ohjelmanumeroa · {activeVenues.length} esityspaikkaa</div>
+          <div style={{ fontSize: '.72rem', color: 'var(--t3)' }}>{filterActive(programme).length} ohjelmanumeroa · {activeVenues.length} esityspaikkaa</div>
         </div>
         <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
           {canEdit && <button className="btn btn-ghost btn-sm" onClick={() => setShowWeekConfig(!showWeekConfig)}>{showWeekConfig ? 'Piilota asetukset' : 'Viikon asetukset'}</button>}
@@ -247,7 +248,7 @@ export default function ProgrammeGridSection() {
         </div>
       </div>
 
-      {programme.length === 0 && (
+      {filterActive(programme).length === 0 && (
         <div style={{ marginTop: '1rem', fontSize: '.75rem', color: 'var(--t3)', textAlign: 'center' }}>
           Lisää ensimmäiset ohjelmanumerot klikkaamalla tyhjää solua tai "+ Uusi tapahtuma" -nappia.
         </div>

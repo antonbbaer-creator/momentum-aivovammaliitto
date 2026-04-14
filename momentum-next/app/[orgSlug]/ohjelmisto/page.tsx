@@ -1,12 +1,20 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import AppShell from '@/components/AppShell';
 import TabSwitcher from '@/components/TabSwitcher';
-import FilmsSection from '@/components/sections/FilmsSection';
-import MusicSection from '@/components/sections/MusicSection';
-import WorkshopsSection from '@/components/sections/WorkshopsSection';
-import ProgrammeGridSection from '@/components/sections/ProgrammeGridSection';
+
+const SectionLoader = () => (
+  <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>
+    <div className="typing"><span /><span /><span /></div>
+  </div>
+);
+
+const ProgrammeGridSection = dynamic(() => import('@/components/sections/ProgrammeGridSection'), { loading: SectionLoader });
+const FilmsSection = dynamic(() => import('@/components/sections/FilmsSection'), { loading: SectionLoader });
+const MusicSection = dynamic(() => import('@/components/sections/MusicSection'), { loading: SectionLoader });
+const WorkshopsSection = dynamic(() => import('@/components/sections/WorkshopsSection'), { loading: SectionLoader });
 
 type Tab = 'schedule' | 'films' | 'music' | 'workshops';
 

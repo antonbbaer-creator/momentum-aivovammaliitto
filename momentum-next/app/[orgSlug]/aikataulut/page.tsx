@@ -1,12 +1,20 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import AppShell from '@/components/AppShell';
 import TabSwitcher from '@/components/TabSwitcher';
-import YearwheelSection from '@/components/sections/YearwheelSection';
-import CalendarSection from '@/components/sections/CalendarSection';
-import PhaseTimelineSection from '@/components/sections/PhaseTimelineSection';
-import MonthTimelineSection from '@/components/sections/MonthTimelineSection';
+
+const SectionLoader = () => (
+  <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>
+    <div className="typing"><span /><span /><span /></div>
+  </div>
+);
+
+const YearwheelSection = dynamic(() => import('@/components/sections/YearwheelSection'), { loading: SectionLoader });
+const CalendarSection = dynamic(() => import('@/components/sections/CalendarSection'), { loading: SectionLoader });
+const PhaseTimelineSection = dynamic(() => import('@/components/sections/PhaseTimelineSection'), { loading: SectionLoader });
+const MonthTimelineSection = dynamic(() => import('@/components/sections/MonthTimelineSection'), { loading: SectionLoader });
 import { useParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
 import { YearPhase } from '@/lib/yearwheel-shared';

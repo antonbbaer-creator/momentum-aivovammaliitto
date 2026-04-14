@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 import { ToastProvider } from "@/lib/toast";
-import ChatFAB from "@/components/ChatFAB";
+import dynamic from "next/dynamic";
+
+const ChatFAB = dynamic(() => import("@/components/ChatFAB"));
 
 export const metadata: Metadata = {
   title: "Hetki — Momentum",

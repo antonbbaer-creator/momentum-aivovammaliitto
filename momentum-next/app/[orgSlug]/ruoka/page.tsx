@@ -9,6 +9,7 @@ import { useParams } from 'next/navigation';
 import { getOrgTeamMembers } from '@/lib/org-defaults';
 import { OrgTeamMember } from '@/lib/team-shared';
 import { useIsMobile } from '@/lib/use-mobile';
+import { softDelete, filterActive } from '@/lib/trash';
 
 interface FoodItem {
   id: string;
@@ -20,6 +21,7 @@ interface FoodItem {
   done: boolean;
   note?: string;
   dietary?: string; // kasvis, gluteeniton, etc.
+  deletedAt?: number;
 }
 
 const CATEGORIES: { id: string; label: string; color: string }[] = [
@@ -88,13 +90,14 @@ export default function RuokaPage() {
   };
 
   const remove = (id: string) => {
-    setItems(prev => prev.filter(x => x.id !== id));
-    toast('Poistettu', 'success');
+    setItems(prev => softDelete(prev, id));
+    toast('Siirretty roskakoriin', 'success');
   };
 
-  const needToBuy = items.filter(i => i.hankkia && !i.done).length;
-  const totalItems = items.length;
-  const doneItems = items.filter(i => i.done).length;
+  const activeItems = filterActive(items);
+  const needToBuy = activeItems.filter(i => i.hankkia && !i.done).length;
+  const totalItems = activeItems.length;
+  const doneItems = activeItems.filter(i => i.done).length;
 
   return (
     <AppShell title="Ruoka ja juomat" subtitle={`${totalItems} kohdetta · ${needToBuy} hankittava`}>
@@ -123,7 +126,7 @@ export default function RuokaPage() {
 
       {/* Items by category */}
       {CATEGORIES.map(cat => {
-        const catItems = items.filter(i => i.category === cat.id);
+        const catItems = activeItems.filter(i => i.category === cat.id);
         if (catItems.length === 0 && !canEdit) return null;
         return (
           <div key={cat.id} style={{ marginBottom: '1.25rem' }}>

@@ -30,6 +30,7 @@ import { OrgTeam, OrgTeamMember } from '@/lib/team-shared';
 import { CommsPlan, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
 import { getOrgTeams, getOrgTeamMembers, getOrgCommsPlan } from '@/lib/org-defaults';
 
+import { softDelete, filterActive } from '@/lib/trash';
 import { workerFetch, WORKER_URL } from '@/lib/worker-fetch';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
 
@@ -158,9 +159,9 @@ export default function PublicationDetailSection({ publicationId, onBack, onOpen
 
   const deletePub = () => {
     if (!window.confirm('Poistetaanko julkaisu lopullisesti?')) return;
-    setPubs(prev => (prev || []).filter(p => p.id !== pub.id));
+    setPubs(prev => softDelete(prev || [], pub.id));
     setCalEvents(prev => (prev || []).filter(e => e.pubId !== pub.id));
-    toast('Julkaisu poistettu', 'success');
+    toast('Siirretty roskakoriin', 'success');
     onBack();
   };
 

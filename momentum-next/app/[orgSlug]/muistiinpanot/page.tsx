@@ -9,6 +9,7 @@ import { useParams } from 'next/navigation';
 import { getOrgTeamMembers } from '@/lib/org-defaults';
 import { OrgTeamMember } from '@/lib/team-shared';
 import { useIsMobile } from '@/lib/use-mobile';
+import { softDelete, filterActive } from '@/lib/trash';
 import { workerFetch } from '@/lib/worker-fetch';
 
 interface ActionItem {
@@ -28,6 +29,7 @@ interface MeetingNote {
   rawTranscription?: string; // raaka litterointi sellaisenaan
   cleanTranscription?: string; // kiteytetty, putsattu litterointi
   createdAt: number;
+  deletedAt?: number;
 }
 
 export default function MuistiinpanotPage() {
@@ -44,6 +46,14 @@ export default function MuistiinpanotPage() {
   const [selectedNote, setSelectedNote] = useState<string | null>(null);
   const [summarizing, setSummarizing] = useState(false);
   const [summarizingId, setSummarizingId] = useState<string | null>(null);
+  const [editingSummary, setEditingSummary] = useState(false);
+  const [editSummaryText, setEditSummaryText] = useState('');
+  const [contextText, setContextText] = useState('');
+  const [showContextInput, setShowContextInput] = useState(false);
+  const [refiningContext, setRefiningContext] = useState(false);
+  const [showAddAction, setShowAddAction] = useState(false);
+  const [newActionText, setNewActionText] = useState('');
+  const [newActionAssignee, setNewActionAssignee] = useState('');
 
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -105,9 +115,9 @@ export default function MuistiinpanotPage() {
   };
 
   const remove = (id: string) => {
-    setNotes(prev => prev.filter(x => x.id !== id));
+    setNotes(prev => softDelete(prev, id));
     if (selectedNote === id) setSelectedNote(null);
-    toast('Muistiinpano poistettu', 'success');
+    toast('Siirretty roskakoriin', 'success');
   };
 
   const toggleAttendee = (name: string) => {
@@ -187,6 +197,70 @@ ${note.content}`;
     }
   };
 
+  // ── Summary editing ──
+  const startEditSummary = (note: MeetingNote) => {
+    setEditSummaryText(note.summary || '');
+    setEditingSummary(true);
+  };
+
+  const saveSummaryEdits = (noteId: string) => {
+    setNotes(prev => prev.map(n => n.id === noteId ? {
+      ...n,
+      summary: editSummaryText.trim(),
+    } : n));
+    setEditingSummary(false);
+    toast('Yhteenveto päivitetty', 'success');
+  };
+
+  const cancelSummaryEdit = () => {
+    setEditingSummary(false);
+    setEditSummaryText('');
+  };
+
+  // ── Refine summary with context ──
+  const refineSummaryWithContext = async (noteId: string) => {
+    const note = notes.find(n => n.id === noteId);
+    if (!note || !contextText.trim()) return;
+    setRefiningContext(true);
+    try {
+      const prompt = `Alla on palaverimuistiinpanon AI-yhteenveto. Kayttaja on lisannyt korjauksen tai tarkennuksen. Päivitä yhteenveto niin etta korjaus on huomioitu. Vastaa SELKOTEKSTINA ilman markdown-muotoilua. Sailyta yhteenvedon rakenne ja tyyli, muuta vain se mika korjauksen perusteella pitaa muuttaa.
+
+Nykyinen yhteenveto:
+${note.summary}
+
+Kayttajan korjaus/tarkennus:
+${contextText.trim()}
+
+Paivitetty yhteenveto:`;
+
+      const response = await workerFetch('/api/chat', {
+        method: 'POST',
+        orgId: activeOrg || '',
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: prompt }],
+          systemContext: 'Olet palaverimuistiinpanojen yhteenvetaja. Päivitä yhteenveto kayttajan korjauksen perusteella. Vastaa selkotekstina ilman markdown-muotoilua.',
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const updated = ((data.response || '') as string).trim();
+        if (updated) {
+          setNotes(prev => prev.map(n => n.id === noteId ? { ...n, summary: updated } : n));
+          toast('Yhteenveto päivitetty korjauksen perusteella', 'success');
+        }
+      } else {
+        toast('Päivitys epäonnistui', 'error');
+      }
+    } catch {
+      toast('Päivitys epäonnistui', 'error');
+    } finally {
+      setRefiningContext(false);
+      setContextText('');
+      setShowContextInput(false);
+    }
+  };
+
   // ── Action item management ──
   const updateActionItem = (noteId: string, idx: number, updates: Partial<ActionItem>) => {
     setNotes(prev => prev.map(n => {
@@ -194,6 +268,23 @@ ${note.content}`;
       const items = [...n.actionItems];
       items[idx] = { ...items[idx], ...updates };
       return { ...n, actionItems: items };
+    }));
+  };
+
+  const addActionItem = (noteId: string, text: string, assignee: string) => {
+    if (!text.trim()) return;
+    const item: ActionItem = { text: text.trim(), assignee: assignee || '', confirmed: false };
+    setNotes(prev => prev.map(n => {
+      if (n.id !== noteId) return n;
+      return { ...n, actionItems: [...(n.actionItems || []), item] };
+    }));
+    toast('Toimenpide lisätty', 'success');
+  };
+
+  const removeActionItem = (noteId: string, idx: number) => {
+    setNotes(prev => prev.map(n => {
+      if (n.id !== noteId || !n.actionItems) return n;
+      return { ...n, actionItems: n.actionItems.filter((_, i) => i !== idx) };
     }));
   };
 
@@ -212,7 +303,7 @@ ${note.content}`;
     };
     setTasks(prev => [newTask, ...prev]);
     updateActionItem(noteId, idx, { confirmed: true });
-    toast(`Tehtava luotu: ${item.assignee || 'Ei tekijaa'}`, 'success');
+    toast(`Tehtävä luotu: ${item.assignee || 'Ei tekijää'}`, 'success');
   };
 
   // ── Recording ──
@@ -364,7 +455,7 @@ ${note.content}`;
   }, [transcribeAudio]);
 
   // Sort newest first
-  const sorted = [...notes].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const sorted = [...filterActive(notes)].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   // Detail view
   const detail = selectedNote ? notes.find(n => n.id === selectedNote) : null;
@@ -387,34 +478,126 @@ ${note.content}`;
           </div>
         )}
 
-        {/* AI Summary - FIRST when available */}
+        {/* Korjaa yhteenvetoa — aina nakyvissa yhteenvedon ylapuolella */}
+        {detail.summary && canEdit && (
+          <div style={{
+            background: 'rgba(241,180,52,.04)', border: '1px solid rgba(241,180,52,.15)',
+            borderRadius: 'var(--rl)', padding: '.75rem 1rem', marginBottom: '.75rem',
+          }}>
+            {!showContextInput ? (
+              <div
+                onClick={() => { setContextText(''); setShowContextInput(true); }}
+                style={{ fontSize: '.78rem', color: 'var(--yellow)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '.4rem' }}
+              >
+                <span style={{ fontSize: '.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}>Korjaa yhteenvetoa</span>
+                <span style={{ color: 'var(--t3)', fontSize: '.75rem' }}>-- kerro mitä AI ymmärsi väärin</span>
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontSize: '.65rem', fontWeight: 700, color: 'var(--yellow)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.35rem' }}>
+                  Korjaa yhteenvetoa
+                </div>
+                <div style={{ fontSize: '.68rem', color: 'var(--t3)', marginBottom: '.5rem' }}>
+                  Kerro mitä pitää korjata. AI päivittää yhteenvedon korjauksesi perusteella.
+                </div>
+                <textarea
+                  className="input textarea"
+                  value={contextText}
+                  onChange={e => setContextText(e.target.value)}
+                  autoFocus
+                  placeholder="Esim: Kohdassa X puhuttiin oikeasti Y:sta. Svetlanan ehdotus koski 2027 budjettia, ei 2026."
+                  style={{
+                    fontSize: '.82rem', lineHeight: 1.5, minHeight: 70, width: '100%',
+                    background: 'rgba(255,255,255,.03)',
+                  }}
+                />
+                <div style={{ display: 'flex', gap: '.35rem', justifyContent: 'flex-end', marginTop: '.5rem' }}>
+                  <button className="btn btn-ghost btn-sm" style={{ fontSize: '.65rem' }} onClick={() => { setShowContextInput(false); setContextText(''); }}>Peruuta</button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    style={{ fontSize: '.65rem' }}
+                    disabled={!contextText.trim() || refiningContext}
+                    onClick={() => refineSummaryWithContext(detail.id)}
+                  >
+                    {refiningContext ? 'Päivitetään...' : 'Päivitä yhteenveto'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* AI Summary */}
         {detail.summary && (
           <div style={{
             background: 'linear-gradient(135deg, rgba(155,124,246,.06), rgba(5,107,159,.04))',
             border: '1px solid rgba(155,124,246,.2)', borderRadius: 'var(--rl)',
-            padding: '1.25rem', marginBottom: '1.25rem',
+            padding: editingSummary ? '1.5rem' : '1.25rem', marginBottom: '1.25rem',
+            transition: 'padding .2s ease',
           }}>
-            <div style={{ fontSize: '.68rem', fontWeight: 700, color: '#9b7cf6', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.5rem' }}>
-              AI-yhteenveto
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.5rem' }}>
+              <div style={{ fontSize: '.68rem', fontWeight: 700, color: '#9b7cf6', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                AI-yhteenveto
+              </div>
+              {canEdit && !editingSummary && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => startEditSummary(detail)}
+                  style={{ fontSize: '.65rem', color: '#9b7cf6', padding: '.2rem .5rem' }}
+                >
+                  Muokkaa tekstia
+                </button>
+              )}
             </div>
-            <div style={{ fontSize: '.85rem', lineHeight: 1.7, color: 'var(--t1)', whiteSpace: 'pre-wrap' }}>
-              {detail.summary}
-            </div>
+
+            {editingSummary ? (
+              <>
+                <textarea
+                  className="input textarea"
+                  value={editSummaryText}
+                  onChange={e => setEditSummaryText(e.target.value)}
+                  autoFocus
+                  style={{
+                    fontSize: '.88rem', lineHeight: 1.8, width: '100%',
+                    minHeight: Math.max(240, Math.min(500, editSummaryText.split('\n').length * 28)),
+                    background: 'rgba(255,255,255,.03)', marginBottom: '.75rem',
+                    transition: 'min-height .2s ease',
+                  }}
+                />
+                <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
+                  <button className="btn btn-ghost btn-sm" onClick={cancelSummaryEdit}>Peruuta</button>
+                  <button className="btn btn-primary btn-sm" onClick={() => saveSummaryEdits(detail.id)}>Tallenna</button>
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: '.85rem', lineHeight: 1.7, color: 'var(--t1)', whiteSpace: 'pre-wrap' }}>
+                {detail.summary}
+              </div>
+            )}
           </div>
         )}
 
         {/* Action items */}
-        {detail.actionItems && detail.actionItems.length > 0 && (
+        {((detail.actionItems && detail.actionItems.length > 0) || canEdit) && (
           <div style={{
             border: '1px solid rgba(155,124,246,.2)', borderRadius: 'var(--rl)',
             marginBottom: '1.25rem', overflow: 'hidden',
           }}>
-            <div style={{ padding: '.75rem 1.25rem', background: 'rgba(155,124,246,.06)' }}>
+            <div style={{ padding: '.75rem 1.25rem', background: 'rgba(155,124,246,.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '.68rem', fontWeight: 700, color: '#9b7cf6', textTransform: 'uppercase', letterSpacing: '.05em' }}>
-                Toimenpiteet ({detail.actionItems.filter(a => a.confirmed).length}/{detail.actionItems.length} vahvistettu)
+                Toimenpiteet {detail.actionItems && detail.actionItems.length > 0 && `(${detail.actionItems.filter(a => a.confirmed).length}/${detail.actionItems.length} vahvistettu)`}
               </span>
+              {canEdit && !showAddAction && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setShowAddAction(true)}
+                  style={{ fontSize: '.65rem', color: '#9b7cf6', padding: '.2rem .5rem' }}
+                >
+                  + Lisää toimenpide
+                </button>
+              )}
             </div>
-            {detail.actionItems.map((item, idx) => (
+            {detail.actionItems && detail.actionItems.map((item, idx) => (
               <div key={idx} style={{
                 padding: '.75rem 1.25rem', borderTop: '1px solid var(--border)',
                 display: 'flex', alignItems: 'center', gap: '.75rem',
@@ -434,43 +617,112 @@ ${note.content}`;
                         fontWeight: 600, cursor: canEdit ? 'pointer' : 'default',
                       }}
                     >
-                      <option value="">Ei tekijaa</option>
+                      <option value="">Ei tekijää</option>
                       <option value="Kaikki">Kaikki</option>
                       {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                     </select>
                   </div>
                 </div>
                 {canEdit && !item.confirmed && (
-                  <button
-                    className="btn btn-primary btn-sm"
-                    onClick={() => createTaskFromAction(detail.id, idx)}
-                    style={{ fontSize: '.65rem', padding: '.3rem .6rem', whiteSpace: 'nowrap' }}
-                  >
-                    Luo tehtava
-                  </button>
+                  <div style={{ display: 'flex', gap: '.3rem', flexShrink: 0, alignItems: 'center' }}>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => createTaskFromAction(detail.id, idx)}
+                      style={{ fontSize: '.65rem', padding: '.3rem .6rem', whiteSpace: 'nowrap' }}
+                    >
+                      Luo tehtävä
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => removeActionItem(detail.id, idx)}
+                      style={{ fontSize: '.72rem', color: 'var(--red)', padding: '.2rem .4rem' }}
+                    >
+                      x
+                    </button>
+                  </div>
                 )}
                 {item.confirmed && (
                   <span style={{ fontSize: '.65rem', color: 'var(--green)', fontWeight: 700 }}>Luotu</span>
                 )}
               </div>
             ))}
+
+            {/* Manuaalinen toimenpiteen lisäys */}
+            {showAddAction && canEdit && (
+              <div style={{ padding: '.75rem 1.25rem', borderTop: '1px solid var(--border)', background: 'var(--card)' }}>
+                <div style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <input
+                      className="input"
+                      value={newActionText}
+                      onChange={e => setNewActionText(e.target.value)}
+                      placeholder="Toimenpiteen kuvaus..."
+                      autoFocus
+                      style={{ fontSize: '.82rem', marginBottom: '.4rem' }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && newActionText.trim()) {
+                          addActionItem(detail.id, newActionText, newActionAssignee);
+                          setNewActionText('');
+                          setNewActionAssignee('');
+                        }
+                      }}
+                    />
+                    <select
+                      className="input"
+                      value={newActionAssignee}
+                      onChange={e => setNewActionAssignee(e.target.value)}
+                      style={{ fontSize: '.72rem', padding: '.25rem .4rem', width: 'auto', minWidth: 140 }}
+                    >
+                      <option value="">Tekijä (valinnainen)</option>
+                      <option value="Kaikki">Kaikki</option>
+                      {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', gap: '.3rem', flexShrink: 0, paddingTop: '.2rem' }}>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      disabled={!newActionText.trim()}
+                      onClick={() => {
+                        addActionItem(detail.id, newActionText, newActionAssignee);
+                        setNewActionText('');
+                        setNewActionAssignee('');
+                      }}
+                      style={{ fontSize: '.65rem' }}
+                    >
+                      Lisää
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => { setShowAddAction(false); setNewActionText(''); setNewActionAssignee(''); }}
+                      style={{ fontSize: '.65rem' }}
+                    >
+                      Valmis
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Clean transcription */}
+        {/* Clean transcription — collapsible when summary exists */}
         {detail.cleanTranscription && (
-          <div style={{
-            background: 'linear-gradient(135deg, rgba(5,107,159,.04), rgba(24,94,91,.04))',
-            border: '1px solid rgba(5,107,159,.2)', borderRadius: 'var(--rl)',
-            padding: '1.25rem', marginBottom: '1.25rem',
-          }}>
-            <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--pri)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.5rem' }}>
-              Kiteytetty litterointi
+          detail.summary ? (
+            <TranscriptionCollapsible text={detail.cleanTranscription} label="Kiteytetty litterointi" />
+          ) : (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(5,107,159,.04), rgba(24,94,91,.04))',
+              border: '1px solid rgba(5,107,159,.2)', borderRadius: 'var(--rl)',
+              padding: '1.25rem', marginBottom: '1.25rem',
+            }}>
+              <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--pri)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.5rem' }}>
+                Kiteytetty litterointi
+              </div>
+              <div style={{ fontSize: '.85rem', lineHeight: 1.7, color: 'var(--t1)', whiteSpace: 'pre-wrap' }}>
+                {detail.cleanTranscription}
+              </div>
             </div>
-            <div style={{ fontSize: '.85rem', lineHeight: 1.7, color: 'var(--t1)', whiteSpace: 'pre-wrap' }}>
-              {detail.cleanTranscription}
-            </div>
-          </div>
+          )
         )}
 
         {/* Content - collapsible when summary exists */}
@@ -500,7 +752,7 @@ ${note.content}`;
               disabled={summarizing}
               style={{ color: '#9b7cf6' }}
             >
-              {summarizing ? 'Luodaan...' : detail.summary ? 'Paivita yhteenveto' : 'Luo AI-yhteenveto'}
+              {summarizing ? 'Luodaan...' : detail.summary ? 'Päivitä yhteenveto' : 'Luo AI-yhteenveto'}
             </button>
             <button className="btn btn-ghost btn-sm" onClick={() => remove(detail.id)} style={{ color: 'var(--red)', marginLeft: 'auto' }}>Poista</button>
           </div>

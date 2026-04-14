@@ -2,15 +2,23 @@
 
 import { Suspense } from 'react';
 import { useSearchParams, usePathname, useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import AppShell from '@/components/AppShell';
 import TabSwitcher from '@/components/TabSwitcher';
-import PublicationQueueSection from '@/components/sections/PublicationQueueSection';
-import PublicationDetailSection from '@/components/sections/PublicationDetailSection';
-import CalendarSection from '@/components/sections/CalendarSection';
-import MediaSection from '@/components/sections/MediaSection';
-import ChannelsSection from '@/components/sections/ChannelsSection';
-import EditorSection from '@/components/sections/EditorSection';
-import CommsPlanSection from '@/components/sections/CommsPlanSection';
+
+const SectionLoader = () => (
+  <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>
+    <div className="typing"><span /><span /><span /></div>
+  </div>
+);
+
+const CommsPlanSection = dynamic(() => import('@/components/sections/CommsPlanSection'), { loading: SectionLoader });
+const CalendarSection = dynamic(() => import('@/components/sections/CalendarSection'), { loading: SectionLoader });
+const PublicationQueueSection = dynamic(() => import('@/components/sections/PublicationQueueSection'), { loading: SectionLoader });
+const EditorSection = dynamic(() => import('@/components/sections/EditorSection'), { loading: SectionLoader, ssr: false });
+const MediaSection = dynamic(() => import('@/components/sections/MediaSection'), { loading: SectionLoader, ssr: false });
+const ChannelsSection = dynamic(() => import('@/components/sections/ChannelsSection'), { loading: SectionLoader });
+const PublicationDetailSection = dynamic(() => import('@/components/sections/PublicationDetailSection'), { loading: SectionLoader });
 
 // Fullscreen (no-tab) views that still live under ?tab=...
 // Editori on nyt yläpaneelissa tabina — vain detail jää fullscreeniksi.

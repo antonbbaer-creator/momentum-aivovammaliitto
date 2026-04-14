@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -17,6 +17,7 @@ import {
   // defaultLlffYearwheel removed — now via org-defaults
 } from '@/lib/yearwheel-shared';
 import { useParams } from 'next/navigation';
+import { softDelete, filterActive } from '@/lib/trash';
 import { OrgTeam } from '@/lib/team-shared';
 import {
   CommsPlan,
@@ -35,6 +36,7 @@ interface CalEvent {
   st: string;
   pubId?: string; // set by editor publish flow → links back to Publication
   kind?: string;  // 'publication' when created via editor
+  deletedAt?: number;
 }
 
 // Minimal Project shape for deadline rendering (avoid circular dep on ProjectsSection)
@@ -93,7 +95,7 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
   const [publications] = useOrgData<PubLite[]>('publications', []);
   const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', getOrgCommsPlan(orgSlug));
-  const commsPlan = normalizeCommsPlan(rawCommsPlan);
+  const commsPlan = useMemo(() => normalizeCommsPlan(rawCommsPlan), [rawCommsPlan]);
   const isViestinta = mode === 'viestinta';
 
   const rawPhases = propPhases ?? ownRawPhases;
@@ -101,7 +103,7 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
   const events = propEvents ?? ownEvents;
   const setEvents = propSetEvents ?? ownSetEvents;
 
-  const phases: YearPhase[] = rawPhases.map(normalizePhase);
+  const phases: YearPhase[] = useMemo(() => rawPhases.map(normalizePhase), [rawPhases]);
 
   const [view, setView] = useState<'month' | 'list'>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -125,7 +127,7 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
   const getEventsForDay = (day: number) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     // Viestintä-tilassa: vain julkaisut (kind === 'publication'). Muuten kaikki.
-    return events.filter(e => {
+    return filterActive(events).filter(e => {
       if (e.date !== dateStr) return false;
       if (isViestinta && e.kind !== 'publication') return false;
       return true;
@@ -183,7 +185,10 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
     }
     setShowForm(false);
   };
-  const deleteEvent = (id: number) => setEvents(prev => prev.filter(e => e.id !== id));
+  const deleteEvent = (id: number) => {
+    setEvents(prev => softDelete(prev, id));
+    toast('Siirretty roskakoriin', 'success');
+  };
 
   // --- Phase bar drag state ---
   type DragMode = 'move' | 'resize-start' | 'resize-end';
@@ -608,7 +613,7 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
               {canEdit && <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); deleteEvent(ev.id); }} style={{ color: 'var(--red)', fontSize: '.7rem' }}>{'×'}</button>}
             </div>
           ))}
-          {events.length === 0 && <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--t3)' }}>Ei tapahtumia.</div>}
+          {filterActive(events).length === 0 && <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--t3)' }}>Ei tapahtumia.</div>}
         </div>
       )}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -19,6 +19,7 @@ import {
   phaseEndDate,
 } from '@/lib/yearwheel-shared';
 import { useParams } from 'next/navigation';
+import { softDelete, filterActive } from '@/lib/trash';
 import { OrgTeam } from '@/lib/team-shared';
 import { getOrgTeams, getOrgYearwheel } from '@/lib/org-defaults';
 
@@ -52,7 +53,7 @@ export default function YearwheelSection({ phases: propPhases, setPhases: propSe
   const setPhases = propSet ?? ownSet;
 
   // Normalize phases (ensure team field exists)
-  const phases: YearPhase[] = rawPhases.map(normalizePhase);
+  const phases: YearPhase[] = useMemo(() => filterActive(rawPhases.map(normalizePhase)), [rawPhases]);
 
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -70,7 +71,7 @@ export default function YearwheelSection({ phases: propPhases, setPhases: propSe
   const [formIsFestival, setFormIsFestival] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
 
-  const filteredPhases = teamFilter === 'all' ? phases : phases.filter(p => p.team === teamFilter);
+  const filteredPhases = useMemo(() => teamFilter === 'all' ? phases : phases.filter(p => p.team === teamFilter), [phases, teamFilter]);
 
   const year = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
@@ -123,9 +124,9 @@ export default function YearwheelSection({ phases: propPhases, setPhases: propSe
     toast(editId ? 'Vaihe päivitetty' : 'Vaihe lisätty', 'success');
   };
   const removePhase = (id: string) => {
-    setPhases(prev => prev.map(normalizePhase).filter(p => p.id !== id));
+    setPhases(prev => softDelete(prev.map(normalizePhase), id));
     if (selectedPhase === id) setSelectedPhase(null);
-    toast('Vaihe poistettu', 'success');
+    toast('Siirretty roskakoriin', 'success');
   };
   const toggleTask = (phaseId: string, taskId: string) => {
     setPhases(prev => prev.map(normalizePhase).map(p => p.id === phaseId ? {

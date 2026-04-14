@@ -1,0 +1,15 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Organisaation tiedostot: vain saman orgin jäsenet pääsevät käsiksi
+    match /organizations/{orgId}/{allPaths=**} {
+      allow read, write: if request.auth != null
+        && orgId in firestore.get(/databases/(default)/documents/userOrgs/$(request.auth.uid)).data.orgIds;
+    }
+
+    // Kaikki muu estetty
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

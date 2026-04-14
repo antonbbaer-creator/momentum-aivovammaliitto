@@ -8,6 +8,7 @@ export interface OrgTeam {
   icon: string;
   description: string;
   leadId?: string; // member id of team lead
+  deletedAt?: number;
 }
 
 export interface OrgTeamMember {
@@ -24,6 +25,7 @@ export interface OrgTeamMember {
   channels?: string[];
   currentTasks?: string[];
   note?: string;
+  deletedAt?: number;
 }
 
 // Default LLFF organizational teams (2026)

@@ -16,6 +16,7 @@ export interface YearPhase {
   category: 'planning' | 'production' | 'execution' | 'reflection';
   team: string;
   isFestival?: boolean;
+  deletedAt?: number;
 }
 
 export interface YearTask {

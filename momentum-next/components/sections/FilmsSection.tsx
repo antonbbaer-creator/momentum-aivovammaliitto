@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useIsMobile } from '@/lib/use-mobile';
 import { useParams } from 'next/navigation';
+import { softDelete, filterActive } from '@/lib/trash';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
@@ -36,6 +37,7 @@ interface Film {
   premiereStatus?: string;
   salesAgent?: string;
   images?: string[];
+  deletedAt?: number;
 }
 
 const statusOptions = [
@@ -112,7 +114,7 @@ export default function FilmsSection() {
   const [formImages, setFormImages] = useState<string[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
 
-  const sectionFilms = films.filter(f => f.section === tab);
+  const sectionFilms = useMemo(() => filterActive(films).filter(f => f.section === tab), [films, tab]);
   const selected = selectedFilm ? films.find(f => f.id === selectedFilm) : null;
 
   const updateFilmStatus = (id: string, status: Film['status']) => {
@@ -210,9 +212,9 @@ export default function FilmsSection() {
   };
 
   const removeFilm = (id: string) => {
-    setFilms(prev => prev.filter(f => f.id !== id));
+    setFilms(prev => softDelete(prev, id));
     if (selectedFilm === id) setSelectedFilm(null);
-    toast('Elokuva poistettu', 'success');
+    toast('Siirretty roskakoriin', 'success');
   };
 
   // === YKSITYISKOHTANAKYMA ===

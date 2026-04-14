@@ -3,7 +3,9 @@
 import { useAuth } from '@/lib/auth';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, ReactNode } from 'react';
-import UserGuide from '@/components/UserGuide';
+import dynamic from 'next/dynamic';
+
+const UserGuide = dynamic(() => import('@/components/UserGuide'), { ssr: false });
 
 export default function OrgLayout({ children }: { children: ReactNode }) {
   const { user, loading, orgs, activeOrg, setActiveOrg } = useAuth();
