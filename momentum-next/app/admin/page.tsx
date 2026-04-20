@@ -245,12 +245,27 @@ export default function AdminPage() {
 
   const changeRole = async (orgId: string, uid: string, newRole: 'owner' | 'admin' | 'member') => {
     try {
+      // 1) Paivita members-subcollection
       await updateDoc(doc(db, 'organizations', orgId, 'members', uid), { role: newRole });
+
+      // 2) Paivita myos userOrgs/{uid} — frontend lukee roolin taalta activeOrgRole-arvoon.
+      // Ilman tata synkroinointia UI nakee vanhan roolin (esim. Moduulit piilossa).
+      const userOrgsDoc = await getDocs(query(collection(db, 'userOrgs')));
+      for (const d of userOrgsDoc.docs) {
+        if (d.id !== uid) continue;
+        const data = d.data();
+        const existingOrgs: any[] = data.orgs || [];
+        const updatedOrgs = existingOrgs.map(o => o.orgId === orgId ? { ...o, role: newRole } : o);
+        await setDoc(doc(db, 'userOrgs', uid), { orgs: updatedOrgs, orgIds: updatedOrgs.map(o => o.orgId) }, { merge: true });
+      }
+
       setOrgs(prev => prev.map(o => o.id === orgId ? {
         ...o, members: o.members.map(m => m.uid === uid ? { ...m, role: newRole } : m)
       } : o));
+      toast('Rooli paivitetty — kayttaja nakee muutoksen seuraavan sisaankirjautumisen jalkeen', 'success');
     } catch (e) {
       console.error('Change role error:', e);
+      toast('Roolin vaihto epaonnistui', 'error');
     }
   };
 
