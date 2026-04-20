@@ -62,6 +62,12 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
   const [showArchive, setShowArchive] = useState(false);
   const [dragItem, setDragItem] = useState<number | null>(null);
   const [teamFilter, setTeamFilter] = useState<string>(fixedTeamId || 'all');
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const toggleExpanded = (id: number) => setExpanded(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
@@ -347,7 +353,27 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
                         borderRadius: 'var(--r)', padding: '.85rem', cursor: 'pointer', transition: 'border-color .15s',
                       }}
                       onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--pri)')} onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}>
-                      <div style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: '.35rem' }}>{p.t}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.35rem' }}>
+                        {(p.tasks || []).length > 0 && (
+                          <button
+                            onClick={e => { e.stopPropagation(); toggleExpanded(p.id); }}
+                            title={expanded.has(p.id) ? 'Piilota tehtavat' : 'Nayta tehtavat'}
+                            style={{
+                              background: 'transparent', border: 'none', cursor: 'pointer',
+                              color: 'var(--t3)', fontSize: '.7rem', lineHeight: 1,
+                              padding: '2px 4px', display: 'inline-flex', alignItems: 'center',
+                              transform: expanded.has(p.id) ? 'rotate(90deg)' : 'rotate(0deg)',
+                              transition: 'transform .15s',
+                            }}
+                          >▶</button>
+                        )}
+                        <div style={{ fontSize: '.85rem', fontWeight: 600, flex: 1 }}>{p.t}</div>
+                        {(p.tasks || []).length > 0 && (
+                          <span style={{ fontSize: '.6rem', color: 'var(--t3)', fontWeight: 600 }}>
+                            {(p.tasks || []).filter(t => t.done).length}/{(p.tasks || []).length}
+                          </span>
+                        )}
+                      </div>
                       {projectTeam && !fixedTeamId && (
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', marginBottom: '.35rem', marginRight: '.3rem' }}>
                           <span style={{ fontSize: '.58rem', padding: '.12rem .4rem', borderRadius: 9999, background: `${projectTeam.color}20`, color: projectTeam.color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}>
@@ -368,6 +394,61 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
                           {assignees.length > 3 && <span style={{ fontSize: '.58rem', color: 'var(--t3)' }}>+{assignees.length - 3}</span>}
                         </div>
                       ) : null; })()}
+                      {expanded.has(p.id) && (p.tasks || []).length > 0 && (
+                        <div
+                          onClick={e => e.stopPropagation()}
+                          style={{
+                            marginTop: '.5rem', paddingTop: '.5rem',
+                            borderTop: '1px dashed var(--border)',
+                            display: 'flex', flexDirection: 'column', gap: '.25rem',
+                          }}
+                        >
+                          {(p.tasks || []).map((task, ti) => {
+                            const tdlc = task.deadline ? deadlineColor(task.deadline) : null;
+                            return (
+                              <div key={task.id} style={{
+                                display: 'flex', alignItems: 'center', gap: '.4rem',
+                                padding: '.3rem .4rem', background: 'var(--card)',
+                                border: '1px solid var(--border)', borderRadius: 'var(--r)',
+                                fontSize: '.72rem',
+                              }}>
+                                <input
+                                  type="checkbox"
+                                  checked={task.done}
+                                  onChange={e => {
+                                    e.stopPropagation();
+                                    const newTasks = [...(p.tasks || [])];
+                                    newTasks[ti] = { ...newTasks[ti], done: !newTasks[ti].done };
+                                    updateProject(p.id, { tasks: newTasks });
+                                  }}
+                                  onClick={e => e.stopPropagation()}
+                                  style={{ flexShrink: 0 }}
+                                />
+                                <span style={{
+                                  flex: 1, minWidth: 0,
+                                  textDecoration: task.done ? 'line-through' : 'none',
+                                  color: task.done ? 'var(--t3)' : 'var(--t1)',
+                                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                }}>{task.text}</span>
+                                {task.assignee && (
+                                  <span style={{
+                                    fontSize: '.58rem', padding: '.1rem .35rem', borderRadius: 9999,
+                                    background: 'rgba(5,107,159,.1)', color: 'var(--pri-l)',
+                                    fontWeight: 600, flexShrink: 0,
+                                  }}>{task.assignee}</span>
+                                )}
+                                {tdlc && (
+                                  <span style={{
+                                    fontSize: '.58rem', padding: '.1rem .35rem', borderRadius: 9999,
+                                    background: tdlc.bg, color: tdlc.color, fontWeight: 600,
+                                    flexShrink: 0,
+                                  }}>{tdlc.label}</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '.2rem' }}>
                         {col.k === 'done' && <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); archiveProject(p.id); }} style={{ fontSize: '.65rem' }}>Arkistoi</button>}
                       </div>
