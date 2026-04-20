@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import AppShell from '@/components/AppShell';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { getOrgTeamMembers } from '@/lib/org-defaults';
-import { OrgTeamMember } from '@/lib/team-shared';
+import { OrgTeamMember, uniqueMembersByName } from '@/lib/team-shared';
 import { useIsMobile } from '@/lib/use-mobile';
 import { softDelete, filterActive } from '@/lib/trash';
 import { workerFetch } from '@/lib/worker-fetch';
@@ -38,7 +38,8 @@ export default function MuistiinpanotPage() {
   const params = useParams();
   const orgSlug = (params.orgSlug as string) || '';
   const [notes, setNotes] = useOrgData<MeetingNote[]>('meetingNotes', []);
-  const [members] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
+  const [membersRaw] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
+  const members = useMemo(() => uniqueMembersByName(membersRaw), [membersRaw]);
   const [tasks, setTasks] = useOrgData<{ id: string; text: string; assignee?: string; hankkia: boolean; done: boolean; priority: 'normal' | 'high'; deadline?: string; note?: string; category?: string }[]>('tasks', []);
   const [projects, setProjects] = useOrgData<any[]>('projects', []);
   const [projectMenuFor, setProjectMenuFor] = useState<string | null>(null); // "noteId:idx"

@@ -29,7 +29,7 @@ import {
   normalizeGrantsSettings,
   getYearTarget,
 } from '@/lib/grants-shared';
-import { OrgTeamMember } from '@/lib/team-shared';
+import { OrgTeamMember, uniqueMembersByName } from '@/lib/team-shared';
 import { getGrantsKey, getGrantsSettingsKey, getOrgGrants, getOrgGrantsSettings, getOrgTeamMembers } from '@/lib/org-defaults';
 
 type Tab = 'wheel' | 'status' | 'funders' | 'deadlines';
@@ -51,7 +51,8 @@ export default function GrantsSection() {
   const isMobile = useIsMobile();
   const [rawGrants, setGrants] = useOrgData<Grant[]>(getGrantsKey(orgSlug), getOrgGrants(orgSlug));
   const [rawSettings, setSettings] = useOrgData<GrantsSettings>(getGrantsSettingsKey(orgSlug), getOrgGrantsSettings(orgSlug));
-  const [members] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
+  const [membersRaw] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
+  const members = useMemo(() => uniqueMembersByName(membersRaw), [membersRaw]);
 
   // Normalize for backward compat with old saves
   const allGrants = useMemo(() => rawGrants.map(normalizeGrant), [rawGrants]);

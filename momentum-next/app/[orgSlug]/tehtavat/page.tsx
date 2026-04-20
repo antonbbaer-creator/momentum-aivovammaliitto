@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import AppShell from '@/components/AppShell';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { getOrgTeamMembers } from '@/lib/org-defaults';
-import { OrgTeamMember } from '@/lib/team-shared';
+import { OrgTeamMember, uniqueMembersByName } from '@/lib/team-shared';
 import { useIsMobile } from '@/lib/use-mobile';
 import { softDelete, filterActive } from '@/lib/trash';
 
@@ -32,7 +32,8 @@ export default function TehtavatPage() {
   const params = useParams();
   const orgSlug = (params.orgSlug as string) || '';
   const [tasks, setTasks] = useOrgData<Task[]>('tasks', []);
-  const [members] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
+  const [membersRaw] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
+  const members = useMemo(() => uniqueMembersByName(membersRaw), [membersRaw]);
   const isMobile = useIsMobile();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);

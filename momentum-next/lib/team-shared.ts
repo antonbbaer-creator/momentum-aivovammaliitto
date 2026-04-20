@@ -88,6 +88,22 @@ export const DEFAULT_LLFF_TEAM_MEMBERS: OrgTeamMember[] = [
 export const getTeam = (teams: OrgTeam[], teamId: string): OrgTeam | undefined =>
   teams.find(t => t.id === teamId);
 
+// Helper: dedupe members by normalized name so the same person
+// appearing in multiple teams shows up only once in assignee pickers.
+// Returns members in their original order — first occurrence wins.
+export const uniqueMembersByName = (members: OrgTeamMember[]): OrgTeamMember[] => {
+  const seen = new Set<string>();
+  const result: OrgTeamMember[] = [];
+  for (const m of members) {
+    if (m.deletedAt) continue;
+    const key = (m.name || '').trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(m);
+  }
+  return result;
+};
+
 // Helper: get members of a team
 export const getTeamMembers = (members: OrgTeamMember[], teamId: string): OrgTeamMember[] =>
   members.filter(m => m.teamId === teamId);

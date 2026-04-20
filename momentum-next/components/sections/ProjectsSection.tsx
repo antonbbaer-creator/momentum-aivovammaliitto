@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useIsMobile } from '@/lib/use-mobile';
 import { useParams } from 'next/navigation';
-import { OrgTeam, OrgTeamMember } from '@/lib/team-shared';
+import { OrgTeam, OrgTeamMember, uniqueMembersByName } from '@/lib/team-shared';
 import { getOrgTeams, getOrgTeamMembers } from '@/lib/org-defaults';
 import { softDelete, filterActive } from '@/lib/trash';
 import { YearPhase, normalizePhase } from '@/lib/yearwheel-shared';
@@ -52,7 +52,8 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
   const orgSlug = (useParams().orgSlug as string) || '';
   const isMobile = useIsMobile();
   const [projects, setProjects] = useOrgData<Project[]>('projects', []);
-  const [teamData] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
+  const [teamDataRaw] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
+  const teamData = useMemo(() => uniqueMembersByName(teamDataRaw), [teamDataRaw]);
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
   const [rawPhases] = useOrgData<YearPhase[]>('yearwheel', getOrgYearwheel(orgSlug));
   const phases = useMemo(() => rawPhases.map(normalizePhase), [rawPhases]);
