@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { useAuth } from '@/lib/auth';
 import { useOrgData } from '@/lib/firestore';
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, getDefaultModules } from '@/lib/modules';
+import { useToast } from '@/lib/toast';
 
 interface Member { uid: string; displayName: string; email: string; photoURL: string; role: string; joinedAt: string; }
 
@@ -29,6 +30,10 @@ export default function SettingsPage() {
   const [codeCopied, setCodeCopied] = useState(false);
   const [textSize, setTextSizeState] = useState('sm');
   const [compactMode, setCompactModeState] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+  const [joinError, setJoinError] = useState('');
+  const [joining, setJoining] = useState(false);
+  const { toast } = useToast();
 
   const isAdmin = activeOrgRole === 'owner' || activeOrgRole === 'admin';
   const SUPER_ADMINS = ['anton@hetkicompany.com', 'anton.baer@gmail.com', 'claude-test@hetkicompany.com'];
@@ -74,6 +79,50 @@ export default function SettingsPage() {
       setMembers(snap.docs.map(d => ({ uid: d.id, ...d.data() })) as Member[]);
     });
   }, [activeOrg]);
+
+  // Liity toiseen yhteisoon salasanalla
+  const joinAnotherOrg = async () => {
+    if (!user || !joinCode.trim()) return;
+    setJoining(true); setJoinError('');
+    try {
+      const code = joinCode.trim();
+      const orgsSnap = await getDocs(collection(db, 'organizations'));
+      let foundId = '', foundName = '';
+      for (const d of orgsSnap.docs) {
+        if (d.data().joinCode === code) { foundId = d.id; foundName = d.data().name || d.id; break; }
+      }
+      if (!foundId) { setJoinError('Salasanaa ei loytynyt.'); setJoining(false); return; }
+      if (orgs.some(o => o.orgId === foundId)) {
+        setJoinError('Olet jo taman yhteison jasen.'); setJoining(false); return;
+      }
+
+      // Lisaa member
+      await setDoc(doc(db, 'organizations', foundId, 'members', user.uid), {
+        role: 'member', joinedAt: new Date().toISOString(),
+        displayName: user.displayName || '', email: user.email || '', photoURL: user.photoURL || '',
+      }, { merge: true });
+
+      // Paivita userOrgs
+      const existingDoc = await getDoc(doc(db, 'userOrgs', user.uid));
+      const existingOrgs = existingDoc.exists() ? (existingDoc.data().orgs || []) : [];
+      const newOrgs = [...existingOrgs.filter((o: any) => o.orgId !== foundId), { orgId: foundId, role: 'member', name: foundName }];
+      await setDoc(doc(db, 'userOrgs', user.uid), {
+        orgs: newOrgs,
+        orgIds: newOrgs.map((o: any) => o.orgId),
+      });
+
+      await refreshOrgs();
+      setActiveOrg(foundId);
+      toast('Liityit yhteisoon ' + foundName, 'success');
+      setJoinCode('');
+      router.push(`/${foundId}/dashboard`);
+    } catch (e) {
+      console.error('Join another error:', e);
+      setJoinError('Virhe liittymisessa.');
+    } finally {
+      setJoining(false);
+    }
+  };
 
   const saveOrgInfo = () => {
     setOrg((prev: any) => ({ ...prev, name: orgName.trim(), slogan: orgSlogan.trim() }));
@@ -197,6 +246,28 @@ export default function SettingsPage() {
           {orgs.length === 0 && (
             <p style={{ color: 'var(--t3)', fontSize: '.85rem', textAlign: 'center', padding: '1rem' }}>Ei yhteisöjä. Luo uusi tai liity salasanalla.</p>
           )}
+
+          {/* Liity toiseen yhteisoon */}
+          <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '.78rem', fontWeight: 700, color: 'var(--t2)', marginBottom: '.35rem' }}>Liity toiseen yhteisöön</div>
+            <p style={{ fontSize: '.72rem', color: 'var(--t3)', marginBottom: '.6rem', lineHeight: 1.5 }}>
+              Syötä toisen yhteisön salasana liittyäksesi sen jäseneksi. Voit kuulua useaan yhteisöön ja vaihtaa niiden välillä.
+            </p>
+            <div style={{ display: 'flex', gap: '.5rem' }}>
+              <input
+                className="input"
+                placeholder="Yhteisön salasana"
+                value={joinCode}
+                onChange={e => { setJoinCode(e.target.value); setJoinError(''); }}
+                onKeyDown={e => { if (e.key === 'Enter') joinAnotherOrg(); }}
+                style={{ flex: 1, fontSize: '.85rem' }}
+              />
+              <button className="btn btn-primary btn-sm" onClick={joinAnotherOrg} disabled={!joinCode.trim() || joining}>
+                {joining ? 'Liitytään…' : 'Liity'}
+              </button>
+            </div>
+            {joinError && <p style={{ color: 'var(--red)', fontSize: '.75rem', marginTop: '.4rem' }}>{joinError}</p>}
+          </div>
         </div>
       </div>
 

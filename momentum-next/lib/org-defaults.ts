@@ -113,6 +113,7 @@ const ORG_DISPLAY_NAMES: Record<string, string> = {
   llff: 'Lapinlahden Elokuvajuhlat (LLFF)',
   avl: 'Aivovammaliitto (AVL)',
   juhlatoimikunta: 'Juhlatoimikunta — Sirpan 70v',
+  luuri: 'Luuri.net',
 };
 
 export function getOrgDisplayName(orgSlug: string): string {
@@ -135,6 +136,7 @@ export function getOrgChannels(orgSlug: string): string[] {
 
 const ORG_BANNERS: Record<string, string> = {
   llff: '/brand/llff-banner-2026.png',
+  luuri: '/brand/luuri-logo.gif',
   // avl: '/brand/avl-banner.png',  // lisätään kun banneri on valmis
 };
 

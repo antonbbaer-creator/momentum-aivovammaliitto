@@ -19,6 +19,8 @@ import { useIsMobile } from '@/lib/use-mobile';
 import { normalizePublication } from '@/lib/publications-shared';
 import { CommsPlan, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
 import { getOrgCommsPlan } from '@/lib/org-defaults';
+import { useHistory } from './editor/useHistory';
+import { createNordicFramesTemplates } from './editor/nordicFramesTemplate';
 
 import { softDelete, filterActive } from '@/lib/trash';
 import { workerFetch, WORKER_URL } from '@/lib/worker-fetch';
@@ -118,9 +120,42 @@ const LOGO_OPTIONS = [
 type LogoPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'top-center' | 'bottom-center' | 'center';
 
 // ========== DATA MODEL ==========
+// Slot-pohjat: lukittu layout + nimetyt slotit. Pohjan ulkopuolisia elementtejä
+// ei voi muokata täyttäjän tilassa (locked:true). Slottien avulla editori tietää,
+// mitkä elementit täyttäjä saa vaihtaa ja millä aspect-hintillä.
+type SlotRole = 'hero_image' | 'headline' | 'subheadline' | 'caption' | 'logo' | 'image' | null;
+
+interface Slot {
+  id: string;            // viittaa elementtiin: overlay.id, 'bg', 'title', 'subtitle', 'caption'
+  role: SlotRole;
+  label: string;         // UI-teksti ("Taustakuva", "Otsikko")
+  hint?: string;         // "4:5-suhde, valaistu hyvin"
+  required?: boolean;
+  aspect?: number;       // kuvasloteille esim. 4/5 = 0.8
+}
+
+interface ShadowSpec {
+  x: number;
+  y: number;
+  blur: number;
+  color: string;
+}
+
+// Marquee/text-band overlay: piirretään tekstinä, ei kuvana.
+// Käytetään Nordic Frames -pohjan lukittuun kehykseen.
+interface TextBandSpec {
+  text: string;
+  repeat: number;                    // 0 = auto, täytetään reunan leveys
+  fontFamily: string;
+  fontWeight: number;
+  fontSizePct: number;               // % canvasin lyhyestä sivusta
+  color: string;
+  side: 'top' | 'right' | 'bottom' | 'left';
+}
+
 interface ImageOverlay {
   id: string;
-  src: string;       // URL (R2 CDN or data URL)
+  src: string;       // URL (R2 CDN or data URL) — tyhjä kun kind='text-band'
   name?: string;
   x: number;         // % from left (0-100)
   y: number;         // % from top (0-100)
@@ -128,6 +163,12 @@ interface ImageOverlay {
   opacity: number;   // 0-1
   rotation: number;  // degrees
   z: number;         // stacking order within overlays (higher = on top)
+  // Vaiheen 3 lisäykset — kaikki valinnaisia, oletuksena pois päältä:
+  locked?: boolean;           // template-pohjassa kehys/koriste lukitaan täyttäjältä
+  cornerRadius?: number;      // 0–50% lyhyestä sivusta (kuvan pyöristys)
+  shadow?: ShadowSpec | null; // drop shadow kuvalle tai tekstille
+  kind?: 'image' | 'text-band';
+  textBand?: TextBandSpec;    // vain kun kind='text-band'
 }
 
 // Per-slide content — karusellissa on yksi Slide per pohja
@@ -155,6 +196,15 @@ interface Slide {
   logoId: string;
   logoPos: LogoPosition;
   logoSizePct: number;
+  // Vaiheen 3 lisäykset — kaikki valinnaisia:
+  bgTint?: { color: string; opacity: number } | null;  // värillinen tint taustakuvan päälle
+  titleShadow?: ShadowSpec | null;
+  subtitleShadow?: ShadowSpec | null;
+  captionShadow?: ShadowSpec | null;
+  titleFont?: string;
+  subtitleFont?: string;
+  captionFont?: string;
+  slots?: Slot[];  // mitkä elementit ovat täyttäjän muokattavissa (muut lukittu kun isTemplate)
 }
 
 interface Design {
@@ -166,6 +216,14 @@ interface Design {
   updatedAt: number;
   thumbnail?: string;
   deletedAt?: number;
+  // Vaiheen 3 lisäykset:
+  isTemplate?: boolean;      // näkyy Pohjat-välilehdellä; ei-slot-elementit lukittuja täyttäjältä
+  templateMeta?: {
+    title: string;
+    description?: string;
+    channels?: string[];     // esim. ['instagram-post']
+    aspectLabel?: string;    // esim. '4:5'
+  };
 }
 
 interface MediaFile {
@@ -455,7 +513,17 @@ export default function EditorSection() {
   const [org] = useOrgData<any>('org', { channels: [] });
   const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', getOrgCommsPlan(orgSlug));
   const [currentId, setCurrentId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Design>(() => blankDesign());
+  // Design-tason undo/redo: kaikki setDraft-mutaatiot tallentuvat stackiin.
+  // resetDraft tyhjentää historian (käytetään kun design ladataan tai vaihdetaan).
+  const {
+    state: draft,
+    setState: setDraft,
+    undo,
+    redo,
+    reset: resetDraft,
+    canUndo,
+    canRedo,
+  } = useHistory<Design>(() => blankDesign());
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [mediaLoading, setMediaLoading] = useState(false);
@@ -522,7 +590,7 @@ export default function EditorSection() {
     if (pub.designId && Array.isArray(designs)) {
       const existingDesign = designs.find((d: any) => d && d.id === pub.designId);
       if (existingDesign) {
-        setDraft(normalizeDesign(existingDesign));
+        resetDraft(normalizeDesign(existingDesign));
         setCurrentId(existingDesign.id);
         setCurrentSlideIndex(0);
         setSelectedOverlayId(null);
@@ -561,7 +629,7 @@ export default function EditorSection() {
       logoId: 'none',
     }));
 
-    setDraft({
+    resetDraft({
       id: 'design_' + Date.now(),
       name: pub.title || 'Julkaisu ' + linkedPubId,
       templateId: 'ig-portrait',
@@ -688,9 +756,11 @@ export default function EditorSection() {
     LOGO_OPTIONS.forEach(lo => {
       if (lo.src) loadImageIntoCache(lo.src, logoCache.current);
     });
-    // Overlays across all slides
+    // Overlays across all slides (text-band-tyyppisissä ei ole kuvaa)
     draft.slides.forEach(s => {
       s.overlays.forEach(o => {
+        if (o.kind === 'text-band') return;
+        if (!o.src) return;
         loadImageIntoCache(o.src, overlayCache.current);
       });
     });
@@ -757,6 +827,46 @@ export default function EditorSection() {
     // Overlays
     const sortedOverlays = [...slide.overlays].sort((a, b) => a.z - b.z);
     for (const ov of sortedOverlays) {
+      // Text-band (marquee-kehys): piirretään toistuvana tekstinä valitulle reunalle.
+      // Käytössä mm. Nordic Frames -pohjan lukituissa kehyksissä.
+      if (ov.kind === 'text-band' && ov.textBand) {
+        const tb = ov.textBand;
+        const shortSide = Math.min(w, h);
+        const fontSize = Math.max(6, Math.round(shortSide * (tb.fontSizePct / 100)));
+        ctx.save();
+        ctx.globalAlpha = ov.opacity ?? 1;
+        ctx.fillStyle = tb.color;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.font = `${tb.fontWeight} ${fontSize}px "${tb.fontFamily}", "DM Sans", system-ui, sans-serif`;
+
+        const edgePad = shortSide * 0.028;
+        const edgeLen = (tb.side === 'top' || tb.side === 'bottom') ? w : h;
+
+        let cx = 0, cy = 0, rot = 0;
+        switch (tb.side) {
+          case 'top':    cx = w / 2; cy = edgePad + fontSize / 2;      rot = 0; break;
+          case 'bottom': cx = w / 2; cy = h - edgePad - fontSize / 2;  rot = Math.PI; break;
+          case 'left':   cx = edgePad + fontSize / 2; cy = h / 2;      rot = -Math.PI / 2; break;
+          case 'right':  cx = w - edgePad - fontSize / 2; cy = h / 2;  rot =  Math.PI / 2; break;
+        }
+        ctx.translate(cx, cy);
+        ctx.rotate(rot);
+
+        const unit = tb.text || '';
+        const unitW = Math.max(1, ctx.measureText(unit).width);
+        const reps = tb.repeat && tb.repeat > 0
+          ? tb.repeat
+          : Math.max(1, Math.ceil(edgeLen / unitW) + 1);
+        const totalW = reps * unitW;
+        const startX = -totalW / 2;
+        for (let i = 0; i < reps; i++) {
+          ctx.fillText(unit, startX + i * unitW, 0);
+        }
+        ctx.restore();
+        continue;
+      }
+
       const img = overlayCache.current.get(ov.src);
       if (!img || !img.complete || img.naturalWidth === 0) continue;
       const ovW = w * (ov.widthPct / 100);
@@ -856,7 +966,7 @@ export default function EditorSection() {
   };
 
   const startNew = (templateId?: string) => {
-    setDraft(blankDesign(templateId));
+    resetDraft(blankDesign(templateId));
     setCurrentId(null);
     setCurrentSlideIndex(0);
     setSelectedOverlayId(null);
@@ -865,10 +975,58 @@ export default function EditorSection() {
   const loadDesign = (id: string) => {
     const d = designs.find(x => x.id === id);
     if (!d) return;
-    setDraft(normalizeDesign(d));
+    resetDraft(normalizeDesign(d));
     setCurrentId(id);
     setCurrentSlideIndex(0);
     setSelectedOverlayId(null);
+  };
+
+  // Lataa pohjan uudeksi draftiksi: kopioidaan sisältö, annetaan uusi id ja
+  // nollataan isTemplate → tallennus tekee siitä tavallisen suunnitelman.
+  // Lukitut overlayt (esim. marquee-kehys) pysyvät locked:true jotta täyttäjä
+  // ei voi vahingossa valita niitä.
+  const loadTemplateAsDraft = (templateId: string) => {
+    const t = designs.find(x => x.id === templateId);
+    if (!t) return;
+    const base = normalizeDesign(t);
+    const newId = 'design_' + Date.now();
+    const cloned: Design = {
+      ...base,
+      id: newId,
+      // Anna uudet idt slideille ja overlayille jotta vältetään viittausten törmäys
+      slides: base.slides.map(s => ({
+        ...s,
+        id: 'slide_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+        overlays: s.overlays.map(o => ({
+          ...o,
+          id: 'ov_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+        })),
+      })),
+      isTemplate: false,
+      templateMeta: undefined,
+      name: (base.templateMeta?.title || base.name) + ' — luonnos',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    resetDraft(cloned);
+    setCurrentId(null);
+    setCurrentSlideIndex(0);
+    setSelectedOverlayId(null);
+  };
+
+  // Asenna Nordic Frames -pohjat Firestoreen (kerran; idempotentti nimellä).
+  const installNordicFramesTemplates = () => {
+    const existingNames = new Set(
+      designs.filter(d => d.isTemplate).map(d => d.name || '')
+    );
+    const seeds = createNordicFramesTemplates() as unknown as Design[];
+    const missing = seeds.filter(s => !existingNames.has(s.name));
+    if (missing.length === 0) {
+      toast('Nordic Frames -pohjat on jo asennettu', 'success');
+      return;
+    }
+    setDesigns(prev => [...missing, ...prev]);
+    toast(`Asennettu ${missing.length} Nordic Frames -pohjaa`, 'success');
   };
 
   const saveDesign = async () => {
@@ -893,14 +1051,14 @@ export default function EditorSection() {
       const newDesign = { ...toSave, id: newId, createdAt: Date.now() };
       setDesigns(prev => [newDesign, ...prev]);
       setCurrentId(newId);
-      setDraft(newDesign);
+      resetDraft(newDesign);
       toast('Suunnitelma tallennettu', 'success');
     }
   };
 
   const deleteDesign = (id: string) => {
     setDesigns(prev => softDelete(prev, id));
-    if (currentId === id) { setCurrentId(null); setDraft(blankDesign()); setCurrentSlideIndex(0); }
+    if (currentId === id) { setCurrentId(null); resetDraft(blankDesign()); setCurrentSlideIndex(0); }
     toast('Siirretty roskakoriin', 'success');
   };
 
@@ -1284,11 +1442,19 @@ export default function EditorSection() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const updateOverlay = (id: string, patch: Partial<ImageOverlay>) => {
-    mutateSlide(s => ({
-      ...s,
-      overlays: s.overlays.map(o => o.id === id ? { ...o, ...patch } : o),
-    }));
+  const updateOverlay = (
+    id: string,
+    patch: Partial<ImageOverlay>,
+    opts?: { coalesce?: string }
+  ) => {
+    setDraft(prev => {
+      const nextSlides = prev.slides.map((s, i) =>
+        i === safeSlideIndex
+          ? { ...s, overlays: s.overlays.map(o => (o.id === id ? { ...o, ...patch } : o)) }
+          : s
+      );
+      return { ...prev, slides: nextSlides, updatedAt: Date.now() };
+    }, opts);
   };
 
   const removeOverlay = (id: string) => {
@@ -1393,6 +1559,10 @@ export default function EditorSection() {
     // Iterate overlays in reverse z-order (topmost first)
     const sorted = [...currentSlide.overlays].sort((a, b) => b.z - a.z);
     for (const ov of sorted) {
+      // Lukitut elementit (esim. marquee-kehys) eivät ole valittavissa täyttäjän tilassa.
+      // Designer-tila ohittaa tämän myöhemmin.
+      if (ov.locked) continue;
+      if (ov.kind === 'text-band') continue; // text-band ei käytä kuvaa, eikä ole valittava
       const img = overlayCache.current.get(ov.src);
       if (!img) continue;
       const ovW = template.w * (ov.widthPct / 100);
@@ -1493,6 +1663,8 @@ export default function EditorSection() {
     const d = dragState.current;
     if (!d) return;
 
+    const coalesceKey = `drag-${d.id}-${d.handle}`;
+
     if (d.handle === 'move') {
       const pct = clientToPct(e.clientX, e.clientY);
       if (!pct || d.startXPct == null || d.origX == null) return;
@@ -1501,7 +1673,7 @@ export default function EditorSection() {
       updateOverlay(d.id, {
         x: Math.max(-50, Math.min(150, (d.origX) + dx)),
         y: Math.max(-50, Math.min(150, (d.origY ?? 0) + dy)),
-      });
+      }, { coalesce: coalesceKey });
       return;
     }
 
@@ -1515,7 +1687,7 @@ export default function EditorSection() {
       // Normalisoi [-180, 180]
       while (newRot > 180) newRot -= 360;
       while (newRot <= -180) newRot += 360;
-      updateOverlay(d.id, { rotation: Math.round(newRot) });
+      updateOverlay(d.id, { rotation: Math.round(newRot) }, { coalesce: coalesceKey });
       return;
     }
 
@@ -1547,7 +1719,7 @@ export default function EditorSection() {
       widthPct: Math.max(2, Math.min(200, newWidthPct)),
       x: Math.max(-50, Math.min(150, newX)),
       y: Math.max(-50, Math.min(150, newY)),
-    });
+    }, { coalesce: coalesceKey });
   };
 
   const onCanvasPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -1563,6 +1735,15 @@ export default function EditorSection() {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
                 t.tagName === 'SELECT' || t.isContentEditable)) return;
+      const metaHeld = e.metaKey || e.ctrlKey;
+      // Undo / redo toimii globaalisti (ei vaadi overlay-valintaa) kun modaali ei ole auki.
+      if (metaHeld && !showMediaPicker && !showPublishModal &&
+          (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
       if (showMediaPicker) {
         if (e.key === 'Escape') setShowMediaPicker(false);
         return;
@@ -1575,7 +1756,7 @@ export default function EditorSection() {
         if (e.key === 'Escape') setSelectedOverlayId(null);
         return;
       }
-      const isMeta = e.metaKey || e.ctrlKey;
+      const isMeta = metaHeld;
       // Delete / Backspace → remove
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
@@ -1748,6 +1929,72 @@ export default function EditorSection() {
         <div style={{ overflowY: 'auto', padding: '.85rem', minHeight: 0 }}>
           {sidebarTab === 'templates' && (
             <div>
+              {/* ========= POHJAT — isTemplate:true -designit ========= */}
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                marginBottom: '.5rem',
+              }}>
+                <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                  Pohjat ({filterActive(designs).filter(d => d.isTemplate).length})
+                </div>
+                {canEdit && (
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={installNordicFramesTemplates}
+                    style={{ fontSize: '.62rem', padding: '.15rem .4rem' }}
+                    title="Lisää Nordic Frames -pohjat Firestoreen"
+                  >
+                    + Nordic Frames
+                  </button>
+                )}
+              </div>
+              {filterActive(designs).filter(d => d.isTemplate).length === 0 ? (
+                <div style={{ fontSize: '.64rem', color: 'var(--t3)', padding: '.4rem .1rem', lineHeight: 1.4 }}>
+                  Ei pohjia vielä. {canEdit && (
+                    <span>Paina <b>+ Nordic Frames</b> yllä asentaaksesi kaksi ensimmäistä pohjaa.</span>
+                  )}
+                </div>
+              ) : (
+                filterActive(designs).filter(d => d.isTemplate).map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => loadTemplateAsDraft(t.id)}
+                    style={{
+                      display: 'flex', alignItems: 'flex-start', gap: '.45rem',
+                      width: '100%', textAlign: 'left',
+                      padding: '.45rem', marginBottom: '.25rem',
+                      background: 'transparent',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--r)', cursor: 'pointer',
+                    }}
+                  >
+                    {t.thumbnail ? (
+                      <img src={t.thumbnail} alt="" style={{ width: 40, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }} />
+                    ) : (
+                      <div style={{
+                        width: 40, height: 50, background: '#1a1a1a',
+                        borderRadius: 3, flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: 'rgba(255,255,255,.7)', fontSize: '.5rem', fontWeight: 700, letterSpacing: '.05em',
+                      }}>
+                        NF
+                      </div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '.7rem', fontWeight: 600, color: 'var(--t1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {t.templateMeta?.title || t.name}
+                      </div>
+                      <div style={{ fontSize: '.56rem', color: 'var(--t3)', lineHeight: 1.35, marginTop: '.1rem' }}>
+                        {t.templateMeta?.aspectLabel || TEMPLATES.find(tp => tp.id === t.templateId)?.label}
+                        {t.templateMeta?.description ? ` · ${t.templateMeta.description}` : ''}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+
+              <div style={{ marginTop: '.9rem', paddingTop: '.7rem', borderTop: '1px solid var(--border)' }} />
+
               <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>
                 Mallipohjat
               </div>
@@ -1806,7 +2053,7 @@ export default function EditorSection() {
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.5rem',
               }}>
                 <div style={{ fontSize: '.68rem', fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-                  Tallennetut ({filterActive(designs).length})
+                  Tallennetut ({filterActive(designs).filter(d => !d.isTemplate).length})
                 </div>
                 {canEdit && (
                   <button className="btn btn-ghost btn-sm" onClick={() => startNew(draft.templateId)} style={{ fontSize: '.62rem', padding: '.15rem .4rem' }}>
@@ -1814,12 +2061,12 @@ export default function EditorSection() {
                   </button>
                 )}
               </div>
-              {filterActive(designs).length === 0 && (
+              {filterActive(designs).filter(d => !d.isTemplate).length === 0 && (
                 <div style={{ fontSize: '.65rem', color: 'var(--t3)', textAlign: 'center', padding: '.5rem' }}>
                   Ei tallennettuja
                 </div>
               )}
-              {filterActive(designs).map(d => (
+              {filterActive(designs).filter(d => !d.isTemplate).map(d => (
                 <div
                   key={d.id}
                   onClick={() => loadDesign(d.id)}
@@ -2262,6 +2509,30 @@ export default function EditorSection() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+            {canEdit && (
+              <>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={undo}
+                  disabled={!canUndo}
+                  title="Peru (⌘Z)"
+                  aria-label="Peru"
+                  style={{ opacity: canUndo ? 1 : 0.35, minWidth: 32 }}
+                >
+                  ↶
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={redo}
+                  disabled={!canRedo}
+                  title="Uudista (⌘⇧Z)"
+                  aria-label="Uudista"
+                  style={{ opacity: canRedo ? 1 : 0.35, minWidth: 32 }}
+                >
+                  ↷
+                </button>
+              </>
+            )}
             <button className="btn btn-ghost btn-sm" onClick={() => openMediaPickerFor('overlay')} title="Lisää kuva editoriin mediapankista">
               Mediapankki
             </button>

@@ -55,10 +55,38 @@ export default function MuistiinpanotPage() {
   const [newActionText, setNewActionText] = useState('');
   const [newActionAssignee, setNewActionAssignee] = useState('');
 
+  // Text-to-speech state
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const readAloud = useCallback((text: string) => {
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'fi-FI';
+    utterance.rate = 1.0;
+    // Try to find Finnish voice
+    const voices = window.speechSynthesis.getVoices();
+    const fiVoice = voices.find(v => v.lang.startsWith('fi'));
+    if (fiVoice) utterance.voice = fiVoice;
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  }, [isSpeaking]);
+
+  // Stop speech on unmount or note change
+  useEffect(() => {
+    return () => { window.speechSynthesis.cancel(); };
+  }, [selectedNote]);
+
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [transcribing, setTranscribing] = useState(false);
+  const [hasRecovery, setHasRecovery] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -306,9 +334,67 @@ Paivitetty yhteenveto:`;
     toast(`Tehtävä luotu: ${item.assignee || 'Ei tekijää'}`, 'success');
   };
 
+  // ── IndexedDB: save chunks progressively during recording ──
+  const DB_NAME = 'hetki_recording';
+  const STORE_NAME = 'chunks';
+
+  const openIDB = useCallback((): Promise<IDBDatabase> => {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => { req.result.createObjectStore(STORE_NAME); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }, []);
+
+  const saveChunkToIDB = useCallback(async (chunk: Blob, index: number) => {
+    try {
+      const db = await openIDB();
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).put(chunk, index);
+      tx.objectStore(STORE_NAME).put({ count: index + 1, mimeType: chunk.type, ts: Date.now() }, 'meta');
+      db.close();
+    } catch { /* silently fail */ }
+  }, [openIDB]);
+
+  const clearIDB = useCallback(async () => {
+    try {
+      const db = await openIDB();
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).clear();
+      db.close();
+    } catch { /* ignore */ }
+    setHasRecovery(false);
+  }, [openIDB]);
+
+  const recoverFromIDB = useCallback(async (): Promise<Blob | null> => {
+    try {
+      const db = await openIDB();
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const meta = await new Promise<{ count: number; mimeType: string; ts: number } | undefined>((res) => {
+        const r = store.get('meta'); r.onsuccess = () => res(r.result); r.onerror = () => res(undefined);
+      });
+      if (!meta || !meta.count) { db.close(); return null; }
+      const chunks: Blob[] = [];
+      for (let i = 0; i < meta.count; i++) {
+        const chunk = await new Promise<Blob | undefined>((res) => {
+          const r = store.get(i); r.onsuccess = () => res(r.result); r.onerror = () => res(undefined);
+        });
+        if (chunk) chunks.push(chunk);
+      }
+      db.close();
+      if (chunks.length === 0) return null;
+      return new Blob(chunks, { type: meta.mimeType || 'audio/webm' });
+    } catch { return null; }
+  }, [openIDB]);
+
   // ── Recording ──
+  const chunkIndexRef = useRef(0);
+
   const startRecording = useCallback(async () => {
     try {
+      await clearIDB();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
@@ -318,8 +404,12 @@ Paivitetty yhteenveto:`;
         audioBitsPerSecond: 32000, // 32 kbps — tunti ~ 14 MB
       });
       audioChunksRef.current = [];
+      chunkIndexRef.current = 0;
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+          saveChunkToIDB(e.data, chunkIndexRef.current++);
+        }
       };
       recorder.start(1000);
       mediaRecorderRef.current = recorder;
@@ -327,9 +417,9 @@ Paivitetty yhteenveto:`;
       setRecordingTime(0);
       timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
     } catch {
-      toast('Mikrofonin käyttö ei onnistunut', 'error');
+      toast('Mikrofonin kaytto ei onnistunut', 'error');
     }
-  }, [toast]);
+  }, [toast, clearIDB, saveChunkToIDB]);
 
   const stopRecording = useCallback(() => {
     const recorder = mediaRecorderRef.current;
@@ -350,6 +440,29 @@ Paivitetty yhteenveto:`;
   useEffect(() => {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
+
+  // ── Beforeunload warning during recording ──
+  useEffect(() => {
+    if (!isRecording) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isRecording]);
+
+  // Check for recovery on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const db = await openIDB();
+        const tx = db.transaction('chunks', 'readonly');
+        const meta = await new Promise<{ count: number; ts: number } | undefined>((res) => {
+          const r = tx.objectStore('chunks').get('meta'); r.onsuccess = () => res(r.result); r.onerror = () => res(undefined);
+        });
+        db.close();
+        if (meta && meta.count > 0) setHasRecovery(true);
+      } catch { /* no recovery */ }
+    })();
+  }, [openIDB]);
 
   // ── Send one audio blob to Whisper ──
   const transcribeChunk = useCallback(async (blob: Blob, filename: string): Promise<string> => {
@@ -392,8 +505,9 @@ Paivitetty yhteenveto:`;
     setNContent(transcription);
     if (!nTitle) setNTitle('Litteroitu ' + new Date().toISOString().split('T')[0]);
     setShowForm(true);
+    clearIDB();
     toast('Litterointi valmis', 'success');
-  }, [activeOrg, nTitle, toast]);
+  }, [activeOrg, nTitle, toast, clearIDB]);
 
   // ── Transcription flow (supports large files via audio decoding + WAV chunking) ──
   const transcribeAudio = useCallback(async (audioBlob: Blob) => {
@@ -539,15 +653,24 @@ Paivitetty yhteenveto:`;
               <div style={{ fontSize: '.68rem', fontWeight: 700, color: '#9b7cf6', textTransform: 'uppercase', letterSpacing: '.05em' }}>
                 AI-yhteenveto
               </div>
-              {canEdit && !editingSummary && (
+              <div style={{ display: 'flex', gap: '.3rem' }}>
                 <button
                   className="btn btn-ghost btn-sm"
-                  onClick={() => startEditSummary(detail)}
-                  style={{ fontSize: '.65rem', color: '#9b7cf6', padding: '.2rem .5rem' }}
+                  onClick={() => readAloud(detail.summary || '')}
+                  style={{ fontSize: '.65rem', color: isSpeaking ? 'var(--red)' : 'var(--pri)', padding: '.2rem .5rem' }}
                 >
-                  Muokkaa tekstia
+                  {isSpeaking ? 'Pysayta' : 'Lue aaneen'}
                 </button>
-              )}
+                {canEdit && !editingSummary && (
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => startEditSummary(detail)}
+                    style={{ fontSize: '.65rem', color: '#9b7cf6', padding: '.2rem .5rem' }}
+                  >
+                    Muokkaa tekstia
+                  </button>
+                )}
+              </div>
             </div>
 
             {editingSummary ? (
@@ -609,15 +732,27 @@ Paivitetty yhteenveto:`;
                   <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginTop: '.35rem' }}>
                     <select
                       value={item.assignee}
-                      onChange={e => canEdit && updateActionItem(detail.id, idx, { assignee: e.target.value })}
-                      disabled={!canEdit || item.confirmed}
+                      onChange={e => {
+                        if (!canEdit) return;
+                        updateActionItem(detail.id, idx, { assignee: e.target.value });
+                        // If already confirmed, also update the task
+                        if (item.confirmed) {
+                          setTasks(prev => prev.map(t =>
+                            t.note?.includes(detail.title) && t.text === item.text
+                              ? { ...t, assignee: e.target.value || undefined }
+                              : t
+                          ));
+                          toast('Tehtavan tekija paivitetty', 'success');
+                        }
+                      }}
+                      disabled={!canEdit}
                       style={{
                         fontSize: '.7rem', padding: '.2rem .4rem', borderRadius: 'var(--r)',
                         background: 'var(--elev)', border: '1px solid var(--border)', color: 'var(--t1)',
                         fontWeight: 600, cursor: canEdit ? 'pointer' : 'default',
                       }}
                     >
-                      <option value="">Ei tekijää</option>
+                      <option value="">Ei tekijaa</option>
                       <option value="Kaikki">Kaikki</option>
                       {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                     </select>
@@ -630,7 +765,7 @@ Paivitetty yhteenveto:`;
                       onClick={() => createTaskFromAction(detail.id, idx)}
                       style={{ fontSize: '.65rem', padding: '.3rem .6rem', whiteSpace: 'nowrap' }}
                     >
-                      Luo tehtävä
+                      Luo tehtava
                     </button>
                     <button
                       className="btn btn-ghost btn-sm"
@@ -708,7 +843,7 @@ Paivitetty yhteenveto:`;
         {/* Clean transcription — collapsible when summary exists */}
         {detail.cleanTranscription && (
           detail.summary ? (
-            <TranscriptionCollapsible text={detail.cleanTranscription} label="Kiteytetty litterointi" />
+            <TranscriptionCollapsible text={detail.cleanTranscription} label="Kiteytetty litterointi" onReadAloud={readAloud} isSpeaking={isSpeaking} />
           ) : (
             <div style={{
               background: 'linear-gradient(135deg, rgba(5,107,159,.04), rgba(24,94,91,.04))',
@@ -727,7 +862,7 @@ Paivitetty yhteenveto:`;
 
         {/* Content - collapsible when summary exists */}
         {detail.summary ? (
-          <TranscriptionCollapsible text={detail.content} label="Alkuperainen muistiinpano" />
+          <TranscriptionCollapsible text={detail.content} label="Alkuperainen muistiinpano" onReadAloud={readAloud} isSpeaking={isSpeaking} />
         ) : (
           <div style={{
             background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
@@ -740,23 +875,34 @@ Paivitetty yhteenveto:`;
 
         {/* Raw transcription (collapsible) */}
         {detail.rawTranscription && detail.rawTranscription !== detail.content && (
-          <TranscriptionCollapsible text={detail.rawTranscription} label="Raaka litterointi" />
+          <TranscriptionCollapsible text={detail.rawTranscription} label="Raaka litterointi" onReadAloud={readAloud} isSpeaking={isSpeaking} />
         )}
 
-        {canEdit && (
-          <div style={{ display: 'flex', gap: '.5rem' }}>
-            <button className="btn btn-secondary btn-sm" onClick={() => openEdit(detail)}>Muokkaa</button>
+        <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+          {!detail.summary && (
             <button
               className="btn btn-ghost btn-sm"
-              onClick={() => requestSummary(detail.id)}
-              disabled={summarizing}
-              style={{ color: '#9b7cf6' }}
+              onClick={() => readAloud(detail.content)}
+              style={{ color: isSpeaking ? 'var(--red)' : 'var(--pri)' }}
             >
-              {summarizing ? 'Luodaan...' : detail.summary ? 'Päivitä yhteenveto' : 'Luo AI-yhteenveto'}
+              {isSpeaking ? 'Pysayta lukeminen' : 'Lue aaneen'}
             </button>
-            <button className="btn btn-ghost btn-sm" onClick={() => remove(detail.id)} style={{ color: 'var(--red)', marginLeft: 'auto' }}>Poista</button>
-          </div>
-        )}
+          )}
+          {canEdit && (
+            <>
+              <button className="btn btn-secondary btn-sm" onClick={() => openEdit(detail)}>Muokkaa</button>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => requestSummary(detail.id)}
+                disabled={summarizing}
+                style={{ color: '#9b7cf6' }}
+              >
+                {summarizing ? 'Luodaan...' : detail.summary ? 'Paivita yhteenveto' : 'Luo AI-yhteenveto'}
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => remove(detail.id)} style={{ color: 'var(--red)', marginLeft: 'auto' }}>Poista</button>
+            </>
+          )}
+        </div>
       </AppShell>
     );
   }
@@ -820,8 +966,44 @@ Paivitetty yhteenveto:`;
           display: 'flex', alignItems: 'center', gap: '.75rem',
         }}>
           <span style={{ fontSize: '.88rem', fontWeight: 600, color: 'var(--pri)' }}>
-            Litteroidaan ja kiteytetään...
+            Litteroidaan ja kiteytetaan...
           </span>
+        </div>
+      )}
+
+      {/* Recovery banner */}
+      {hasRecovery && !isRecording && !transcribing && (
+        <div style={{
+          background: 'rgba(241,180,52,.06)', border: '1px solid rgba(241,180,52,.25)',
+          borderRadius: 'var(--r)', padding: '1rem 1.2rem', marginBottom: '1rem',
+          display: 'flex', alignItems: 'center', gap: '.75rem',
+        }}>
+          <span style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--t1)' }}>
+            Keskeytetty aanite loydetty. Haluatko palauttaa ja litteroida sen?
+          </span>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={async () => {
+              const blob = await recoverFromIDB();
+              if (blob) {
+                setHasRecovery(false);
+                await transcribeAudio(blob);
+              } else {
+                toast('Aanitetta ei voitu palauttaa', 'error');
+                clearIDB();
+              }
+            }}
+            style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}
+          >
+            Palauta ja litteroi
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => clearIDB()}
+            style={{ color: 'var(--t3)', whiteSpace: 'nowrap' }}
+          >
+            Hylkaa
+          </button>
         </div>
       )}
 
@@ -977,25 +1159,42 @@ function encodeAudioBufferToWav(buffer: AudioBuffer, startSample: number, endSam
   return new Blob([ab], { type: 'audio/wav' });
 }
 
-function TranscriptionCollapsible({ text, label = 'Raaka litterointi' }: { text: string; label?: string }) {
+function TranscriptionCollapsible({ text, label = 'Raaka litterointi', onReadAloud, isSpeaking }: { text: string; label?: string; onReadAloud?: (text: string) => void; isSpeaking?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <div style={{
       border: '1px solid var(--border)', borderRadius: 'var(--rl)',
       marginBottom: '1.25rem', overflow: 'hidden',
     }}>
-      <button
-        onClick={() => setOpen(!open)}
-        style={{
-          width: '100%', background: 'var(--elev)', border: 'none', padding: '.75rem 1.25rem',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          cursor: 'pointer', fontSize: '.72rem', fontWeight: 700, color: 'var(--t2)',
-          textTransform: 'uppercase', letterSpacing: '.05em',
-        }}
-      >
-        <span>{label}</span>
-        <span style={{ fontSize: '.8rem' }}>{open ? '[-]' : '[+]'}</span>
-      </button>
+      <div style={{
+        background: 'var(--elev)', padding: '.75rem 1.25rem',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <button
+          onClick={() => setOpen(!open)}
+          style={{
+            background: 'none', border: 'none', padding: 0,
+            cursor: 'pointer', fontSize: '.72rem', fontWeight: 700, color: 'var(--t2)',
+            textTransform: 'uppercase', letterSpacing: '.05em',
+            display: 'flex', alignItems: 'center', gap: '.5rem',
+          }}
+        >
+          <span>{label}</span>
+          <span style={{ fontSize: '.8rem' }}>{open ? '[-]' : '[+]'}</span>
+        </button>
+        {onReadAloud && (
+          <button
+            onClick={() => onReadAloud(text)}
+            style={{
+              background: 'none', border: 'none', padding: '.2rem .5rem',
+              cursor: 'pointer', fontSize: '.65rem', fontWeight: 600,
+              color: isSpeaking ? 'var(--red)' : 'var(--pri)',
+            }}
+          >
+            {isSpeaking ? 'Pysayta' : 'Lue aaneen'}
+          </button>
+        )}
+      </div>
       {open && (
         <div style={{
           padding: '1.25rem', fontSize: '.82rem', lineHeight: 1.7,

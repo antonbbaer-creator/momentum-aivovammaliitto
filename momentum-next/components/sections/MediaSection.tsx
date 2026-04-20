@@ -10,7 +10,7 @@ import { useIsMobile } from '@/lib/use-mobile';
 import { workerFetch, WORKER_URL } from '@/lib/worker-fetch';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
 
-interface MediaFile { id: string; name: string; size: number; type: string; ext: string; path: string; thumb: string; folder: string; source: string; r2Key?: string; added?: string; }
+interface MediaFile { id: string; name: string; size: number; type: string; ext: string; path: string; thumb: string; fullUrl: string; folder: string; source: string; r2Key?: string; added?: string; }
 
 // sessionStorage handoff key read by EditorSection on mount
 export const EDITOR_HANDOFF_KEY = 'momentum_editor_handoff';
@@ -70,6 +70,7 @@ export default function MediaSection() {
               ext,
               path: origPath,
               thumb: thumbPath,
+              fullUrl: f.publicUrl || origPath,
               folder: f.key.split('/')[1] || 'uploaded',
               source: 'r2',
               r2Key: f.key,
@@ -133,6 +134,26 @@ export default function MediaSection() {
     return arr;
   }, [allFiles, search, sortBy, getMeta]);
 
+  // ── Download full-quality file via fetch+blob (works cross-origin) ──
+  const downloadFile = useCallback(async (file: MediaFile) => {
+    const url = file.fullUrl || file.path || file.thumb;
+    if (!url) return;
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      // Fallback: open in new tab
+      window.open(url, '_blank');
+    }
+  }, []);
+
   // ── Selection helpers ──
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -156,7 +177,7 @@ export default function MediaSection() {
     if (selectedFiles.length === 0) { toast('Valitse vähintään yksi kuva', 'error'); return; }
     const handoff = {
       images: selectedFiles.map(f => ({
-        url: f.path || f.thumb,
+        url: f.fullUrl || f.path || f.thumb,
         name: f.name,
         id: f.id,
       })),
@@ -273,6 +294,7 @@ export default function MediaSection() {
             type: isImg ? 'image' : 'other', ext,
             path: origPath,
             thumb: isImg ? (data.hasThumb && data.thumbUrl ? data.thumbUrl : origPath) : '',
+            fullUrl: data.publicUrl || origPath,
             folder: 'uploaded', source: 'r2',
             r2Key: data.key, added: data.uploaded || new Date().toISOString().slice(0, 10),
           };
@@ -302,7 +324,7 @@ export default function MediaSection() {
       newLocal.push({
         id: 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2),
         name: file.name, size: file.size, type: isImg ? 'image' : 'other', ext,
-        path: '', thumb: thumbUrl, folder: 'uploaded', source: 'local',
+        path: '', thumb: thumbUrl, fullUrl: '', folder: 'uploaded', source: 'local',
         added: new Date().toISOString().slice(0, 10),
       });
     }
@@ -535,7 +557,7 @@ export default function MediaSection() {
               {detailIdx < sorted.length - 1 && (
                 <button onClick={e => { e.stopPropagation(); setDetailIdx(detailIdx + 1); }} style={{ position: 'absolute', right: '.5rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,.6)', border: '1px solid rgba(255,255,255,.1)', color: '#fff', fontSize: '1.3rem', width: 44, height: 44, borderRadius: '50%', cursor: 'pointer', zIndex: 10, backdropFilter: 'blur(8px)' }}>{'→'}</button>
               )}
-              {detail.type === 'image' && <img src={detail.path || detail.thumb} alt="" style={{ maxWidth: 'calc(100% - 100px)', maxHeight: '85vh', objectFit: 'contain', borderRadius: 'var(--r)', boxShadow: '0 8px 40px rgba(0,0,0,.5)' }} onClick={e => e.stopPropagation()} />}
+              {detail.type === 'image' && <img src={detail.fullUrl || detail.path || detail.thumb} alt="" style={{ maxWidth: 'calc(100% - 100px)', maxHeight: '85vh', objectFit: 'contain', borderRadius: 'var(--r)', boxShadow: '0 8px 40px rgba(0,0,0,.5)' }} onClick={e => e.stopPropagation()} />}
             </div>
 
             <div style={{ width: 320, flexShrink: 0, background: 'var(--card)', borderLeft: '1px solid var(--border)', padding: '1.25rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', height: '100%' }} onClick={e => e.stopPropagation()}>
@@ -563,8 +585,8 @@ export default function MediaSection() {
                   {detail.added && <div><strong>Lisätty:</strong> {detail.added}</div>}
                 </div>
 
-                <a href={detail.path || detail.thumb} download={detail.name} className="btn btn-sm btn-primary" style={{ marginTop: '.75rem', width: '100%', textDecoration: 'none', textAlign: 'center', display: 'block', fontSize: '.75rem', fontWeight: 600 }}>Lataa tiedosto</a>
-                <button className="btn btn-sm btn-secondary" onClick={() => { navigator.clipboard.writeText(detail.path || detail.thumb || ''); toast('Linkki kopioitu', 'success'); }} style={{ marginTop: '.4rem', width: '100%', fontSize: '.75rem', fontWeight: 600 }}>Kopioi linkki</button>
+                <button className="btn btn-sm btn-primary" onClick={() => downloadFile(detail)} style={{ marginTop: '.75rem', width: '100%', fontSize: '.75rem', fontWeight: 600 }}>Lataa tiedosto (alkuperainen)</button>
+                <button className="btn btn-sm btn-secondary" onClick={() => { navigator.clipboard.writeText(detail.fullUrl || detail.path || detail.thumb || ''); toast('Linkki kopioitu', 'success'); }} style={{ marginTop: '.4rem', width: '100%', fontSize: '.75rem', fontWeight: 600 }}>Kopioi linkki</button>
                 {canEdit && (
                   <button className="btn btn-sm" onClick={() => deleteFile(detail)} style={{ marginTop: '.4rem', width: '100%', color: 'var(--red)', border: '1px solid rgba(239,68,68,.3)', background: 'rgba(239,68,68,.05)', fontSize: '.75rem', fontWeight: 600 }}>Poista tiedosto</button>
                 )}

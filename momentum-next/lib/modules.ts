@@ -90,9 +90,29 @@ export const JUHLATOIMIKUNTA_MODULES: Record<string, boolean> = {
   palaverit: false,
 };
 
+// Luuri — puhdas tyhja tyotila kaikilla moduuleilla, irti muista orgeista
+export const LUURI_MODULES: Record<string, boolean> = {
+  dashboard: true,
+  strategy: true,
+  team: true,
+  viestit: true,
+  aikataulut: true,
+  viestinta: true,
+  ohjelmisto: true,
+  budget: true,
+  vieraat: true,
+  ruoka: true,
+  tehtavat: true,
+  tila: true,
+  ohjelma: true,
+  muistiinpanot: true,
+  palaverit: true,
+};
+
 export function getDefaultModules(orgSlug: string): Record<string, boolean> {
   if (orgSlug === 'avl') return AVL_MODULES;
   if (orgSlug === 'juhlatoimikunta') return JUHLATOIMIKUNTA_MODULES;
+  if (orgSlug === 'luuri') return LUURI_MODULES;
   return DEFAULT_MODULES;
 }
 
