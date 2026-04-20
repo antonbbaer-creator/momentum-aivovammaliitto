@@ -29,11 +29,12 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   muistiinpanot: { id: 'muistiinpanot', label: 'Muistiinpanot', icon: '✎', path: '/muistiinpanot', alwaysOn: false },
   palaverit: { id: 'palaverit', label: 'Palaverit', icon: '⊞', path: '/palaverit', alwaysOn: false },
   projects:  { id: 'projects',  label: 'Projektit',  icon: '▣', path: '/projects',  alwaysOn: false },
+  tyonjako:  { id: 'tyonjako',  label: 'Työnjako',   icon: '≈', path: '/tyonjako',  alwaysOn: false },
   palaute:   { id: 'palaute',   label: 'Palaute',    icon: '◆', path: '/palaute',   alwaysOn: false },
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'projects', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'ohjelmisto', 'budget', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'palaute'];
+export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'ohjelmisto', 'budget', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'palaute'];
 
 // Default modules for new orgs (viestintaorgit)
 export const DEFAULT_MODULES: Record<string, boolean> = {
@@ -53,6 +54,7 @@ export const DEFAULT_MODULES: Record<string, boolean> = {
   muistiinpanot: false,
   palaverit: false,
   projects: true,
+  tyonjako: true,
   palaute: true,
 };
 
@@ -74,6 +76,7 @@ export const AVL_MODULES: Record<string, boolean> = {
   muistiinpanot: true,
   palaverit: false,
   projects: true,
+  tyonjako: true,
   palaute: true,
 };
 
@@ -95,6 +98,7 @@ export const JUHLATOIMIKUNTA_MODULES: Record<string, boolean> = {
   muistiinpanot: true,
   palaverit: false,
   projects: true,
+  tyonjako: true,
   palaute: true,
 };
 
@@ -115,6 +119,8 @@ export const LUURI_MODULES: Record<string, boolean> = {
   ohjelma: true,
   muistiinpanot: true,
   palaverit: true,
+  projects: true,
+  tyonjako: true,
 };
 
 export function getDefaultModules(orgSlug: string): Record<string, boolean> {

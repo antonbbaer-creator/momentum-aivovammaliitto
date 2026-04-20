@@ -25,6 +25,7 @@ export interface OrgTeamMember {
   channels?: string[];
   currentTasks?: string[];
   note?: string;
+  isManager?: boolean;               // työnjohtaja — näkee kaikkien työsuunnitelma-kehotukset
   deletedAt?: number;
 }
 
@@ -66,8 +67,8 @@ export const DEFAULT_LLFF_TEAMS: OrgTeam[] = [
 
 export const DEFAULT_LLFF_TEAM_MEMBERS: OrgTeamMember[] = [
   // === Executive Team ===
-  { id: 'sveta',  name: 'Svetlana Romanova', role: 'Vastaava tuottaja',  teamId: 'executive', type: 'permanent', avatar: 'S' },
-  { id: 'anton',  name: 'Anton Baer',        role: 'Taiteellinen johtaja', teamId: 'executive', type: 'permanent', avatar: 'A', email: 'anton@hetkicompany.com', linkedUserEmails: ['anton@hetkicompany.com', 'anton.baer@gmail.com'] },
+  { id: 'sveta',  name: 'Svetlana Romanova', role: 'Vastaava tuottaja',  teamId: 'executive', type: 'permanent', avatar: 'S', isManager: true },
+  { id: 'anton',  name: 'Anton Baer',        role: 'Taiteellinen johtaja', teamId: 'executive', type: 'permanent', avatar: 'A', email: 'anton@hetkicompany.com', linkedUserEmails: ['anton@hetkicompany.com', 'anton.baer@gmail.com'], isManager: true },
   { id: 'anna',   name: 'Anna Lehtonen',     role: 'Tuottaja',            teamId: 'executive', type: 'permanent', avatar: 'A' },
 
   // === Elokuva Tiimi ===

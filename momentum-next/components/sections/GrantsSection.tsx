@@ -18,6 +18,7 @@ import {
   GrantStatus,
   GrantProject,
   GrantPriority,
+  GrantSubtask,
   GrantsSettings,
   STATUS_DEFS,
   PROJECT_DEFS,
@@ -28,8 +29,13 @@ import {
   normalizeGrant,
   normalizeGrantsSettings,
   getYearTarget,
+  buildDefaultGrantSubtasks,
 } from '@/lib/grants-shared';
-import { OrgTeamMember, uniqueMembersByName } from '@/lib/team-shared';
+import {
+  Assignable, acceptAssignment, rejectAssignment, reassign, markDone, buildAssignment,
+  statusLabel, statusColor,
+} from '@/lib/assignments-shared';
+import { OrgTeamMember, uniqueMembersByName, resolveUserMember } from '@/lib/team-shared';
 import { getGrantsKey, getGrantsSettingsKey, getOrgGrants, getOrgGrantsSettings, getOrgTeamMembers } from '@/lib/org-defaults';
 
 type Tab = 'wheel' | 'status' | 'funders' | 'deadlines';
@@ -45,7 +51,7 @@ const fmtEur = (n: number): string => {
 const fmtEurFull = (n: number): string => n.toLocaleString('fi-FI') + ' €';
 
 export default function GrantsSection() {
-  const { canEdit } = useAuth();
+  const { user, canEdit } = useAuth();
   const { toast } = useToast();
   const orgSlug = (useParams().orgSlug as string) || '';
   const isMobile = useIsMobile();
@@ -53,6 +59,58 @@ export default function GrantsSection() {
   const [rawSettings, setSettings] = useOrgData<GrantsSettings>(getGrantsSettingsKey(orgSlug), getOrgGrantsSettings(orgSlug));
   const [membersRaw] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const members = useMemo(() => uniqueMembersByName(membersRaw), [membersRaw]);
+  const myMember = useMemo(() => resolveUserMember(members, user), [members, user]);
+  const myName = myMember?.name || user?.displayName || '';
+
+  // Apurahan aliaktiviteettien käsittely
+  const updateSubtask = (
+    grantId: string, subtaskId: string,
+    fn: <T extends Assignable & { done?: boolean }>(s: T) => T,
+  ) => {
+    setGrants(prev => prev.map(g => g.id !== grantId ? g : {
+      ...g,
+      subtasks: (g.subtasks || []).map(s => s.id === subtaskId ? fn(s) : s),
+    }));
+  };
+
+  const addSubtask = (grantId: string, text: string) => {
+    if (!text.trim()) return;
+    const newS: GrantSubtask = {
+      id: 'gs_' + Date.now(),
+      text: text.trim(),
+      done: false,
+      ...buildAssignment(undefined, myName),
+    };
+    setGrants(prev => prev.map(g => g.id !== grantId ? g : {
+      ...g,
+      subtasks: [...(g.subtasks || []), newS],
+    }));
+  };
+
+  const removeSubtask = (grantId: string, subtaskId: string) => {
+    setGrants(prev => prev.map(g => g.id !== grantId ? g : {
+      ...g,
+      subtasks: (g.subtasks || []).filter(s => s.id !== subtaskId),
+    }));
+  };
+
+  const addDefaultSubtasks = (grantId: string) => {
+    setGrants(prev => prev.map(g => g.id !== grantId ? g : {
+      ...g,
+      subtasks: [...(g.subtasks || []), ...buildDefaultGrantSubtasks()],
+    }));
+    toast('Oletusosat lisätty', 'success');
+  };
+
+  const updateSubtaskField = (
+    grantId: string, subtaskId: string,
+    patch: Partial<GrantSubtask>,
+  ) => {
+    setGrants(prev => prev.map(g => g.id !== grantId ? g : {
+      ...g,
+      subtasks: (g.subtasks || []).map(s => s.id !== subtaskId ? s : { ...s, ...patch }),
+    }));
+  };
 
   // Normalize for backward compat with old saves
   const allGrants = useMemo(() => rawGrants.map(normalizeGrant), [rawGrants]);
@@ -150,6 +208,10 @@ export default function GrantsSection() {
 
   const saveGrant = () => {
     if (!fFunder.trim() || !fName.trim()) return;
+    const existing = editId ? grants.find(x => x.id === editId) : undefined;
+    const isNew = !editId;
+    const shouldAutoAddSubtasks = isNew &&
+      (fStatus === 'planning' || fStatus === 'applied');
     const g: Grant = {
       id: editId || 'g_' + Date.now(),
       year: fYear || selectedYear,
@@ -164,6 +226,7 @@ export default function GrantsSection() {
       deadlineText: fDeadlineText.trim() || undefined,
       decisionDate: fDecision.trim() || undefined,
       responsibleId: fResponsible || undefined,
+      subtasks: existing?.subtasks ?? (shouldAutoAddSubtasks ? buildDefaultGrantSubtasks() : undefined),
       url: fUrl.trim() || undefined,
       notes: fNotes.trim() || undefined,
     };
@@ -876,6 +939,22 @@ export default function GrantsSection() {
             </div>
           )}
 
+          {/* Osat — hakemustyön aliaktiviteetit */}
+          <GrantSubtaskSection
+            grant={selected}
+            members={members}
+            myName={myName}
+            canEdit={canEdit}
+            onAdd={(text) => addSubtask(selected.id, text)}
+            onAddDefaults={() => addDefaultSubtasks(selected.id)}
+            onRemove={(sid) => removeSubtask(selected.id, sid)}
+            onUpdate={(sid, patch) => updateSubtaskField(selected.id, sid, patch)}
+            onAccept={(sid) => updateSubtask(selected.id, sid, acceptAssignment)}
+            onReject={(sid, reason) => updateSubtask(selected.id, sid, (s) => rejectAssignment(s, reason, myName))}
+            onReassign={(sid, newName) => updateSubtask(selected.id, sid, (s) => reassign(s, newName, myName))}
+            onToggleDone={(sid, done) => updateSubtask(selected.id, sid, (s) => markDone(s, done))}
+          />
+
           <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
             {selected.url && (
               <a href={selected.url} target="_blank" rel="noopener" className="btn btn-secondary btn-sm" style={{ textDecoration: 'none' }}>
@@ -1200,4 +1279,134 @@ export default function GrantsSection() {
       </div>
     );
   }
+}
+
+// =============================================================================
+// GRANT SUBTASK SECTION — hakemuksen osat tekijöineen
+// =============================================================================
+function GrantSubtaskSection({
+  grant, members, myName, canEdit,
+  onAdd, onAddDefaults, onRemove, onUpdate,
+  onAccept, onReject, onReassign, onToggleDone,
+}: {
+  grant: Grant;
+  members: OrgTeamMember[];
+  myName: string;
+  canEdit: boolean;
+  onAdd: (text: string) => void;
+  onAddDefaults: () => void;
+  onRemove: (subtaskId: string) => void;
+  onUpdate: (subtaskId: string, patch: Partial<GrantSubtask>) => void;
+  onAccept: (subtaskId: string) => void;
+  onReject: (subtaskId: string, reason: string) => void;
+  onReassign: (subtaskId: string, newAssignee: string) => void;
+  onToggleDone: (subtaskId: string, done: boolean) => void;
+}) {
+  const [newText, setNewText] = useState('');
+  const subtasks = grant.subtasks || [];
+  const doneCount = subtasks.filter(s => s.done).length;
+
+  return (
+    <div style={{
+      background: 'var(--elev)', border: '1px solid var(--border)',
+      borderRadius: 'var(--r)', padding: '.85rem 1rem', marginBottom: '1rem',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.6rem' }}>
+        <div style={{ fontSize: '.62rem', color: 'var(--t3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+          Osat {subtasks.length > 0 && `(${doneCount}/${subtasks.length} valmiina)`}
+        </div>
+        <span style={{ flex: 1 }} />
+        {subtasks.length === 0 && canEdit && (
+          <button className="btn btn-ghost btn-sm" onClick={onAddDefaults} style={{ fontSize: '.66rem' }}>
+            + Lisää oletusosat
+          </button>
+        )}
+      </div>
+
+      {subtasks.length === 0 && (
+        <div style={{ fontSize: '.74rem', color: 'var(--t3)', padding: '.3rem 0' }}>
+          Ei aliaktiviteetteja. Jaa hakemustyö osiin (hakemusteksti, budjetti, liitteet, tarkistus) — jokaisella voi olla oma tekijä ja deadline.
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+        {subtasks.map(s => {
+          const st = s.status || 'accepted';
+          const sc = statusColor(st);
+          const isMineToAnswer = s.assignee === myName && st === 'pending';
+          return (
+            <div key={s.id} style={{
+              display: 'flex', alignItems: 'center', gap: '.5rem',
+              padding: '.45rem .55rem', background: 'var(--card)',
+              border: `1px solid ${st === 'rejected' ? 'rgba(239,68,68,.3)' : 'var(--border)'}`,
+              borderRadius: 'var(--r)',
+            }}>
+              {canEdit && (
+                <input type="checkbox" checked={s.done} onChange={e => onToggleDone(s.id, e.target.checked)}
+                  disabled={st === 'pending'}
+                  style={{ accentColor: 'var(--green)', flexShrink: 0 }} />
+              )}
+              <input
+                className="input"
+                value={s.text}
+                onChange={e => onUpdate(s.id, { text: e.target.value })}
+                style={{
+                  flex: 1, fontSize: '.82rem', background: 'transparent',
+                  border: 'none', padding: '.1rem .25rem',
+                  textDecoration: s.done ? 'line-through' : 'none',
+                  color: s.done ? 'var(--t3)' : 'var(--t1)',
+                }}
+                disabled={!canEdit}
+              />
+              <select className="input" value={s.assignee || ''}
+                onChange={e => {
+                  const newA = e.target.value;
+                  const oldA = s.assignee || '';
+                  if (newA === oldA) return;
+                  if (newA) onReassign(s.id, newA);
+                  else onUpdate(s.id, { assignee: undefined, assignedBy: undefined, status: 'accepted' });
+                }}
+                style={{ fontSize: '.7rem', padding: '.2rem .35rem', width: 'auto', minWidth: 110 }}
+                disabled={!canEdit}
+              >
+                <option value="">Ei tekijää</option>
+                {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+              </select>
+              <input type="date" className="input" value={s.deadline || ''}
+                onChange={e => onUpdate(s.id, { deadline: e.target.value || undefined })}
+                style={{ fontSize: '.7rem', padding: '.2rem .35rem', width: 'auto' }}
+                disabled={!canEdit}
+              />
+              {st !== 'accepted' && (
+                <span style={{
+                  fontSize: '.58rem', padding: '.12rem .4rem', borderRadius: 9999,
+                  background: sc.bg, color: sc.fg, fontWeight: 700, textTransform: 'uppercase',
+                }}>{statusLabel(st)}</span>
+              )}
+              {canEdit && isMineToAnswer && (
+                <div style={{ display: 'flex', gap: '.25rem' }}>
+                  <button className="btn btn-sm" onClick={() => onAccept(s.id)} style={{ background: 'var(--green)', color: '#fff', fontSize: '.62rem', padding: '.15rem .4rem' }}>Hyväksy</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => {
+                    const reason = window.prompt('Miksi et voi ottaa tehtävää?') || '';
+                    onReject(s.id, reason);
+                  }} style={{ color: 'var(--red)', fontSize: '.62rem', padding: '.15rem .4rem' }}>Hylkää</button>
+                </div>
+              )}
+              {canEdit && (
+                <button onClick={() => onRemove(s.id)} style={{ background: 'transparent', border: 'none', color: 'var(--t3)', cursor: 'pointer', fontSize: '.8rem', padding: 0 }} title="Poista osa">×</button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {canEdit && (
+        <form onSubmit={e => { e.preventDefault(); onAdd(newText); setNewText(''); }} style={{ display: 'flex', gap: '.4rem', marginTop: '.5rem' }}>
+          <input className="input" value={newText} onChange={e => setNewText(e.target.value)}
+            placeholder="Lisää osa..." style={{ flex: 1, fontSize: '.78rem' }} />
+          <button type="submit" className="btn btn-ghost btn-sm" disabled={!newText.trim()} style={{ fontSize: '.72rem' }}>+ Lisää</button>
+        </form>
+      )}
+    </div>
+  );
 }

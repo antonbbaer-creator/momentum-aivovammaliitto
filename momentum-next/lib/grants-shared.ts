@@ -9,9 +9,36 @@
  *   4. Hakuajat (deadline)
  */
 
+import type { Assignable } from './assignments-shared';
+
 export type GrantStatus = 'confirmed' | 'applied' | 'planning' | 'rejected';
 export type GrantProject = 'festival' | 'workshops' | 'both';
 export type GrantPriority = 'critical' | 'high' | 'medium' | 'international' | 'backup' | 'existing';
+
+// Apurahan aliaktiviteetti — erillinen osa hakemustyöstä (hakemusteksti, budjetti, liitteet, ...).
+// Käyttää Assignable-rajapintaa, jotta sitä voi delegoida ja hyväksyä samalla logiikalla kuin muita tehtäviä.
+export interface GrantSubtask extends Assignable {
+  id: string;
+  text: string;            // esim. "Hakemusteksti", "Budjetti", "Liitteet"
+  done: boolean;
+  deadline?: string;       // YYYY-MM-DD
+}
+
+export const DEFAULT_GRANT_SUBTASK_TEMPLATES = [
+  'Hakemusteksti',
+  'Budjetti',
+  'Liitteet',
+  'Tarkistus & lähetys',
+];
+
+export function buildDefaultGrantSubtasks(): GrantSubtask[] {
+  const now = Date.now();
+  return DEFAULT_GRANT_SUBTASK_TEMPLATES.map((text, i) => ({
+    id: 'gs_' + now + '_' + i,
+    text,
+    done: false,
+  }));
+}
 
 export interface Grant {
   id: string;
@@ -27,6 +54,7 @@ export interface Grant {
   deadlineText?: string;     // e.g., "16.2.2026 klo 15:59", "Jatkuva", "~Kesäkuu 2026"
   decisionDate?: string;     // when decision expected (free text)
   responsibleId?: string;    // OrgTeamMember id
+  subtasks?: GrantSubtask[]; // hakemuksen osat tekijöineen
   url?: string;
   notes?: string;
   deletedAt?: number;        // ms since epoch — jos asetettu, apuraha on roskakorissa

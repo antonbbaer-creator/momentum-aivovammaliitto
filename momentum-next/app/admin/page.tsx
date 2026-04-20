@@ -270,7 +270,7 @@ export default function AdminPage() {
   };
 
   const deleteOrg = async (orgId: string) => {
-    if (!confirm('Haluatko varmasti poistaa tämän organisaation ja kaikki sen tiedot? Tätä ei voi perua.')) return;
+    // Varmennus tehdään DangerZone-komponentissa (nimen kirjoitus + kaksi nappia).
     try {
       // Delete members
       const membersSnap = await getDocs(collection(db, 'organizations', orgId, 'members'));
@@ -281,9 +281,11 @@ export default function AdminPage() {
       // Delete org
       await deleteDoc(doc(db, 'organizations', orgId));
       setOrgs(prev => prev.filter(o => o.id !== orgId));
+      setSelectedOrg(null);
+      toast('Organisaatio poistettu', 'success');
     } catch (e) {
       console.error('Delete org error:', e);
-      alert('Virhe organisaation poistamisessa');
+      toast('Virhe organisaation poistamisessa', 'error');
     }
   };
 
@@ -689,17 +691,11 @@ export default function AdminPage() {
               </button>
 
               <div className="bcard" style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', marginBottom: '1.5rem' }}>
-                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 500 }}>{selectedOrgData.name}</h3>
-                    <p style={{ fontSize: '.78rem', color: 'var(--t3)', marginTop: '.15rem' }}>
-                      {selectedOrgData.shortName} {'·'} {selectedOrgData.plan} {'·'} ID: {selectedOrgData.id.slice(0, 8)}...
-                    </p>
-                  </div>
-                  <button className="btn btn-sm" onClick={() => deleteOrg(selectedOrgData.id)}
-                    style={{ color: 'var(--red)', border: '1px solid rgba(239,68,68,.3)', background: 'rgba(239,68,68,.05)' }}>
-                    Poista organisaatio
-                  </button>
+                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 500 }}>{selectedOrgData.name}</h3>
+                  <p style={{ fontSize: '.78rem', color: 'var(--t3)', marginTop: '.15rem' }}>
+                    {selectedOrgData.shortName} {'·'} {selectedOrgData.plan} {'·'} ID: {selectedOrgData.id.slice(0, 8)}...
+                  </p>
                 </div>
 
                 {/* Modules */}
@@ -867,6 +863,9 @@ export default function AdminPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Vaarallinen alue — organisaation poisto useamman varmennuksen takana */}
+              <DangerZone org={selectedOrgData} onDelete={() => deleteOrg(selectedOrgData.id)} />
             </div>
           )}
 
@@ -927,5 +926,140 @@ export default function AdminPage() {
         </>
       )}
     </AppShell>
+  );
+}
+
+// =============================================================================
+// DANGER ZONE — organisaation poisto usean varmennuksen takana
+// =============================================================================
+function DangerZone({ org, onDelete }: { org: OrgData; onDelete: () => Promise<void> | void }) {
+  const [expanded, setExpanded] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const nameMatches = typed.trim() === org.name;
+
+  const doDelete = async () => {
+    if (!nameMatches) return;
+    setBusy(true);
+    try { await onDelete(); } finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{
+      marginTop: '3rem', padding: '1rem 1.25rem',
+      background: 'rgba(239,68,68,.04)',
+      border: '1px dashed rgba(239,68,68,.35)',
+      borderRadius: 'var(--rl)',
+    }}>
+      <button
+        onClick={() => { setExpanded(v => !v); if (expanded) { setArmed(false); setTyped(''); setConfirming(false); } }}
+        style={{
+          background: 'transparent', border: 'none', color: 'var(--t3)',
+          cursor: 'pointer', fontSize: '.72rem', fontWeight: 700,
+          textTransform: 'uppercase', letterSpacing: '.06em',
+          display: 'inline-flex', alignItems: 'center', gap: '.4rem', padding: 0,
+        }}
+      >
+        <span style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s', display: 'inline-block' }}>▸</span>
+        Vaarallinen alue
+      </button>
+
+      {expanded && (
+        <div style={{ marginTop: '1rem', paddingTop: '.75rem', borderTop: '1px dashed rgba(239,68,68,.2)' }}>
+          <div style={{ fontSize: '.82rem', color: 'var(--t2)', lineHeight: 1.5, marginBottom: '.75rem' }}>
+            Organisaation <b>{org.name}</b> poisto tuhoaa <b>kaikki jäsenet, moduulit ja data-dokumentit</b>. Tätä toimintoa <b>ei voi perua</b>.
+          </div>
+
+          {!armed && (
+            <button
+              onClick={() => setArmed(true)}
+              style={{
+                fontSize: '.72rem', padding: '.35rem .7rem', borderRadius: 'var(--r)',
+                background: 'transparent', color: 'var(--red)',
+                border: '1px solid rgba(239,68,68,.35)', cursor: 'pointer', fontWeight: 600,
+              }}
+            >
+              Aloita poistoprosessi
+            </button>
+          )}
+
+          {armed && !confirming && (
+            <div>
+              <label style={{ display: 'block', fontSize: '.72rem', color: 'var(--t2)', marginBottom: '.35rem' }}>
+                Kirjoita organisaation nimi vahvistaaksesi: <b style={{ color: 'var(--t1)' }}>{org.name}</b>
+              </label>
+              <input
+                className="input"
+                value={typed}
+                onChange={e => setTyped(e.target.value)}
+                placeholder={org.name}
+                style={{ maxWidth: 360, marginBottom: '.5rem' }}
+                autoFocus
+              />
+              <div style={{ display: 'flex', gap: '.4rem' }}>
+                <button
+                  onClick={() => { setArmed(false); setTyped(''); }}
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: '.72rem' }}
+                >
+                  Peruuta
+                </button>
+                <button
+                  onClick={() => setConfirming(true)}
+                  disabled={!nameMatches}
+                  style={{
+                    fontSize: '.72rem', padding: '.35rem .7rem', borderRadius: 'var(--r)',
+                    background: nameMatches ? 'var(--red)' : 'var(--elev)',
+                    color: nameMatches ? '#fff' : 'var(--t3)',
+                    border: `1px solid ${nameMatches ? 'var(--red)' : 'var(--border)'}`,
+                    cursor: nameMatches ? 'pointer' : 'not-allowed', fontWeight: 700,
+                  }}
+                >
+                  Jatka
+                </button>
+              </div>
+            </div>
+          )}
+
+          {armed && confirming && (
+            <div style={{
+              padding: '.85rem 1rem', background: 'rgba(239,68,68,.1)',
+              border: '1px solid rgba(239,68,68,.4)', borderRadius: 'var(--r)',
+            }}>
+              <div style={{ fontSize: '.85rem', fontWeight: 700, color: 'var(--red)', marginBottom: '.35rem' }}>
+                Oletko aivan varma?
+              </div>
+              <div style={{ fontSize: '.74rem', color: 'var(--t2)', marginBottom: '.6rem', lineHeight: 1.5 }}>
+                Tämä poistaa <b>{org.name}</b>-organisaation pysyvästi. Kaikki moduulit, tehtävät, projektit, apurahat ja muut tiedot katoavat. <b>Tätä ei voi perua.</b>
+              </div>
+              <div style={{ display: 'flex', gap: '.4rem' }}>
+                <button
+                  onClick={() => setConfirming(false)}
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: '.72rem' }}
+                  disabled={busy}
+                >
+                  Takaisin
+                </button>
+                <button
+                  onClick={doDelete}
+                  disabled={busy}
+                  style={{
+                    fontSize: '.72rem', padding: '.35rem .7rem', borderRadius: 'var(--r)',
+                    background: 'var(--red)', color: '#fff',
+                    border: '1px solid var(--red)', cursor: busy ? 'wait' : 'pointer', fontWeight: 700,
+                  }}
+                >
+                  {busy ? 'Poistetaan...' : `Poista ${org.name} pysyvästi`}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,9 +1,17 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useModules } from '@/lib/modules';
 import { usePathname, useRouter, useParams } from 'next/navigation';
-import { getOrgBanner } from '@/lib/org-defaults';
+import { getOrgBanner, getOrgTeamMembers, getGrantsKey } from '@/lib/org-defaults';
+import { useOrgData } from '@/lib/firestore';
+import { OrgTeamMember, uniqueMembersByName, resolveUserMember } from '@/lib/team-shared';
+import { Assignable, effectiveStatus } from '@/lib/assignments-shared';
+import type { Grant } from '@/lib/grants-shared';
+
+interface MinimalTask extends Assignable { done?: boolean; deletedAt?: number; }
+interface MinimalProject { tasks?: MinimalTask[]; deletedAt?: number; archived?: boolean; }
 
 const NAV_ICONS: Record<string, React.ReactNode> = {
   dashboard: (
@@ -54,6 +62,9 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   projects: (
     <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
   ),
+  tyonjako: (
+    <svg viewBox="0 0 24 24"><path d="M7 7h10"/><path d="M7 12h10"/><path d="M7 17h6"/><circle cx="19" cy="17" r="2"/></svg>
+  ),
   palaute: (
     <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H8l-5 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="16" r=".8" fill="currentColor" stroke="none"/></svg>
   ),
@@ -80,6 +91,37 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
 
   const currentOrg = orgs.find(o => o.orgId === orgSlug);
   const banner = getOrgBanner(orgSlug);
+
+  // Tyonjako-badge: lasketaan saapuneet (pending joille olen saaja) + hylkaysilmoitukset (minun antamani, hylatyt)
+  const [tasksRaw] = useOrgData<MinimalTask[]>('tasks', []);
+  const [projectsRaw] = useOrgData<MinimalProject[]>('projects', []);
+  const [grantsRaw] = useOrgData<Grant[]>(getGrantsKey(orgSlug), []);
+  const [membersRaw] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
+  const tyonjakoBadge = useMemo(() => {
+    if (!user) return 0;
+    const members = uniqueMembersByName(membersRaw || []);
+    const me = resolveUserMember(members, user);
+    const myName = me?.name || user.displayName || '';
+    if (!myName) return 0;
+    const check = (a: Assignable, done?: boolean) => {
+      const st = effectiveStatus(a);
+      if (done) return false;
+      if (a.assignee === myName && st === 'pending') return true;
+      if (a.assignedBy === myName && st === 'rejected') return true;
+      return false;
+    };
+    let n = 0;
+    for (const t of (tasksRaw || [])) if (!t.deletedAt && check(t, t.done)) n++;
+    for (const p of (projectsRaw || [])) {
+      if (p.deletedAt || p.archived) continue;
+      for (const t of (p.tasks || [])) if (check(t, t.done)) n++;
+    }
+    for (const g of (grantsRaw || [])) {
+      if (g.deletedAt) continue;
+      for (const s of (g.subtasks || [])) if (check(s, s.done)) n++;
+    }
+    return n;
+  }, [tasksRaw, projectsRaw, grantsRaw, membersRaw, user]);
 
   const navigate = (path: string) => {
     router.push(path);
@@ -116,9 +158,17 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
             key={m.id}
             className={`nav-i ${pathname === `/${orgSlug}${m.path}` || pathname.startsWith(`/${orgSlug}${m.path}/`) ? 'act' : ''}`}
             onClick={() => navigate(`/${orgSlug}${m.path}`)}
+            style={{ position: 'relative' }}
           >
             <span className="nav-ic">{NAV_ICONS[m.id] || m.icon}</span>
             <span>{m.label}</span>
+            {m.id === 'tyonjako' && tyonjakoBadge > 0 && (
+              <span style={{
+                marginLeft: 'auto', background: 'var(--red)', color: '#fff',
+                fontSize: '.6rem', fontWeight: 700, padding: '.1rem .4rem',
+                borderRadius: 9999, minWidth: 18, textAlign: 'center',
+              }}>{tyonjakoBadge}</span>
+            )}
           </div>
         ))}
         {user?.email && ['anton@hetkicompany.com', 'anton.baer@gmail.com'].includes(user.email) && (

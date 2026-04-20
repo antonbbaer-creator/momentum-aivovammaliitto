@@ -6,13 +6,19 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useIsMobile } from '@/lib/use-mobile';
 import { useParams } from 'next/navigation';
-import { OrgTeam, OrgTeamMember, uniqueMembersByName } from '@/lib/team-shared';
+import { OrgTeam, OrgTeamMember, uniqueMembersByName, resolveUserMember } from '@/lib/team-shared';
 import { getOrgTeams, getOrgTeamMembers } from '@/lib/org-defaults';
 import { softDelete, filterActive } from '@/lib/trash';
 import { YearPhase, normalizePhase } from '@/lib/yearwheel-shared';
 import { getOrgYearwheel } from '@/lib/org-defaults';
+import {
+  Assignable, effectiveStatus, buildAssignment, acceptAssignment,
+  rejectAssignment, reassign, statusLabel, statusColor,
+} from '@/lib/assignments-shared';
 
-interface Task { id: number; text: string; done: boolean; assignee: string; deadline: string; }
+interface Task extends Assignable {
+  id: number; text: string; done: boolean; deadline: string;
+}
 interface TeamMember { name: string; role: string; avatar: string; }
 export interface Project {
   id: number;
@@ -54,6 +60,8 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
   const [projects, setProjects] = useOrgData<Project[]>('projects', []);
   const [teamDataRaw] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const teamData = useMemo(() => uniqueMembersByName(teamDataRaw), [teamDataRaw]);
+  const myMember = useMemo(() => resolveUserMember(teamData, user), [teamData, user]);
+  const myName = myMember?.name || user?.displayName || '';
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
   const [rawPhases] = useOrgData<YearPhase[]>('yearwheel', getOrgYearwheel(orgSlug));
   const phases = useMemo(() => rawPhases.map(normalizePhase), [rawPhases]);
@@ -180,20 +188,43 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
           </div>}
           {(selected.tasks || []).map((task, i) => {
             const taskDlc = task.deadline ? deadlineColor(task.deadline) : null;
+            const st = effectiveStatus(task);
+            const sc = statusColor(st);
+            const isMineToAnswer = task.assignee === myName && st === 'pending';
+            const isRejected = st === 'rejected';
             return (
-              <div key={task.id} style={{ padding: '.75rem', background: 'var(--elev)', border: '1px solid var(--border)', borderRadius: 'var(--r)', marginBottom: '.5rem' }}>
+              <div key={task.id} style={{
+                padding: '.75rem', background: 'var(--elev)',
+                border: `1px solid ${isRejected ? 'rgba(239,68,68,.35)' : 'var(--border)'}`,
+                borderLeft: `3px solid ${isRejected ? 'var(--red)' : st === 'pending' ? 'var(--yellow)' : 'transparent'}`,
+                borderRadius: 'var(--r)', marginBottom: '.5rem',
+              }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
-                  <input type="checkbox" checked={task.done} onChange={() => {
+                  <input type="checkbox" checked={task.done} disabled={st !== 'accepted'} onChange={() => {
                     const tasks = [...selected.tasks]; tasks[i] = { ...tasks[i], done: !tasks[i].done }; updateProject(selected.id, { tasks });
                   }} />
                   <span style={{ flex: 1, fontSize: '.85rem', textDecoration: task.done ? 'line-through' : 'none', color: task.done ? 'var(--t3)' : 'var(--t1)' }}>{task.text}</span>
+                  {st !== 'accepted' && (
+                    <span style={{ fontSize: '.58rem', padding: '.15rem .45rem', borderRadius: 9999, background: sc.bg, color: sc.fg, fontWeight: 700, textTransform: 'uppercase' }}>
+                      {statusLabel(st)}
+                    </span>
+                  )}
                   <button className="btn btn-ghost btn-sm" onClick={() => {
                     updateProject(selected.id, { tasks: selected.tasks.filter((_, j) => j !== i) });
                   }} style={{ color: 'var(--t3)', fontSize: '.7rem' }}>{'×'}</button>
                 </div>
                 <div style={{ display: 'flex', gap: '.5rem', marginTop: '.5rem', marginLeft: '1.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
                   <select className="input" value={task.assignee || ''} onChange={e => {
-                    const tasks = [...selected.tasks]; tasks[i] = { ...tasks[i], assignee: e.target.value }; updateProject(selected.id, { tasks });
+                    const tasks = [...selected.tasks];
+                    const newAssignee = e.target.value;
+                    const oldAssignee = tasks[i].assignee || '';
+                    if (newAssignee !== oldAssignee) {
+                      const delegation = buildAssignment(newAssignee || undefined, myName);
+                      tasks[i] = { ...tasks[i], assignee: newAssignee, ...delegation };
+                    } else {
+                      tasks[i] = { ...tasks[i], assignee: newAssignee };
+                    }
+                    updateProject(selected.id, { tasks });
                   }} style={{ fontSize: '.72rem', padding: '.25rem .4rem', width: 'auto', minWidth: 120, background: 'var(--card)' }}>
                     <option value="">Ei tekijää</option>
                     {teamData.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
@@ -202,12 +233,52 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
                     const tasks = [...selected.tasks]; tasks[i] = { ...tasks[i], deadline: e.target.value }; updateProject(selected.id, { tasks });
                   }} style={{ fontSize: '.72rem', padding: '.25rem .4rem', width: 'auto', background: 'var(--card)' }} />
                   {taskDlc && <span style={{ fontSize: '.62rem', padding: '.15rem .4rem', borderRadius: 9999, background: taskDlc.bg, color: taskDlc.color, fontWeight: 600 }}>{taskDlc.label}</span>}
-                  {task.assignee && <span style={{ fontSize: '.62rem', padding: '.15rem .4rem', borderRadius: 9999, background: 'rgba(5,107,159,.1)', color: 'var(--pri-l)', fontWeight: 600 }}>{task.assignee}</span>}
+                  {task.assignedBy && task.assignee && task.assignedBy !== task.assignee && (
+                    <span style={{ fontSize: '.62rem', padding: '.15rem .4rem', borderRadius: 9999, background: 'rgba(5,107,159,.1)', color: 'var(--pri-l)', fontWeight: 600 }}>
+                      {task.assignedBy} {'->'} {task.assignee}
+                    </span>
+                  )}
+                  {isRejected && task.rejectReason && (
+                    <span style={{ fontSize: '.62rem', color: 'var(--red)' }}>Hylätty: {task.rejectReason}</span>
+                  )}
+                  {isMineToAnswer && (
+                    <>
+                      <button className="btn btn-sm" onClick={() => {
+                        const tasks = [...selected.tasks]; tasks[i] = acceptAssignment(tasks[i]); updateProject(selected.id, { tasks });
+                      }} style={{ background: 'var(--green)', color: '#fff', fontSize: '.68rem', padding: '.25rem .55rem' }}>Hyväksy</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => {
+                        const reason = window.prompt('Miksi et voi ottaa tehtävää?') || '';
+                        const tasks = [...selected.tasks]; tasks[i] = rejectAssignment(tasks[i], reason, myName); updateProject(selected.id, { tasks });
+                      }} style={{ color: 'var(--red)', fontSize: '.68rem', padding: '.25rem .55rem' }}>Hylkää</button>
+                    </>
+                  )}
+                  {isRejected && (
+                    <select className="input" defaultValue="" onChange={e => {
+                      if (!e.target.value) return;
+                      const tasks = [...selected.tasks]; tasks[i] = reassign(tasks[i], e.target.value, myName); updateProject(selected.id, { tasks });
+                    }} style={{ fontSize: '.68rem', padding: '.25rem .4rem', width: 'auto' }}>
+                      <option value="">Jaa uudelleen...</option>
+                      {teamData.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                    </select>
+                  )}
                 </div>
               </div>
             );
           })}
-          <form onSubmit={e => { e.preventDefault(); const f = e.target as any; if (!f.taskInput.value.trim()) return; updateProject(selected.id, { tasks: [...(selected.tasks || []), { id: Date.now(), text: f.taskInput.value.trim(), done: false, assignee: f.taskAssignee?.value || '', deadline: f.taskDeadline?.value || '' }] }); f.taskInput.value = ''; if (f.taskDeadline) f.taskDeadline.value = ''; if (f.taskAssignee) f.taskAssignee.selectedIndex = 0; }} style={{ marginTop: '.75rem' }}>
+          <form onSubmit={e => {
+            e.preventDefault();
+            const f = e.target as any;
+            if (!f.taskInput.value.trim()) return;
+            const assigneeVal = f.taskAssignee?.value || '';
+            const delegation = buildAssignment(assigneeVal || undefined, myName);
+            updateProject(selected.id, { tasks: [...(selected.tasks || []), {
+              id: Date.now(), text: f.taskInput.value.trim(), done: false,
+              assignee: assigneeVal,
+              deadline: f.taskDeadline?.value || '',
+              ...delegation,
+            }] });
+            f.taskInput.value = ''; if (f.taskDeadline) f.taskDeadline.value = ''; if (f.taskAssignee) f.taskAssignee.selectedIndex = 0;
+          }} style={{ marginTop: '.75rem' }}>
             <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.5rem' }}>
               <input name="taskInput" className="input" placeholder="Lisää tehtävä..." style={{ flex: 1 }} />
               <button type="submit" className="btn btn-primary btn-sm">Lisää</button>
