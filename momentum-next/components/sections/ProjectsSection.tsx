@@ -245,9 +245,9 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
         <div style={{ maxWidth: 560, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem' }}>
           <div className="field"><label>Projektin nimi *</label><input className="input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Esim. Kevään somekampanja" autoFocus /></div>
           <div className="field"><label>Kuvaus</label><textarea className="input textarea" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Kuvaile projektia..." /></div>
-          {!fixedTeamId && (
+          {!fixedTeamId && orgTeams.length > 0 && (
             <div className="field">
-              <label>Tiimi *</label>
+              <label>Tiimi {orgTeams.length > 0 ? '*' : '(valinnainen)'}</label>
               <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap' }}>
                 {orgTeams.map(t => {
                   const isActive = newTeamId === t.id;
@@ -278,7 +278,7 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
             </select>
           </div>
           <div className="field"><label>Deadline</label><input type="date" className="input" value={deadline} onChange={e => setDeadline(e.target.value)} style={{ maxWidth: 200 }} /></div>
-          <button className="btn btn-primary" onClick={createProject} disabled={!title.trim() || (!fixedTeamId && !newTeamId)}>Luo projekti</button>
+          <button className="btn btn-primary" onClick={createProject} disabled={!title.trim() || (!fixedTeamId && orgTeams.length > 0 && !newTeamId)}>Luo projekti</button>
         </div>
       </>
     );

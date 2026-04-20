@@ -40,6 +40,8 @@ export default function MuistiinpanotPage() {
   const [notes, setNotes] = useOrgData<MeetingNote[]>('meetingNotes', []);
   const [members] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const [tasks, setTasks] = useOrgData<{ id: string; text: string; assignee?: string; hankkia: boolean; done: boolean; priority: 'normal' | 'high'; deadline?: string; note?: string; category?: string }[]>('tasks', []);
+  const [projects, setProjects] = useOrgData<any[]>('projects', []);
+  const [projectMenuFor, setProjectMenuFor] = useState<string | null>(null); // "noteId:idx"
   const isMobile = useIsMobile();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -314,6 +316,62 @@ Paivitetty yhteenveto:`;
       if (n.id !== noteId || !n.actionItems) return n;
       return { ...n, actionItems: n.actionItems.filter((_, i) => i !== idx) };
     }));
+  };
+
+  // Lisää toimenpide olemassa olevaan projektiin projektin tasks[]-listaan
+  const addActionToProject = (noteId: string, idx: number, projectId: number) => {
+    const note = notes.find(n => n.id === noteId);
+    const item = note?.actionItems?.[idx];
+    if (!item) return;
+    const newTask = {
+      id: Date.now(),
+      text: item.text,
+      done: false,
+      assignee: item.assignee || '',
+      deadline: '',
+    };
+    setProjects(prev => prev.map(p => p.id === projectId
+      ? { ...p, tasks: [...(p.tasks || []), newTask] }
+      : p
+    ));
+    updateActionItem(noteId, idx, { confirmed: true });
+    const proj = projects.find(p => p.id === projectId);
+    toast(`Lisätty projektiin: ${proj?.t || 'projekti'}`, 'success');
+    setProjectMenuFor(null);
+  };
+
+  // Luo uusi projekti toimenpiteestä ja lisää se ensimmäiseksi tehtäväksi
+  const createProjectFromAction = (noteId: string, idx: number) => {
+    const note = notes.find(n => n.id === noteId);
+    const item = note?.actionItems?.[idx];
+    if (!item) return;
+    const name = window.prompt('Uuden projektin nimi:', item.text.slice(0, 60));
+    if (!name || !name.trim()) return;
+    const exists = projects.some(p => (p.t || '').toLowerCase() === name.trim().toLowerCase());
+    if (exists) { toast('Samanniminen projekti on jo olemassa', 'error'); return; }
+    const projectId = Date.now();
+    const newProject = {
+      id: projectId,
+      t: name.trim(),
+      d: `Luotu muistiinpanosta: ${note.title} (${note.date})`,
+      st: 'idea',
+      deadline: '',
+      team: [],
+      comments: [],
+      tasks: [{
+        id: Date.now() + 1,
+        text: item.text,
+        done: false,
+        assignee: item.assignee || '',
+        deadline: '',
+      }],
+      archived: false,
+      createdAt: Date.now(),
+    };
+    setProjects(prev => [...prev, newProject]);
+    updateActionItem(noteId, idx, { confirmed: true });
+    toast(`Projekti luotu: ${name.trim()}`, 'success');
+    setProjectMenuFor(null);
   };
 
   const createTaskFromAction = (noteId: string, idx: number) => {
@@ -759,14 +817,78 @@ Paivitetty yhteenveto:`;
                   </div>
                 </div>
                 {canEdit && !item.confirmed && (
-                  <div style={{ display: 'flex', gap: '.3rem', flexShrink: 0, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '.3rem', flexShrink: 0, alignItems: 'center', position: 'relative' }}>
                     <button
                       className="btn btn-primary btn-sm"
                       onClick={() => createTaskFromAction(detail.id, idx)}
                       style={{ fontSize: '.65rem', padding: '.3rem .6rem', whiteSpace: 'nowrap' }}
                     >
-                      Luo tehtava
+                      Tehtäväksi
                     </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => setProjectMenuFor(projectMenuFor === `${detail.id}:${idx}` ? null : `${detail.id}:${idx}`)}
+                      style={{
+                        fontSize: '.65rem', padding: '.3rem .5rem', whiteSpace: 'nowrap',
+                        border: '1px solid var(--border)', background: 'var(--elev)',
+                      }}
+                      title="Lisää projektiin tai luo uusi projekti"
+                    >
+                      Projektiin ▾
+                    </button>
+                    {projectMenuFor === `${detail.id}:${idx}` && (
+                      <div
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                          position: 'absolute', top: '100%', right: 0, marginTop: '.35rem',
+                          background: 'var(--card)', border: '1px solid var(--border)',
+                          borderRadius: 'var(--r)', boxShadow: '0 8px 24px rgba(0,0,0,.3)',
+                          minWidth: 220, zIndex: 50, padding: '.35rem',
+                        }}
+                      >
+                        <div style={{
+                          fontSize: '.62rem', color: 'var(--t3)', textTransform: 'uppercase',
+                          letterSpacing: '.05em', padding: '.35rem .5rem .2rem', fontWeight: 700,
+                        }}>
+                          Lisää projektiin
+                        </div>
+                        {projects.filter(p => !p.archived && !p.deletedAt).length === 0 && (
+                          <div style={{ fontSize: '.72rem', color: 'var(--t3)', padding: '.35rem .5rem', fontStyle: 'italic' }}>
+                            Ei projekteja vielä
+                          </div>
+                        )}
+                        {projects.filter(p => !p.archived && !p.deletedAt).map(p => (
+                          <button
+                            key={p.id}
+                            onClick={() => addActionToProject(detail.id, idx, p.id)}
+                            style={{
+                              display: 'block', width: '100%', textAlign: 'left',
+                              padding: '.4rem .6rem', background: 'transparent', border: 'none',
+                              borderRadius: 'var(--r)', fontSize: '.78rem', color: 'var(--t1)',
+                              cursor: 'pointer',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--elev)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            {p.t}
+                          </button>
+                        ))}
+                        <div style={{ borderTop: '1px solid var(--border)', margin: '.3rem 0' }} />
+                        <button
+                          onClick={() => createProjectFromAction(detail.id, idx)}
+                          style={{
+                            display: 'block', width: '100%', textAlign: 'left',
+                            padding: '.4rem .6rem', background: 'transparent', border: 'none',
+                            borderRadius: 'var(--r)', fontSize: '.78rem', color: 'var(--pri-l)',
+                            cursor: 'pointer', fontWeight: 600,
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--elev)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          + Luo uusi projekti
+                        </button>
+                      </div>
+                    )}
                     <button
                       className="btn btn-ghost btn-sm"
                       onClick={() => removeActionItem(detail.id, idx)}

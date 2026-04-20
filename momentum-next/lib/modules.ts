@@ -28,10 +28,11 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   ohjelma:    { id: 'ohjelma',    label: 'Ohjelma',    icon: '▦', path: '/ohjelma',    alwaysOn: false },
   muistiinpanot: { id: 'muistiinpanot', label: 'Muistiinpanot', icon: '✎', path: '/muistiinpanot', alwaysOn: false },
   palaverit: { id: 'palaverit', label: 'Palaverit', icon: '⊞', path: '/palaverit', alwaysOn: false },
+  projects:  { id: 'projects',  label: 'Projektit',  icon: '▣', path: '/projects',  alwaysOn: false },
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'ohjelmisto', 'budget', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot'];
+export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'projects', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'ohjelmisto', 'budget', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot'];
 
 // Default modules for new orgs (viestintaorgit)
 export const DEFAULT_MODULES: Record<string, boolean> = {
@@ -50,6 +51,7 @@ export const DEFAULT_MODULES: Record<string, boolean> = {
   ohjelma: false,
   muistiinpanot: false,
   palaverit: false,
+  projects: true,
 };
 
 // AVL:n oletusmoduulit — ei ruokaa eika ohjelmistoa (jatkuva viestintatyo, ei tapahtuma)
@@ -69,6 +71,7 @@ export const AVL_MODULES: Record<string, boolean> = {
   ohjelma: false,
   muistiinpanot: true,
   palaverit: false,
+  projects: true,
 };
 
 // Juhlatoimikunnan oletusmoduulit
@@ -88,6 +91,7 @@ export const JUHLATOIMIKUNTA_MODULES: Record<string, boolean> = {
   ohjelma: true,
   muistiinpanot: true,
   palaverit: false,
+  projects: true,
 };
 
 // Luuri — puhdas tyhja tyotila kaikilla moduuleilla, irti muista orgeista
