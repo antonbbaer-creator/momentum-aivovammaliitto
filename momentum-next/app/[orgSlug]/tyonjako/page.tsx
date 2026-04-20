@@ -926,7 +926,14 @@ function TaskRowLine({
               )}
             </span>
           ))}
-          {item.assignedBy && !item.assignees.includes(item.assignedBy) && <span>Antoi: {item.assignedBy}</span>}
+          {item.assignedBy && (
+            <span style={{
+              fontStyle: item.assignees.includes(item.assignedBy) ? 'italic' : 'normal',
+              color: item.assignees.includes(item.assignedBy) ? 'var(--t3)' : 'var(--t2)',
+            }}>
+              Antoi: {item.assignedBy}
+            </span>
+          )}
           {overdue && <span style={{ color: 'var(--red)', fontWeight: 700 }}>MYÖHÄSSÄ</span>}
         </div>
       </div>

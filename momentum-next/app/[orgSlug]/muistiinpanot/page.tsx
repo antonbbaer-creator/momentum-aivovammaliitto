@@ -7,7 +7,8 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { getOrgTeamMembers } from '@/lib/org-defaults';
-import { OrgTeamMember, uniqueMembersByName } from '@/lib/team-shared';
+import { OrgTeamMember, uniqueMembersByName, resolveUserMember } from '@/lib/team-shared';
+import { buildAssignment } from '@/lib/assignments-shared';
 import { useIsMobile } from '@/lib/use-mobile';
 import { softDelete, filterActive } from '@/lib/trash';
 import { workerFetch } from '@/lib/worker-fetch';
@@ -33,13 +34,15 @@ interface MeetingNote {
 }
 
 export default function MuistiinpanotPage() {
-  const { canEdit, activeOrg } = useAuth();
+  const { canEdit, activeOrg, user } = useAuth();
   const { toast } = useToast();
   const params = useParams();
   const orgSlug = (params.orgSlug as string) || '';
   const [notes, setNotes] = useOrgData<MeetingNote[]>('meetingNotes', []);
   const [membersRaw] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const members = useMemo(() => uniqueMembersByName(membersRaw), [membersRaw]);
+  const myMember = useMemo(() => resolveUserMember(members, user), [members, user]);
+  const myName = myMember?.name || user?.displayName || '';
   const [tasks, setTasks] = useOrgData<{ id: string; text: string; assignee?: string; hankkia: boolean; done: boolean; priority: 'normal' | 'high'; deadline?: string; note?: string; category?: string }[]>('tasks', []);
   const [projects, setProjects] = useOrgData<any[]>('projects', []);
   const [projectMenuFor, setProjectMenuFor] = useState<string | null>(null); // "noteId:idx"
@@ -382,11 +385,11 @@ Paivitetty yhteenveto:`;
     const newTask = {
       id: 't_' + Date.now(),
       text: item.text,
-      assignee: item.assignee || undefined,
       hankkia: false,
       done: false,
       priority: 'normal' as const,
       note: `Palaverista: ${note.title} (${note.date})`,
+      ...buildAssignment(item.assignee || undefined, myName),
     };
     setTasks(prev => [newTask, ...prev]);
     updateActionItem(noteId, idx, { confirmed: true });
