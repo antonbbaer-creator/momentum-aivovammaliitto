@@ -365,7 +365,7 @@ export default function AdminPage() {
     setSeeding(true);
     try {
       const orgId = 'luuri';
-      const LUURI_SLOGAN = 'Lokaalit kielimallit suomalaisille yrityksille — oma data, oma rauta, ei pilvea.';
+      const LUURI_SLOGAN = 'Lokaalit kielimallit suomalaisille yrityksille — oma data, oma rauta, ei pilveä.';
       await setDoc(doc(db, 'organizations', orgId), {
         name: 'Luuri.net', shortName: 'LNT', slogan: LUURI_SLOGAN,
         joinCode: 'luuri-net-clean', createdAt: new Date().toISOString(), createdBy: user.uid, plan: 'free',
@@ -384,98 +384,98 @@ export default function AdminPage() {
           { name: 'Maximilan Rehn', share: '50%' },
         ],
         founded: 2026,
-        yritysmuoto: 'Osakeyhtio',
-        toimiala: 'Informaatio ja viestinta',
+        yritysmuoto: 'Osakeyhtiö',
+        toimiala: 'Informaatio ja viestintä',
 
         // ═══ STRATEGIA 2026-2029 ═══
         orgStrategy: {
           strategicPeriod: '2026-2029',
-          mission: 'Mahdollistamme suomalaisille yrityksille tekoalyn kayton heidan omassa infrastruktuurissaan — ilman pilvipalveluita, tietoturvariskeja tai datan vuotoa. Rakennamme Claude Code:n kaltaisen workflown asiakkaan omalla salatulla datalla, palomuurin suojassa.',
-          vision: 'Suomalaiset omistavat jalleen IT-infrastruktuurinsa itse. Vuonna 2029 lokaalit kielimallit ovat vakiintunut valinta suomalaisissa asiantuntijayrityksissa, ja Luuri.net on maan tunnetuin on-prem-tekoalyn asiantuntija.',
+          mission: 'Mahdollistamme suomalaisille yrityksille tekoälyn käytön heidän omassa infrastruktuurissaan — ilman pilvipalveluita, tietoturvariskejä tai datan vuotoa. Rakennamme Claude Code:n kaltaisen workflown asiakkaan omalla salatulla datalla, palomuurin suojassa.',
+          vision: 'Suomalaiset omistavat jälleen IT-infrastruktuurinsa itse. Vuonna 2029 lokaalit kielimallit ovat vakiintunut valinta suomalaisissa asiantuntijayrityksissä, ja Luuri.net on maan tunnetuin on-prem-tekoälyn asiantuntija.',
           values: [
-            { name: 'Kaytannollinen', desc: 'Insinoorin ote: se mika toimii, toimii. Ei hypea, ei korulauseita.' },
-            { name: 'Rehellinen', desc: 'Kerromme rajoituksista ja kustannuksista etukateen. Emme lupaa mita emme voi pitaa.' },
-            { name: 'Omistajuus', desc: 'Asiakas omistaa ostamansa — ei vuokraa sita kuukausimaksulla amerikkalaiselta korporaatiolta.' },
-            { name: 'Kestava', desc: 'Vanhan raudan uudelleenkaytto, paikallinen data, pitkan linjan kumppanuus.' },
+            { name: 'Käytännöllinen', desc: 'Insinöörin ote: se mikä toimii, toimii. Ei hypeä, ei korulauseita.' },
+            { name: 'Rehellinen', desc: 'Kerromme rajoituksista ja kustannuksista etukäteen. Emme lupaa mitä emme voi pitää.' },
+            { name: 'Omistajuus', desc: 'Asiakas omistaa ostamansa — ei vuokraa sitä kuukausimaksulla amerikkalaiselta korporaatiolta.' },
+            { name: 'Kestävä', desc: 'Vanhan raudan uudelleenkäyttö, paikallinen data, pitkän linjan kumppanuus.' },
           ],
         },
 
         // ═══ STRATEGISET TAVOITTEET ═══
         strategicGoals: [
-          { id: 'g1', year: 2026, goal: 'Ensimmainen maksava asiakas Q2/2026. Onnistunut kayttoonotto referenssiksi.' },
-          { id: 'g2', year: 2026, goal: '3 auditointiasiakasta + 1 kayttoonotto vuoden 2026 loppuun mennessa.' },
-          { id: 'g3', year: 2027, goal: 'Toistuvaisliikevaihto yllapitosopimuksista kattaa perustajien palkat.' },
-          { id: 'g4', year: 2028, goal: 'Laajennus pohjoismaihin (Ruotsi, Norja) tai ensimmainen rekry.' },
+          { id: 'g1', year: 2026, goal: 'Ensimmäinen maksava asiakas Q2/2026. Onnistunut käyttöönotto referenssiksi.' },
+          { id: 'g2', year: 2026, goal: '3 auditointiasiakasta + 1 käyttöönotto vuoden 2026 loppuun mennessä.' },
+          { id: 'g3', year: 2027, goal: 'Toistuvaisliikevaihto ylläpitosopimuksista kattaa perustajien palkat.' },
+          { id: 'g4', year: 2028, goal: 'Laajennus pohjoismaihin (Ruotsi, Norja) tai ensimmäinen rekry.' },
         ],
 
-        // ═══ VIESTINNAN MISSIO ═══
-        commsMission: 'Osoitamme asiantuntijuutta faktoilla, emme markkinoinnilla. Kerromme selkokielella mita lokaali kielimalli oikeasti tekee, mita se maksaa ja miksi se kannattaa. Puhuttelemme IT-johtajaa, tietoturvavastaavaa ja toimitusjohtajaa samalla kielella — jokaiselle relevantti nakokulma.',
+        // ═══ VIESTINNÄN MISSIO ═══
+        commsMission: 'Osoitamme asiantuntijuutta faktoilla, emme markkinoinnilla. Kerromme selkokielellä mitä lokaali kielimalli oikeasti tekee, mitä se maksaa ja miksi se kannattaa. Puhuttelemme IT-johtajaa, tietoturvavastaavaa ja toimitusjohtajaa samalla kielellä — jokaiselle relevantti näkökulma.',
 
-        // ═══ VIESTINNAN PERUSTEHTAVAT ═══
+        // ═══ VIESTINNÄN PERUSTEHTÄVÄT ═══
         commsCoreRoles: [
           { id: 'asiantuntijuus', name: 'Asiantuntijuuden osoittaminen', desc: 'Blogit, tekniset artikkelit, case-studyt. Todistamme osaamisen ennen myyntipuhetta.', color: '#056b9f' },
-          { id: 'koulutus', name: 'Markkinan koulutus', desc: 'Lokaalit LLM:t ovat uusi ilmio Suomessa. Selitamme mita RAG, vektoritietokanta ja on-prem tarkoittavat paattajalle.', color: '#185e5b' },
-          { id: 'luottamus', name: 'Luottamuksen rakentaminen', desc: 'B2B-myynti vaatii luottamusta. Lapinakyvat hinnat, selkeat sopimusehdot, referenssit.', color: '#f1b434' },
-          { id: 'liikkeet', name: 'Liikkeelle saaminen', desc: 'Ilmainen tietoturvan ja tekoalyvalmiuden pikakartoitus madaltaa ensiaskelta.', color: '#e45c81' },
+          { id: 'koulutus', name: 'Markkinan koulutus', desc: 'Lokaalit LLM:t ovat uusi ilmiö Suomessa. Selitämme mitä RAG, vektoritietokanta ja on-prem tarkoittavat päättäjälle.', color: '#185e5b' },
+          { id: 'luottamus', name: 'Luottamuksen rakentaminen', desc: 'B2B-myynti vaatii luottamusta. Läpinäkyvät hinnat, selkeät sopimusehdot, referenssit.', color: '#f1b434' },
+          { id: 'liikkeet', name: 'Liikkeelle saaminen', desc: 'Ilmainen tietoturvan ja tekoälyvalmiuden pikakartoitus madaltaa ensiaskelta.', color: '#e45c81' },
         ],
 
-        // ═══ KOHDERYHMAT ═══
+        // ═══ KOHDERYHMÄT ═══
         auds: [
-          { name: 'IT-johtajat (CIO/CTO)', desc: 'Paattaa infrastruktuurivalinnoista. Tarvitsee teknisen luotettavuuden ja ROI-laskelman.' },
+          { name: 'IT-johtajat (CIO/CTO)', desc: 'Päättää infrastruktuurivalinnoista. Tarvitsee teknisen luotettavuuden ja ROI-laskelman.' },
           { name: 'Tietoturvavastaavat (CISO)', desc: 'Veto-oikeus pilvipalveluihin. Ostaa on-prem-ratkaisun koska se poistaa datavuotoriskin.' },
-          { name: 'Toimitusjohtajat (pk-yritykset)', desc: 'Nakee tekoalyn tuottavuutena mutta pelkaa datariskia. Tarvitsee bisneskuvaukset, ei teknisia yksityiskohtia.' },
+          { name: 'Toimitusjohtajat (pk-yritykset)', desc: 'Näkee tekoälyn tuottavuutena mutta pelkää datariskiä. Tarvitsee bisneskuvaukset, ei teknisiä yksityiskohtia.' },
           { name: 'Compliance/juristit', desc: 'GDPR, liikesalaisuudet, asianajosalaisuus. Ostajan portinvartija.' },
         ],
 
-        // ═══ SEGMENTIT (prioriteettijarjestyksessa) ═══
+        // ═══ SEGMENTIT (prioriteettijärjestyksessä) ═══
         targetSegmentsPriority: [
-          { segment: 'Lakitoimistot', rationale: 'Asianajosalaisuus tekee pilvesta lahes mahdottoman. Valmis maksuhalukkuus.' },
+          { segment: 'Lakitoimistot', rationale: 'Asianajosalaisuus tekee pilvestä lähes mahdottoman. Valmis maksuhalukkuus.' },
           { segment: 'Tilitoimistot ja rahoitusala', rationale: 'Kirjanpidon automaatio + GDPR/tietosuoja = luontainen kohde.' },
-          { segment: 'Terveydenhuollon yksityiset toimijat', rationale: 'Potilastiedot eivat saa vuotaa. Kova regulaatio suojaa myos meita.' },
+          { segment: 'Terveydenhuollon yksityiset toimijat', rationale: 'Potilastiedot eivät saa vuotaa. Kova regulaatio suojaa myös meitä.' },
           { segment: 'HR-yritykset', rationale: 'CV-data ja rekrydatat arkaluontoisia. Laaja volyymi.' },
-          { segment: 'Teollisuus (patentoitava R&D)', rationale: 'Liikesalaisuudet. Pitkaa projektit, isot sopimukset.' },
+          { segment: 'Teollisuus (patentoitava R&D)', rationale: 'Liikesalaisuudet. Pitkät projektit, isot sopimukset.' },
         ],
 
         // ═══ KILPAILUEDUT ═══
         competitiveEdge: [
           { name: 'Tuore ala', desc: 'Suomessa ei juurikaan lokaalien LLM:ien konsultointipalveluita. Early mover -etu.' },
-          { name: 'Asiakas omistaa', desc: 'Ostaa, ei vuokraa. Ei vendor lock-in -riskia.' },
-          { name: 'Suvereeni data', desc: 'Ei amerikkalaisia korporaatioita, ei CLOUD Act -riskia.' },
-          { name: 'Ekologinen', desc: 'Uudelleenkaytettava rauta mahdollista.' },
-          { name: 'Suomalainen kumppani', desc: 'Paikallinen tuki, sama aikavyohyke, sama kieli, sama lainsaadanto.' },
+          { name: 'Asiakas omistaa', desc: 'Ostaa, ei vuokraa. Ei vendor lock-in -riskiä.' },
+          { name: 'Suvereeni data', desc: 'Ei amerikkalaisia korporaatioita, ei CLOUD Act -riskiä.' },
+          { name: 'Ekologinen', desc: 'Uudelleenkäytettävä rauta mahdollista.' },
+          { name: 'Suomalainen kumppani', desc: 'Paikallinen tuki, sama aikavyöhyke, sama kieli, sama lainsäädäntö.' },
         ],
 
         // ═══ 2026 ERITYISHUOMIOT ═══
         currentContext: {
-          trend: 'Lokaalit LLM:t (Llama, Mistral, Qwen) saavuttaneet 2025-2026 aikana tason jossa ne ajavat tuotannossa — ei enaa laboratoriokokeilu.',
-          saasBacklash: 'Kaytanno- ja tietoturvasyista yha useampi yritys etsii vaihtoehtoa OpenAI/Google/Microsoft -pilvelle. Momentum on nyt.',
+          trend: 'Lokaalit LLM:t (Llama, Mistral, Qwen) saavuttaneet 2025-2026 aikana tason jossa ne ajavat tuotannossa — ei enää laboratoriokokeilu.',
+          saasBacklash: 'Käytännön- ja tietoturvasyistä yhä useampi yritys etsii vaihtoehtoa OpenAI/Google/Microsoft -pilvelle. Momentum on nyt.',
           gdpr: 'GDPR + tuleva EU AI Act tekee datasuvereniteetista myyntiargumentin — ei vain eettisen valinnan.',
           hardware: 'NVIDIA H100/H200 saatavuus parantunut 2026. AMD MI300 kilpailee. Hinta-teho-suhde on-premille parempi kuin koskaan.',
-          earlyMover: 'Kilpailijoita Suomessa edelleen vahan. Ikkuna on nyt auki, mutta sulkeutuu 12-24kk.',
+          earlyMover: 'Kilpailijoita Suomessa edelleen vähän. Ikkuna on nyt auki, mutta sulkeutuu 12-24kk.',
           founderCap: '2 perustajaa, rajallinen kapasiteetti — priorisoitava tarkasti. 1 asiakas kerrallaan, ei 10 samanaikaista.',
         },
 
-        mission: 'Mahdollistamme suomalaisille yrityksille tekoalyn kayton heidan omassa infrastruktuurissaan — ilman pilvipalveluita, tietoturvariskeja tai datan vuotoa.',
-        vision: 'Suomalaiset omistavat jalleen IT-infrastruktuurinsa itse. Tekoalyn tehokkuus ei vaadi datan luovuttamista amerikkalaisille korporaatioille.',
+        mission: 'Mahdollistamme suomalaisille yrityksille tekoälyn käytön heidän omassa infrastruktuurissaan — ilman pilvipalveluita, tietoturvariskejä tai datan vuotoa.',
+        vision: 'Suomalaiset omistavat jälleen IT-infrastruktuurinsa itse. Tekoälyn tehokkuus ei vaadi datan luovuttamista amerikkalaisille korporaatioille.',
         tiers: [
-          { id: 'auditointi', name: 'Tekoalyvalmiuden kartoitus', desc: 'Konsultointipaketti: palvelininfrastruktuurin, verkkoturvallisuuden ja tietokantojen arviointi. Lopputuloksena lista laitehankinnoista, malliehdotukset ja datan valmisteluopas.' },
-          { id: 'kayttoonotto', name: 'Kayttoonotto', desc: 'Ohjelmiston ja paikallisen kielimallin asennus asiakkaan palvelimille. Sisaltaa vektoritietokannat ja RAG-arkkitehtuurin sisaiselle PDF/teksti-haulle palomuurin sisalla.' },
-          { id: 'yllapito', name: 'Yllapito', desc: 'Kuukausilaskutteinen sopimus: mallien paivitykset, tietoturvakorjaukset ja laitteiston suorituskyvyn valvonta.' },
+          { id: 'auditointi', name: 'Tekoälyvalmiuden kartoitus', desc: 'Konsultointipaketti: palvelininfrastruktuurin, verkkoturvallisuuden ja tietokantojen arviointi. Lopputuloksena lista laitehankinnoista, malliehdotukset ja datan valmisteluopas.' },
+          { id: 'kayttoonotto', name: 'Käyttöönotto', desc: 'Ohjelmiston ja paikallisen kielimallin asennus asiakkaan palvelimille. Sisältää vektoritietokannat ja RAG-arkkitehtuurin sisäiselle PDF/teksti-haulle palomuurin sisällä.' },
+          { id: 'yllapito', name: 'Ylläpito', desc: 'Kuukausilaskutteinen sopimus: mallien päivitykset, tietoturvakorjaukset ja laitteiston suorituskyvyn valvonta.' },
         ],
         targetSegments: [
           'Lakitoimistot',
           'Tilitoimistot ja rahoitusala',
           'Terveydenhuollon yksityiset toimijat',
           'HR-yritykset',
-          'Patentoitavaa teknologiaa kehittava teollisuus',
+          'Patentoitavaa teknologiaa kehittävä teollisuus',
         ],
         kilpailuedut: [
-          'Ainutlaatuisuus: ala on tuore, kilpailijoita vahan',
-          'Sopimusehdot: asiakkaalla taysi omistajuus tuotteeseen',
-          'Vastuullisuus: vahentaa riippuvuutta amerikkalaisista korporaatioista',
-          'Ekologisuus: mahdollisuus kayttaa uudelleen vanhoja laitteita',
+          'Ainutlaatuisuus: ala on tuore, kilpailijoita vähän',
+          'Sopimusehdot: asiakkaalla täysi omistajuus tuotteeseen',
+          'Vastuullisuus: vähentää riippuvuutta amerikkalaisista korporaatioista',
+          'Ekologisuus: mahdollisuus käyttää uudelleen vanhoja laitteita',
         ],
-        channels: ['Kotisivut', 'Sahkopostimarkkinointi', 'Omat verkostot', 'Tapahtumat', 'Puhelinmyynti'],
+        channels: ['Kotisivut', 'Sähköpostimarkkinointi', 'Omat verkostot', 'Tapahtumat', 'Puhelinmyynti'],
         team: [
           { name: 'Juhani Lindh', role: 'Perustaja / Osakas 50%', avatar: 'J' },
           { name: 'Maximilan Rehn', role: 'Perustaja / Osakas 50%', avatar: 'M' },
@@ -486,27 +486,27 @@ export default function AdminPage() {
       await setDoc(doc(db, 'organizations', orgId, 'data', 'channelStats'), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid });
       await setDoc(doc(db, 'organizations', orgId, 'data', 'modules'), { v: JSON.stringify(LUURI_MODULES), ts: Date.now(), updatedBy: user.uid });
 
-      // AI-profiili: kaytannonlaheinen suomalainen insinoori, ymmartavainen — vain Luuri.net-puolella
+      // AI-profiili: käytännönläheinen suomalainen insinööri, ymmärtäväinen — vain Luuri.net-puolella
       const LUURI_AI_PROFILE = {
         role: 'custom',
-        roleLabel: 'Kaytannonlaheinen suomalainen insinoori',
+        roleLabel: 'Käytännönläheinen suomalainen insinööri',
         focus: [
-          'Puhu kuin suomalainen insinoori: suoraan, ilman korulauseita, mutta empaattisesti.',
-          'Keskity kaytantoon — mika toimii, mika maksaa, kuka ostaa ja miksi. Ei hypea.',
+          'Puhu kuin suomalainen insinööri: suoraan, ilman korulauseita, mutta empaattisesti.',
+          'Keskity käytäntöön — mikä toimii, mikä maksaa, kuka ostaa ja miksi. Ei hypeä.',
           'Tunnet B2B-asiantuntijamyynnin: IT-johtajat, tietoturvavastaavat, hallitustasolla perustelu.',
-          'Tunnet lokaalit LLM:t, RAG-arkkitehtuurin, vektoritietokannat, open-source-mallit (Llama, Mistral, Qwen), on-prem rauta (GPU, palvelimet).',
-          'Kohderyhmat: lakitoimistot, tilitoimistot, rahoitus, terveydenhuolto, HR, patentoitava teollisuus.',
-          'Vastusta SaaS-hypea ja pilviriippuvuutta — mutta argumentoi faktoilla (GDPR, liikesalaisuudet, kustannukset), ei ideologialla.',
+          'Tunnet lokaalit LLM:t, RAG-arkkitehtuurin, vektoritietokannat, open-source-mallit (Llama, Mistral, Qwen), on-prem raudan (GPU, palvelimet).',
+          'Kohderyhmät: lakitoimistot, tilitoimistot, rahoitus, terveydenhuolto, HR, patentoitava teollisuus.',
+          'Vastusta SaaS-hypeä ja pilviriippuvuutta — mutta argumentoi faktoilla (GDPR, liikesalaisuudet, kustannukset), ei ideologialla.',
         ].join('\n'),
         context: [
-          'Luuri.net on 2026 perustettu suomalainen osakeyhtio. Perustajat: Juhani Lindh (50%) ja Maximilan Rehn (50%).',
-          'Palvelumalli 3 tasoa: 1) Tekoalyvalmiuden kartoitus (sisaanheittotuote), 2) Kayttoonotto (paatuote: on-prem LLM + RAG), 3) Yllapito (kuukausilaskutus).',
-          'Asiakaslupaus: Claude Code:n kaltainen workflow asiakkaan omalla salatulla datalla, palomuurin sisalla, ilman pilvipalveluriskeja.',
-          'Brandi: vanha suomalainen Nokia-henkinen tekniikka, ennen pilvipalveluita ja riistokapitalismia. Retro, luotettava, kestava.',
-          'Tavoite: yksi asiakas kerrallaan, oppia virheista, kasvaa orgaanisesti. Suomalaiset omistavat infrastruktuurinsa itse.',
+          'Luuri.net on 2026 perustettu suomalainen osakeyhtiö. Perustajat: Juhani Lindh (50%) ja Maximilan Rehn (50%).',
+          'Palvelumalli 3 tasoa: 1) Tekoälyvalmiuden kartoitus (sisäänheittotuote), 2) Käyttöönotto (päätuote: on-prem LLM + RAG), 3) Ylläpito (kuukausilaskutus).',
+          'Asiakaslupaus: Claude Code:n kaltainen workflow asiakkaan omalla salatulla datalla, palomuurin sisällä, ilman pilvipalveluriskejä.',
+          'Brändi: vanha suomalainen Nokia-henkinen tekniikka, ennen pilvipalveluita ja riistokapitalismia. Retro, luotettava, kestävä.',
+          'Tavoite: yksi asiakas kerrallaan, oppia virheistä, kasvaa orgaanisesti. Suomalaiset omistavat infrastruktuurinsa itse.',
         ].join('\n'),
-        tone: 'Rehellinen, kaytannollinen, ymmartavainen. Puhu selkosuomea mutta ala aliarvioi. Naurahda omille vitseille. Ei anglismeja jos suomenkielinen sana toimii.',
-        restrictions: 'Ala lupaa mita et voi pitaa. Ala piilota teknisia rajoituksia (latenssi, rautavaatimukset, ylläpitokulut). Ala markkinoi ideologialla jos faktatkin riittavat.',
+        tone: 'Rehellinen, käytännöllinen, ymmärtäväinen. Puhu selkosuomea mutta älä aliarvioi. Naurahda omille vitseille. Ei anglismeja jos suomenkielinen sana toimii.',
+        restrictions: 'Älä lupaa mitä et voi pitää. Älä piilota teknisiä rajoituksia (latenssi, rautavaatimukset, ylläpitokulut). Älä markkinoi ideologialla jos faktatkin riittävät.',
       };
       await setDoc(doc(db, 'organizations', orgId, 'data', 'aiProfile'), { v: JSON.stringify(LUURI_AI_PROFILE), ts: Date.now(), updatedBy: user.uid });
       for (const key of ['projects', 'publications', 'media_meta', 'media_uploaded', 'media_collections']) {
@@ -564,11 +564,11 @@ export default function AdminPage() {
           display: 'flex', alignItems: 'center', gap: '1rem',
         }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '.88rem', fontWeight: 700 }}>Paivita Luuri.net -data</div>
-            <div style={{ fontSize: '.72rem', color: 'var(--t2)', marginTop: '.2rem' }}>Ajaa uusimman strategian, AI-profiilin ja nimen (Luuri → Luuri.net) olemassa olevaan orgiin. Ei poista kayttajien lisaamaa dataa.</div>
+            <div style={{ fontSize: '.88rem', fontWeight: 700 }}>Päivitä Luuri.net -data</div>
+            <div style={{ fontSize: '.72rem', color: 'var(--t2)', marginTop: '.2rem' }}>Ajaa uusimman strategian, AI-profiilin ja nimen (Luuri → Luuri.net) olemassa olevaan orgiin. Ei poista käyttäjien lisäämää dataa.</div>
           </div>
           <button className="btn btn-primary btn-sm" onClick={createLuuri} disabled={seeding}>
-            {seeding ? 'Paivitetaan...' : 'Paivita data'}
+            {seeding ? 'Päivitetään...' : 'Päivitä data'}
           </button>
         </div>
       )}
@@ -583,7 +583,7 @@ export default function AdminPage() {
         }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: '.92rem', fontWeight: 700 }}>Luuri.net puuttuu</div>
-            <div style={{ fontSize: '.75rem', color: 'var(--t2)', marginTop: '.2rem' }}>Puhdas tyhja tyotila kaikilla moduuleilla — irti muista orgeista. Ei pohjatietoja.</div>
+            <div style={{ fontSize: '.75rem', color: 'var(--t2)', marginTop: '.2rem' }}>Puhdas tyhjä työtila kaikilla moduuleilla — irti muista orgeista. Ei pohjatietoja.</div>
           </div>
           <button className="btn btn-primary" onClick={createLuuri} disabled={seeding}>
             {seeding ? 'Luodaan...' : 'Luo Luuri.net'}
