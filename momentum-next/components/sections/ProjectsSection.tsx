@@ -15,6 +15,8 @@ import {
   Assignable, effectiveStatus, buildAssignment, acceptAssignment,
   rejectAssignment, reassign, statusLabel, statusColor,
 } from '@/lib/assignments-shared';
+import Link from 'next/link';
+import { ProjectNote, canViewNote, stageLabel, stageColor } from '@/lib/notes-shared';
 
 interface Task extends Assignable {
   id: number; text: string; done: boolean; deadline: string;
@@ -34,6 +36,7 @@ export interface Project {
   teamId?: string;   // NEW: organizational team id (executive/elokuva/viestinta/tekninen)
   phaseId?: string;  // NEW: optional link to a yearwheel phase
   deletedAt?: number;
+  noteSeedIds?: string[]; // muistiinpanojen id:t joista projekti on syntynyt
 }
 
 interface Props {
@@ -58,6 +61,7 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
   const orgSlug = (useParams().orgSlug as string) || '';
   const isMobile = useIsMobile();
   const [projects, setProjects] = useOrgData<Project[]>('projects', []);
+  const [projectNotes] = useOrgData<ProjectNote[]>('projectNotes', []);
   const [teamDataRaw] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const teamData = useMemo(() => uniqueMembersByName(teamDataRaw), [teamDataRaw]);
   const myMember = useMemo(() => resolveUserMember(teamData, user), [teamData, user]);
@@ -178,6 +182,71 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
           </div>
         </div>
 
+        {/* Seed notes — "mistä idea syntyi" */}
+        {(() => {
+          const uid = user?.uid || '';
+          const seedIds = selected.noteSeedIds || [];
+          const seeds = seedIds
+            .map(sid => projectNotes.find(n => n.id === sid && !n.deletedAt && canViewNote(n, uid)))
+            .filter((n): n is ProjectNote => !!n);
+          if (seeds.length === 0) return null;
+          return (
+            <div style={{
+              background: 'rgba(155,124,246,.04)',
+              border: '1px dashed rgba(155,124,246,.3)',
+              borderRadius: 'var(--rl)', padding: '1rem 1.25rem', marginBottom: '1.5rem',
+            }}>
+              <div style={{ fontSize: '.62rem', fontWeight: 700, color: '#9b7cf6', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>
+                Syntynyt ideasta
+              </div>
+              {seeds.map(seed => {
+                const stg = stageColor(seed.stage);
+                return (
+                  <Link
+                    key={seed.id}
+                    href={`/${orgSlug}/muistiinpanot-projekti`}
+                    style={{
+                      display: 'block', textDecoration: 'none',
+                      padding: '.6rem .8rem', marginTop: '.35rem',
+                      background: 'var(--card)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--r)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.2rem' }}>
+                      <span style={{
+                        fontFamily: 'var(--font-display), Georgia, serif',
+                        fontSize: '.85rem', fontWeight: 600, color: 'var(--t1)',
+                      }}>
+                        {seed.title || 'Nimetön idea'}
+                      </span>
+                      <span style={{
+                        fontSize: '.56rem', padding: '.08rem .35rem', borderRadius: 9999, fontWeight: 700,
+                        background: stg.bg, color: stg.fg,
+                        textTransform: 'uppercase', letterSpacing: '.04em',
+                      }}>
+                        {stageLabel(seed.stage)}
+                      </span>
+                      <span style={{ fontSize: '.65rem', color: 'var(--t3)', marginLeft: 'auto' }}>
+                        {seed.ownerName}
+                      </span>
+                    </div>
+                    {seed.sourceQuestion && (
+                      <div style={{ fontSize: '.72rem', fontStyle: 'italic', color: '#9b7cf6', fontFamily: 'var(--font-display), Georgia, serif', marginBottom: '.2rem' }}>
+                        "{seed.sourceQuestion}"
+                      </div>
+                    )}
+                    {seed.content && (
+                      <div style={{ fontSize: '.75rem', color: 'var(--t2)', lineHeight: 1.55, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                        {seed.content.slice(0, 200)}{seed.content.length > 200 ? '…' : ''}
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          );
+        })()}
+
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.5rem', marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase' }}>Tehtävät</h3>
@@ -292,6 +361,96 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
             </div>
           </form>
         </div>
+
+        {(() => {
+          const uid = user?.uid || '';
+          const notesForProject = projectNotes
+            .filter(n => !n.deletedAt && n.projectIds.includes(selected.id) && canViewNote(n, uid))
+            .sort((a, b) => b.updatedAt - a.updatedAt);
+          return (
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.5rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase' }}>
+                  Muistiinpanot ({notesForProject.length})
+                </h3>
+                <div style={{ display: 'flex', gap: '.4rem' }}>
+                  <Link
+                    href={`/${orgSlug}/muistiinpanot-projekti?project=${selected.id}`}
+                    className="btn btn-ghost btn-sm"
+                    style={{ fontSize: '.7rem', textDecoration: 'none' }}
+                  >
+                    Näytä kaikki
+                  </Link>
+                  <Link
+                    href={`/${orgSlug}/muistiinpanot-projekti?project=${selected.id}`}
+                    className="btn btn-primary btn-sm"
+                    style={{ fontSize: '.7rem', textDecoration: 'none' }}
+                  >
+                    + Luo
+                  </Link>
+                </div>
+              </div>
+              {notesForProject.length === 0 ? (
+                <p style={{ fontSize: '.8rem', color: 'var(--t3)', fontStyle: 'italic' }}>
+                  Ei muistiinpanoja tähän projektiin. Luo ensimmäinen ylhäältä tai avaa muistiinpanot-sivu.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+                  {notesForProject.slice(0, 5).map(n => {
+                    const stg = stageColor(n.stage);
+                    return (
+                      <Link
+                        key={n.id}
+                        href={`/${orgSlug}/muistiinpanot-projekti?project=${selected.id}`}
+                        style={{
+                          display: 'block', textDecoration: 'none',
+                          padding: '.6rem .8rem',
+                          background: 'var(--elev)', border: '1px solid var(--border)',
+                          borderLeft: `3px solid ${stg.fg}`,
+                          borderRadius: 'var(--r)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', marginBottom: '.15rem', flexWrap: 'wrap' }}>
+                          <span style={{
+                            fontSize: '.56rem', padding: '.1rem .35rem', borderRadius: 9999, fontWeight: 700,
+                            background: stg.bg, color: stg.fg,
+                            textTransform: 'uppercase', letterSpacing: '.04em',
+                          }}>
+                            {stageLabel(n.stage)}
+                          </span>
+                          <span style={{ fontFamily: 'var(--font-display), Georgia, serif', fontSize: '.85rem', fontWeight: 600, color: 'var(--t1)' }}>
+                            {n.title || 'Nimetön'}
+                          </span>
+                          <span style={{ fontSize: '.65rem', color: 'var(--t3)', marginLeft: 'auto' }}>
+                            {n.ownerName}
+                          </span>
+                        </div>
+                        {n.sourceQuestion && (
+                          <div style={{ fontSize: '.68rem', fontStyle: 'italic', color: '#9b7cf6', fontFamily: 'var(--font-display), Georgia, serif', marginBottom: '.15rem' }}>
+                            "{n.sourceQuestion}"
+                          </div>
+                        )}
+                        {n.content && (
+                          <div style={{ fontSize: '.72rem', color: 'var(--t2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {n.content.slice(0, 140)}
+                          </div>
+                        )}
+                      </Link>
+                    );
+                  })}
+                  {notesForProject.length > 5 && (
+                    <Link
+                      href={`/${orgSlug}/muistiinpanot-projekti?project=${selected.id}`}
+                      style={{ fontSize: '.72rem', color: 'var(--pri)', textDecoration: 'none', marginTop: '.25rem' }}
+                    >
+                      Näytä kaikki {notesForProject.length} muistiinpanoa →
+                    </Link>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.5rem' }}>
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase', marginBottom: '1rem' }}>Keskustelu ({(selected.comments || []).length})</h3>

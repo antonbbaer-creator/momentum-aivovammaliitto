@@ -26,7 +26,8 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   tehtavat:   { id: 'tehtavat',   label: 'Tehtävät',   icon: '☐', path: '/tehtavat',   alwaysOn: false },
   tila:       { id: 'tila',       label: 'Tila',       icon: '⌂', path: '/tila',       alwaysOn: false },
   ohjelma:    { id: 'ohjelma',    label: 'Ohjelma',    icon: '▦', path: '/ohjelma',    alwaysOn: false },
-  muistiinpanot: { id: 'muistiinpanot', label: 'Muistiinpanot', icon: '✎', path: '/muistiinpanot', alwaysOn: false },
+  muistiinpanot: { id: 'muistiinpanot', label: 'Kokoukset', icon: '✎', path: '/muistiinpanot', alwaysOn: false },
+  muistiinpanotProjekti: { id: 'muistiinpanotProjekti', label: 'Luomistila', icon: '✎', path: '/muistiinpanot-projekti', alwaysOn: false },
   palaverit: { id: 'palaverit', label: 'Palaverit', icon: '⊞', path: '/palaverit', alwaysOn: false },
   projects:  { id: 'projects',  label: 'Projektit',  icon: '▣', path: '/projects',  alwaysOn: false },
   tyonjako:  { id: 'tyonjako',  label: 'Työnjako',   icon: '≈', path: '/tyonjako',  alwaysOn: false },
@@ -34,7 +35,7 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'ohjelmisto', 'budget', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'palaute'];
+export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'ohjelmisto', 'budget', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'palaute'];
 
 // Default modules for new orgs (viestintaorgit)
 export const DEFAULT_MODULES: Record<string, boolean> = {
@@ -52,6 +53,7 @@ export const DEFAULT_MODULES: Record<string, boolean> = {
   tila: false,
   ohjelma: false,
   muistiinpanot: false,
+  muistiinpanotProjekti: true,
   palaverit: false,
   projects: true,
   tyonjako: true,
@@ -74,6 +76,7 @@ export const AVL_MODULES: Record<string, boolean> = {
   tila: false,
   ohjelma: false,
   muistiinpanot: true,
+  muistiinpanotProjekti: true,
   palaverit: false,
   projects: true,
   tyonjako: true,
@@ -96,6 +99,7 @@ export const JUHLATOIMIKUNTA_MODULES: Record<string, boolean> = {
   tila: true,
   ohjelma: true,
   muistiinpanot: true,
+  muistiinpanotProjekti: true,
   palaverit: false,
   projects: true,
   tyonjako: true,
@@ -118,6 +122,7 @@ export const LUURI_MODULES: Record<string, boolean> = {
   tila: true,
   ohjelma: true,
   muistiinpanot: true,
+  muistiinpanotProjekti: true,
   palaverit: true,
   projects: true,
   tyonjako: true,

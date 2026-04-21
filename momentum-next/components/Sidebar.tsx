@@ -56,6 +56,15 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   muistiinpanot: (
     <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
   ),
+  muistiinpanotProjekti: (
+    <svg viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.25" stroke="none">
+        <animate attributeName="r" values="4;9;4" dur="2.4s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.35;0.05;0.35" dur="2.4s" repeatCount="indefinite" />
+      </circle>
+      <circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none" />
+    </svg>
+  ),
   palaverit: (
     <svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="2.5"/><circle cx="15" cy="7" r="2.5"/><path d="M4 21v-1a5 5 0 015-5h6a5 5 0 015 5v1"/><rect x="8" y="12" width="8" height="4" rx="1" opacity=".3"/></svg>
   ),
