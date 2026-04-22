@@ -57,6 +57,23 @@ const relativeSaved = (ts: number): string => {
 const fmtTime = (sec: number): string =>
   `${Math.floor(sec / 60).toString().padStart(2, '0')}:${(sec % 60).toString().padStart(2, '0')}`;
 
+/**
+ * Map a MediaRecorder blob to a file extension that Whisper accepts.
+ * Whisper tukee: flac, m4a, mp3, mp4, mpeg, mpga, oga, ogg, wav, webm.
+ * HUOM: audio-only mp4 -> .m4a, Firefox/Safari voi tuottaa ogg tai mp4.
+ */
+function whisperExtForBlob(blob: Blob): string {
+  const t = (blob.type || '').toLowerCase();
+  if (t.includes('webm')) return 'webm';
+  if (t.includes('ogg') || t.includes('oga') || t.includes('opus')) return 'ogg';
+  if (t.includes('mp4') || t.includes('aac') || t.includes('x-m4a') || t.includes('m4a')) return 'm4a';
+  if (t.includes('mpeg') || t.includes('mp3') || t.includes('mpga')) return 'mp3';
+  if (t.includes('wav') || t.includes('wave') || t.includes('x-wav')) return 'wav';
+  if (t.includes('flac')) return 'flac';
+  if (typeof console !== 'undefined') console.warn('[whisper] Tuntematon blob-tyyppi, käytetään .webm-päätettä:', blob.type);
+  return 'webm';
+}
+
 // Creative-space backdrop — lievä kerman väri joka erottaa projektinhallinnasta
 const CREATIVE_BG = 'linear-gradient(180deg, rgba(241,180,52,.025) 0%, rgba(155,124,246,.02) 100%)';
 
@@ -271,10 +288,13 @@ export default function MuistiinpanotProjektiPage() {
 
   const transcribe = useCallback(async (blob: Blob): Promise<string> => {
     const form = new FormData();
-    const ext = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('wav') ? 'wav' : 'webm';
+    const ext = whisperExtForBlob(blob);
     form.append('audio', blob, `dictation.${ext}`);
     const res = await workerFetch('/api/transcribe', { method: 'POST', orgId: activeOrg || '', body: form });
-    if (!res.ok) throw new Error('Litterointi epäonnistui');
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`Litterointi epäonnistui (${res.status}) ${errText.slice(0, 200)}`);
+    }
     const { transcription } = await res.json() as { transcription: string };
     return transcription || '';
   }, [activeOrg]);

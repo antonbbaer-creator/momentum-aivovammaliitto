@@ -577,7 +577,7 @@ Paivitetty yhteenveto:`;
     try {
       // Small files (< 24 MB): send directly
       if (audioBlob.size <= 24 * 1024 * 1024) {
-        const ext = audioBlob.type.includes('mp4') ? 'mp4' : audioBlob.type.includes('mp3') || audioBlob.type.includes('mpeg') ? 'mp3' : audioBlob.type.includes('wav') ? 'wav' : 'webm';
+        const ext = whisperExtForBlob(audioBlob);
         const transcription = await transcribeChunk(audioBlob, `recording.${ext}`);
         if (!transcription) throw new Error('Tyhjä litterointi — ei tunnistettu puhetta');
         return await finishTranscription(transcription);
@@ -1260,6 +1260,24 @@ function formatDate(dateStr: string): string {
   } catch {
     return dateStr;
   }
+}
+
+/**
+ * Map a MediaRecorder blob to a file extension that Whisper accepts.
+ * Whisper tukee: flac, m4a, mp3, mp4, mpeg, mpga, oga, ogg, wav, webm.
+ * HUOM: audio-only mp4 -> .m4a (ei .mp4, muuten Whisper voi hylätä koska ei videoraitaa).
+ */
+function whisperExtForBlob(blob: Blob): string {
+  const t = (blob.type || '').toLowerCase();
+  if (t.includes('webm')) return 'webm';
+  if (t.includes('ogg') || t.includes('oga') || t.includes('opus')) return 'ogg';
+  if (t.includes('mp4') || t.includes('aac') || t.includes('x-m4a') || t.includes('m4a')) return 'm4a';
+  if (t.includes('mpeg') || t.includes('mp3') || t.includes('mpga')) return 'mp3';
+  if (t.includes('wav') || t.includes('wave') || t.includes('x-wav')) return 'wav';
+  if (t.includes('flac')) return 'flac';
+  // Tuntematon — oleta webm (Chrome/Edgen yleisin), mutta lokita varoitus
+  if (typeof console !== 'undefined') console.warn('[whisper] Tuntematon blob-tyyppi, käytetään .webm-päätettä:', blob.type);
+  return 'webm';
 }
 
 /** Encode a segment of an AudioBuffer as a valid WAV file (mono 16-bit) */
