@@ -114,6 +114,7 @@ const ORG_DISPLAY_NAMES: Record<string, string> = {
   avl: 'Aivovammaliitto (AVL)',
   juhlatoimikunta: 'Juhlatoimikunta — Sirpan 70v',
   luuri: 'Luuri.net',
+  ihaa: 'Ihaa — venekunnostus',
 };
 
 export function getOrgDisplayName(orgSlug: string): string {

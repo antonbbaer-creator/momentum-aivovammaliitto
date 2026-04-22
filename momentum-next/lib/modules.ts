@@ -128,10 +128,34 @@ export const LUURI_MODULES: Record<string, boolean> = {
   tyonjako: true,
 };
 
+// Ihaa — venekunnostus, pieni tiimi, harrastusprojekti
+export const IHAA_MODULES: Record<string, boolean> = {
+  dashboard: true,
+  strategy: false,
+  team: true,
+  viestit: false,
+  aikataulut: true,
+  viestinta: false,
+  ohjelmisto: false,
+  budget: true,
+  vieraat: false,
+  ruoka: false,
+  tehtavat: true,
+  tila: false,
+  ohjelma: false,
+  muistiinpanot: true,
+  muistiinpanotProjekti: true,
+  palaverit: true,
+  projects: true,
+  tyonjako: true,
+  palaute: true,
+};
+
 export function getDefaultModules(orgSlug: string): Record<string, boolean> {
   if (orgSlug === 'avl') return AVL_MODULES;
   if (orgSlug === 'juhlatoimikunta') return JUHLATOIMIKUNTA_MODULES;
   if (orgSlug === 'luuri') return LUURI_MODULES;
+  if (orgSlug === 'ihaa') return IHAA_MODULES;
   return DEFAULT_MODULES;
 }
 

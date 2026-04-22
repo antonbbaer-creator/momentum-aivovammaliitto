@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase';
 import AppShell from '@/components/AppShell';
 import { useToast } from '@/lib/toast';
 import { AVL_ORG, AVL_EVENTS, AVL_CHANNEL_STATS, LLFF_ORG, LLFF_EVENTS, LLFF_CHANNEL_STATS, JUHLATOIMIKUNTA_ORG, JUHLATOIMIKUNTA_EVENTS, JUHLATOIMIKUNTA_CHANNEL_STATS } from '@/lib/seed-data';
-import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, JUHLATOIMIKUNTA_MODULES, LUURI_MODULES, getDefaultModules } from '@/lib/modules';
+import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, JUHLATOIMIKUNTA_MODULES, LUURI_MODULES, IHAA_MODULES, getDefaultModules } from '@/lib/modules';
 
 interface OrgMember {
   uid: string;
@@ -52,6 +52,10 @@ export default function AdminPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
   const [inviteOrgId, setInviteOrgId] = useState('');
+
+  // Ihaa-form
+  const [iiroEmail, setIiroEmail] = useState('');
+  const [juhaniEmail, setJuhaniEmail] = useState('');
 
   const { toast } = useToast();
   const [seeding, setSeeding] = useState(false);
@@ -548,9 +552,133 @@ export default function AdminPage() {
     }
   };
 
+  // Luo Ihaa — venekunnostustiimi (Anton, Iiro, Juhani)
+  const createIhaa = async () => {
+    if (!user) return;
+    setSeeding(true);
+    try {
+      const orgId = 'ihaa';
+      const IHAA_SLOGAN = 'Kolmen miehen venekunnostusprojekti.';
+
+      await setDoc(doc(db, 'organizations', orgId), {
+        name: 'Ihaa', shortName: 'IHA', slogan: IHAA_SLOGAN,
+        joinCode: 'ihaa-vene-2026', createdAt: new Date().toISOString(), createdBy: user.uid, plan: 'free',
+      }, { merge: true });
+
+      // Add current user (Anton) as owner
+      await setDoc(doc(db, 'organizations', orgId, 'members', user.uid), {
+        role: 'owner', joinedAt: new Date().toISOString(),
+        displayName: user.displayName || '', email: user.email || '', photoURL: user.photoURL || '',
+      }, { merge: true });
+
+      // Basic org metadata
+      const IHAA_ORG = {
+        name: 'Ihaa',
+        s: 'IHA',
+        slogan: IHAA_SLOGAN,
+        founded: 2026,
+        mission: 'Kunnostaa Ihaa-vene purjehduskuntoon yhdessä.',
+        team: [
+          { name: 'Anton Baer', role: 'Miehistö', avatar: 'A' },
+          { name: 'Iiro Törmä', role: 'Miehistö', avatar: 'I' },
+          { name: 'Juhani Lindh', role: 'Miehistö', avatar: 'J' },
+        ],
+      };
+      await setDoc(doc(db, 'organizations', orgId, 'data', 'org'), { v: JSON.stringify(IHAA_ORG), ts: Date.now(), updatedBy: user.uid });
+      await setDoc(doc(db, 'organizations', orgId, 'data', 'events'), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid });
+      await setDoc(doc(db, 'organizations', orgId, 'data', 'channelStats'), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid });
+      await setDoc(doc(db, 'organizations', orgId, 'data', 'modules'), { v: JSON.stringify(IHAA_MODULES), ts: Date.now(), updatedBy: user.uid });
+
+      // orgTeams: yksi tiimi "Miehistö"
+      const teams = [
+        { id: 'miehisto', name: 'Miehistö', color: '#2a8a86', icon: '⚓', description: 'Ihaan kunnostustiimi.' },
+      ];
+      await setDoc(doc(db, 'organizations', orgId, 'data', 'orgTeams'), { v: JSON.stringify(teams), ts: Date.now(), updatedBy: user.uid });
+
+      // orgTeamMembers — Anton (linkataan omaan tiliin), Iiro ja Juhani ilman linkkejä kunnes lisätään
+      const members = [
+        {
+          id: 'anton', name: 'Anton Baer', role: 'Miehistö', teamId: 'miehisto', type: 'permanent',
+          avatar: 'A', email: user.email || '', linkedUserEmails: [user.email || ''].filter(Boolean),
+          isManager: true,
+        },
+        { id: 'iiro', name: 'Iiro Törmä', role: 'Miehistö', teamId: 'miehisto', type: 'permanent', avatar: 'I' },
+        { id: 'juhani', name: 'Juhani Lindh', role: 'Miehistö', teamId: 'miehisto', type: 'permanent', avatar: 'J' },
+      ];
+      await setDoc(doc(db, 'organizations', orgId, 'data', 'orgTeamMembers'), { v: JSON.stringify(members), ts: Date.now(), updatedBy: user.uid });
+
+      // Initialize empty collections
+      for (const key of ['projects', 'publications', 'media_meta', 'media_uploaded', 'media_collections', 'tasks', 'meetingNotes', 'projectNotes', 'meetings', 'meetingPolls']) {
+        await setDoc(doc(db, 'organizations', orgId, 'data', key), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid }, { merge: true });
+      }
+
+      // Add Ihaa to current user's org list
+      const userOrgsSnap = await getDocs(query(collection(db, 'userOrgs')));
+      let existingOrgs: any[] = [];
+      for (const d of userOrgsSnap.docs) {
+        if (d.id === user.uid) existingOrgs = d.data().orgs || [];
+      }
+      if (!existingOrgs.some((o: any) => o.orgId === orgId)) {
+        const newOrgs = [...existingOrgs, { orgId, role: 'owner', name: 'Ihaa' }];
+        await setDoc(doc(db, 'userOrgs', user.uid), { orgs: newOrgs, orgIds: newOrgs.map((o: any) => o.orgId) });
+      }
+
+      // Lisää Iiro ja Juhani jäseniksi — etsi heidät users-kokoelmasta sähköpostin perusteella
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const allUsersList = usersSnap.docs.map(u => ({ uid: u.id, ...(u.data() as any) }));
+
+      const inviteByEmail = async (emailRaw: string, displayName: string) => {
+        const email = emailRaw.trim().toLowerCase();
+        if (!email) return { ok: false, reason: 'tyhjä' };
+        const u = allUsersList.find(x => (x.email || '').toLowerCase() === email);
+        if (!u) return { ok: false, reason: 'ei löydy users-kokoelmasta — pyydä häntä kirjautumaan ensin Momentumiin' };
+        // Add as member of org
+        await setDoc(doc(db, 'organizations', orgId, 'members', u.uid), {
+          role: 'member', joinedAt: new Date().toISOString(),
+          displayName: u.displayName || displayName, email: u.email || email, photoURL: u.photoURL || '',
+        }, { merge: true });
+        // Add to their userOrgs
+        const existing = (userOrgsSnap.docs.find(d => d.id === u.uid)?.data() as any)?.orgs || [];
+        if (!existing.some((o: any) => o.orgId === orgId)) {
+          const updated = [...existing, { orgId, role: 'member', name: 'Ihaa' }];
+          await setDoc(doc(db, 'userOrgs', u.uid), { orgs: updated, orgIds: updated.map((o: any) => o.orgId) });
+        }
+        // Link their email to the team member record
+        const curMembers = members.map(m => {
+          if (m.name === displayName) {
+            return { ...m, email: u.email || email, linkedUserEmails: [...new Set([...(m.linkedUserEmails || []), (u.email || email).toLowerCase()])] };
+          }
+          return m;
+        });
+        await setDoc(doc(db, 'organizations', orgId, 'data', 'orgTeamMembers'), { v: JSON.stringify(curMembers), ts: Date.now(), updatedBy: user.uid });
+        return { ok: true };
+      };
+
+      const iiroResult = iiroEmail ? await inviteByEmail(iiroEmail, 'Iiro Törmä') : { ok: false, reason: 'ei sähköpostia annettu' };
+      const juhaniResult = juhaniEmail ? await inviteByEmail(juhaniEmail, 'Juhani Lindh') : { ok: false, reason: 'ei sähköpostia annettu' };
+
+      const warnings: string[] = [];
+      if (!iiroResult.ok) warnings.push(`Iiro: ${iiroResult.reason}`);
+      if (!juhaniResult.ok) warnings.push(`Juhani: ${juhaniResult.reason}`);
+
+      if (warnings.length > 0) {
+        toast(`Ihaa luotu. ${warnings.join('; ')}`, 'success');
+      } else {
+        toast('Ihaa luotu ja kaikki jäsenet lisätty!', 'success');
+      }
+      window.location.reload();
+    } catch (e) {
+      console.error('Create ihaa error:', e);
+      toast('Virhe Ihaan luonnissa', 'error');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   const selectedOrgData = selectedOrg ? orgs.find(o => o.id === selectedOrg) : null;
   const hasJuhlatoimikunta = orgs.some(o => o.id === 'juhlatoimikunta');
   const hasLuuri = orgs.some(o => o.id === 'luuri');
+  const hasIhaa = orgs.some(o => o.id === 'ihaa');
 
   return (
     <AppShell title="Hallintapaneeli" subtitle="Käyttäjien ja organisaatioiden hallinta">
@@ -586,6 +714,43 @@ export default function AdminPage() {
           </div>
           <button className="btn btn-primary btn-sm" onClick={createLuuri} disabled={seeding}>
             {seeding ? 'Päivitetään...' : 'Päivitä data'}
+          </button>
+        </div>
+      )}
+
+      {/* Create Ihaa if missing */}
+      {!hasIhaa && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(42,138,134,.08), rgba(5,107,159,.06))',
+          border: '1px solid rgba(42,138,134,.25)', borderRadius: 'var(--rl)',
+          padding: '1.25rem 1.5rem', marginBottom: '1.5rem',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '.75rem' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '.92rem', fontWeight: 700 }}>Ihaa (venekunnostus) puuttuu</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--t2)', marginTop: '.2rem' }}>
+                Uusi työtila: Anton, Iiro ja Juhani. Anna Iiron ja Juhanin sähköpostit — heidät lisätään suoraan jäseniksi (heidän pitää olla jo kirjautuneet Momentumiin kerran).
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.75rem', flexWrap: 'wrap' }}>
+            <input
+              className="input"
+              placeholder="Iiro Törmän sähköposti"
+              value={iiroEmail}
+              onChange={e => setIiroEmail(e.target.value)}
+              style={{ flex: '1 1 240px', fontSize: '.82rem' }}
+            />
+            <input
+              className="input"
+              placeholder="Juhani Lindhin sähköposti"
+              value={juhaniEmail}
+              onChange={e => setJuhaniEmail(e.target.value)}
+              style={{ flex: '1 1 240px', fontSize: '.82rem' }}
+            />
+          </div>
+          <button className="btn btn-primary" onClick={createIhaa} disabled={seeding}>
+            {seeding ? 'Luodaan...' : 'Luo Ihaa'}
           </button>
         </div>
       )}
