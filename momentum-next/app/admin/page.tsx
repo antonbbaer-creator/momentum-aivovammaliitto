@@ -691,9 +691,25 @@ export default function AdminPage() {
       ];
       await setDoc(doc(db, 'organizations', orgId, 'data', 'orgTeamMembers'), { v: JSON.stringify(members), ts: Date.now(), updatedBy: user.uid });
 
-      // Initialize empty collections (merge: true — ei ylikirjoita jos on jo dataa)
+      // Initialize empty collections — KRIITTINEN: vain jos docia ei ole olemassa
+      // tai se on tyhja. Merge: true ei suojaa kun docilla on vain yksi v-kentta,
+      // joten tarkistetaan etukateen ettei ylikirjoiteta kayttajan syottamaa dataa.
+      const dataSnapInit = await getDocs(collection(db, 'organizations', orgId, 'data'));
+      const existingKeys = new Map<string, string>();
+      for (const d of dataSnapInit.docs) existingKeys.set(d.id, d.data().v || '');
       for (const key of ['projects', 'publications', 'media_meta', 'media_uploaded', 'media_collections', 'tasks', 'meetingNotes', 'projectNotes', 'meetings', 'meetingPolls']) {
-        await setDoc(doc(db, 'organizations', orgId, 'data', key), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid }, { merge: true });
+        const existing = existingKeys.get(key);
+        let shouldSeed = true;
+        if (existing) {
+          try {
+            const parsed = JSON.parse(existing);
+            if (Array.isArray(parsed) && parsed.length > 0) shouldSeed = false;
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length > 0) shouldSeed = false;
+          } catch { /* invalid JSON — treat as empty */ }
+        }
+        if (shouldSeed) {
+          await setDoc(doc(db, 'organizations', orgId, 'data', key), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid });
+        }
       }
 
       // ── Budjetti: kategoriat + alkukulut (vain jos tyhjä, ei ylikirjoita) ──
