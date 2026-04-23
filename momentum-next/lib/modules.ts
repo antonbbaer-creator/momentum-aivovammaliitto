@@ -20,6 +20,7 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   viestinta:  { id: 'viestinta',  label: 'Viestintä',   icon: '▶', path: '/viestinta',  alwaysOn: false },
   ohjelmisto: { id: 'ohjelmisto', label: 'Ohjelmisto', icon: '▷', path: '/ohjelmisto', alwaysOn: false },
   budget:     { id: 'budget',     label: 'Apurahat',   icon: '€', path: '/budget',     alwaysOn: false },
+  budjetti:   { id: 'budjetti',   label: 'Budjetti',   icon: '€', path: '/budjetti',   alwaysOn: false },
   // Juhla-moduulit (kaytossa juhlatoimikunnassa, saatavilla kaikille)
   vieraat:    { id: 'vieraat',    label: 'Vieraat',    icon: '♥', path: '/vieraat',    alwaysOn: false },
   ruoka:      { id: 'ruoka',      label: 'Ruoka',      icon: '◆', path: '/ruoka',      alwaysOn: false },
@@ -35,7 +36,7 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'ohjelmisto', 'budget', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'palaute'];
+export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'palaute'];
 
 // Default modules for new orgs (viestintaorgit)
 export const DEFAULT_MODULES: Record<string, boolean> = {
@@ -47,6 +48,7 @@ export const DEFAULT_MODULES: Record<string, boolean> = {
   viestinta: true,
   ohjelmisto: true,
   budget: true,
+  budjetti: false,
   vieraat: false,
   ruoka: false,
   tehtavat: false,
@@ -128,7 +130,9 @@ export const LUURI_MODULES: Record<string, boolean> = {
   tyonjako: true,
 };
 
-// Ihaa — venekunnostus, pieni tiimi, harrastusprojekti
+// Ihaa — venekunnostus, pieni tiimi, harrastusprojekti.
+// HUOM: budjetti (ei apurahat) — jaetut kulut split-laskelmalla.
+// Projects-moduuli pois: koko työtila on yksi projekti, tehtävälista riittää.
 export const IHAA_MODULES: Record<string, boolean> = {
   dashboard: true,
   strategy: false,
@@ -137,7 +141,8 @@ export const IHAA_MODULES: Record<string, boolean> = {
   aikataulut: true,
   viestinta: false,
   ohjelmisto: false,
-  budget: true,
+  budget: false,
+  budjetti: true,
   vieraat: false,
   ruoka: false,
   tehtavat: true,
@@ -146,7 +151,7 @@ export const IHAA_MODULES: Record<string, boolean> = {
   muistiinpanot: true,
   muistiinpanotProjekti: true,
   palaverit: true,
-  projects: true,
+  projects: false,
   tyonjako: true,
   palaute: true,
 };

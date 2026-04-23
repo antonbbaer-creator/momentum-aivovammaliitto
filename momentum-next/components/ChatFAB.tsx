@@ -255,12 +255,23 @@ export default function ChatFAB() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, loading, sendQueue]);
 
-  const suggestions = [
+  // Kontekstitietoiset pikaehdotukset ja tervehdys.
+  // Ensisijaisesti aiProfile.suggestions / aiProfile.welcomeDesc / aiProfile.roleLabel.
+  // Fallback: viestintäorganisaatioiden oletusprompit.
+  const DEFAULT_SUGGESTIONS = [
     'Mitä julkaista tällä viikolla?',
     'Ehdota somesisältöä',
     'Miten tavoitan ammattilaiset?',
     'Arvioi viestintästrategiamme',
   ];
+  const suggestions: string[] = Array.isArray(aiProfile?.suggestions) && aiProfile.suggestions.length > 0
+    ? aiProfile.suggestions.slice(0, 6)
+    : DEFAULT_SUGGESTIONS;
+  const headerSubtitle: string = aiProfile?.roleLabel
+    ? `${org.name || 'Organisaatio'} — ${aiProfile.roleLabel.toLowerCase()}`
+    : `${org.name || 'Organisaatio'} — viestinnän sparraus`;
+  const welcomeDesc: string = aiProfile?.welcomeDesc
+    || `Tunnen ${org.name || 'organisaatiosi'} viestintästrategian, kohderyhmät ja tavoitteet. Kysy mitä tahansa viestintään liittyvää.`;
 
   if (!user || !activeOrg) return null;
 
@@ -308,7 +319,7 @@ export default function ChatFAB() {
                   Momentum
                 </h3>
                 <p style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.15rem' }}>
-                  {org.name || 'Organisaatio'} — viestinnän sparraus
+                  {headerSubtitle}
                 </p>
               </div>
               <button onClick={() => setOpen(false)} style={{
@@ -327,7 +338,7 @@ export default function ChatFAB() {
                   <div style={{ fontSize: '1.4rem', marginBottom: '1rem', opacity: .3, fontFamily: 'var(--font-display)', letterSpacing: '.04em' }}>MOMENTUM</div>
                   <h4 style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: '.5rem' }}>Miten voin auttaa?</h4>
                   <p style={{ fontSize: '.82rem', color: 'var(--t3)', lineHeight: 1.6, marginBottom: '1.5rem' }}>
-                    Tunnen {org.name || 'organisaatiosi'} viestintästrategian, kohderyhmät ja tavoitteet. Kysy mitä tahansa viestintään liittyvää.
+                    {welcomeDesc}
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
                     {suggestions.map(s => (

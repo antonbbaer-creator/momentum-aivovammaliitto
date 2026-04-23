@@ -552,7 +552,9 @@ export default function AdminPage() {
     }
   };
 
-  // Luo Ihaa — venekunnostustiimi (Anton, Iiro, Juhani)
+  // Luo tai päivitä Ihaa — venekunnostustiimi (Anton, Iiro, Juhani).
+  // Safe uudelleenajettavaksi: päivittää aina aiProfilen, modulit ja org-metan.
+  // Seed-kulut lisätään vain jos budjetti on tyhjä (ei ylikirjoita).
   const createIhaa = async () => {
     if (!user) return;
     setSeeding(true);
@@ -577,17 +579,100 @@ export default function AdminPage() {
         s: 'IHA',
         slogan: IHAA_SLOGAN,
         founded: 2026,
-        mission: 'Kunnostaa Ihaa-vene purjehduskuntoon yhdessä.',
+        mission: 'Kunnostaa Ihaa-vene — Avance 245 (1983, Peter Norlin) — purjehduskuntoon yhdessä.',
+        boat: {
+          name: 'Ihaa',
+          model: 'Avance 245',
+          designer: 'Peter Norlin',
+          builder: 'Avance Yachts (Suomi)',
+          year: 1983,
+          location: 'Helsinki',
+          engine: 'Yanmar 1GM10 (1-syl. diesel, 9 hv, suora merivesijäähdytys)',
+          dims: { loa: '7,48 m', beam: '2,54 m', draft: '1,42 m', mast: '~11 m', weight: '~1 750 kg' },
+          sailArea: '24 m² (iso + fokki)',
+        },
         team: [
+          { name: 'Iiro Törmä', role: 'Työnjohtaja', avatar: 'I' },
           { name: 'Anton Baer', role: 'Miehistö', avatar: 'A' },
-          { name: 'Iiro Törmä', role: 'Miehistö', avatar: 'I' },
           { name: 'Juhani Lindh', role: 'Miehistö', avatar: 'J' },
         ],
       };
       await setDoc(doc(db, 'organizations', orgId, 'data', 'org'), { v: JSON.stringify(IHAA_ORG), ts: Date.now(), updatedBy: user.uid });
-      await setDoc(doc(db, 'organizations', orgId, 'data', 'events'), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid });
-      await setDoc(doc(db, 'organizations', orgId, 'data', 'channelStats'), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid });
+      await setDoc(doc(db, 'organizations', orgId, 'data', 'events'), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid }, { merge: true });
+      await setDoc(doc(db, 'organizations', orgId, 'data', 'channelStats'), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid }, { merge: true });
       await setDoc(doc(db, 'organizations', orgId, 'data', 'modules'), { v: JSON.stringify(IHAA_MODULES), ts: Date.now(), updatedBy: user.uid });
+
+      // ── AI-profiili: Ihaan venekunnostus-assistentti (Avance 245 / Yanmar 1GM10) ──
+      const IHAA_AI_PROFILE = {
+        role: 'custom',
+        roleLabel: 'Venekunnostus-assistentti (Avance 245, 1983)',
+        focus: [
+          'Olet Ihaa-nimisen Avance 245 -purjeveneen (Peter Norlin, 1983) kunnostusassistentti.',
+          'Toimi veneen, sen tekniikan ja kunnostusprosessin asiantuntijana — tunnet tämän yksilön historian, viat, tehdyt työt ja prioriteetit.',
+          'Vastaa kysymyksiin tekniikasta, työjärjestyksestä, materiaaleista, työkaluista, hinnoista ja turvallisuudesta.',
+          'Auta diagnostiikassa: kun tiimin jäsen kuvaa oireen, selvitä todennäköinen syy, ehdota testejä ennen korjausta, mainitse turvallisuushuomiot.',
+          'Anna konkreettisia suosituksia: kotimaiset toimittajat, tuotenimet, suuruusluokan hinnat (€, sis. ALV), ajankulutus-arviot.',
+          'Kun palaverissa tai muistiinpanossa puhutaan hankinnasta (maali, letkut, osa, tarvike), ehdota konkreettisia tuotteita + hinta-arvio + suomalainen toimittaja.',
+          'Muistuta turvallisuudesta: seisovan takilan kunto, kölipultit, kaasujärjestelmä, sähköjen sulakkeet, kaatumisvara.',
+        ].join('\n'),
+        context: [
+          '═══ VENE: Ihaa ═══',
+          'Avance 245 (Peter Norlin, Avance Yachts Suomi, 1983). LOA 7,48 m, leveys 2,54 m, syväys 1,42 m, paino ~1750 kg, painolastisuhde ~48%.',
+          'Purjepinta-ala 24 m² (iso + fokki). Luokitus: matkavene/kilpavene (C — rannikko). GRP-runko, evä-köli, pinna-ohjaus.',
+          'Moottori: Yanmar 1GM10 (1-syl. diesel, 9 hv nim., 318 cc, SUORA merivesijäähdytys, ei lämmönvaihdinta).',
+          'Sijainti: Helsinki. Hankittu 4/2026 hintaan 1 000 € (Nettivene-ID 1028781). Talvisäilytys pukilla.',
+          '',
+          '═══ TUNNETUT VIAT ═══',
+          'A1 (korkea kiire): Moottorin vaihdekahva irti — kiinnitys ennen ensimmäistä käyntiä.',
+          'A2 (keskikiire): Isopurjeessa repeämä — paikkaus ompelijalle (50-400 €) tai uusinta (800-2500 €) ennen kautta.',
+          'A3: Yleiskunto — "huonolle hoidolle jäänyt", kevättyöt puuttuvat.',
+          '',
+          '═══ INVENTOITAVAT (B-luokka, kuntotarkistus) ═══',
+          'Runko: osmoosi (kosteusmittari), halkeamat, kölipultit (ruoste/vuotojäljet).',
+          'Kansi: balsaydinen kosteus (koputus + mittari), läpivientien tiiviys.',
+          'Takila: seisova takila (1983 → 42 v, suositus uusia jos ei tiedä ikää; 10-15 v käyttöikä). Masto, salingit, vinssit.',
+          'Moottori: huoltohistoria, käyttötunnit, kansiremontti, pakosarjan ikä (merivesi → syöpyy 10-20 v).',
+          'Läpiviennit: hanat, letkut (kaksi kiristintä/liitos), 10 v+ kovettuneet letkut vaihtoon.',
+          'Sähköt: akut, pääkytkin, sulakkeet, johtojen hapettuminen liittimissä.',
+          '',
+          '═══ VAIHEITUS 2026 ═══',
+          'V1 (vko 1-2, huhti-touko): Inventaario + kuntoarvio + dokumentointi.',
+          'V2 (vko 3-5): Kriittinen turvallisuus — vaihdekahva, moottorin täyshuolto, takilan tarkistus, läpiviennit, pilssipumppu, sähköt.',
+          'V3 (vko 6-10, touko-kesä): Käyttökuntoisuus — isopurjeen paikkaus, pohjamaali, kansiläpivientien tiivistys, sisätilat, vesilasku, koeajo.',
+          'V4 (kausi 2026 + talvi 26-27): Kosmeettinen, sisätilat, elektroniikka, syvemmät korjaukset (takila kokonaan, kansi, osmoosi).',
+          '',
+          '═══ BUDJETTI 2026 (karkea haarukka 2500-9000 €) ═══',
+          'Moottorihuolto 150-300 €, vaihdekahva 0-50 €, isopurje 100-400 €, pohjamaali 200-500 €, tiivistysmassat 100-300 €, letkut 100-300 €, takilan tarkistus 100-300 €, takilan uusinta 0-2500 €, kuntotarkastus 200-400 €, turvavarusteet 100-400 €, vesilasku+nosto 200-500 €, talvisäilytys 300-800 €, venepaikka 500-1500 €, kasko 300-700 €.',
+          '',
+          '═══ SUOMEN TOIMITTAJAT ═══',
+          'Yanmar: Brandt Oy (maahantuoja), Marineparts.fi, mpalola.fi, yanmarosat.fi.',
+          'Purjeet: WB-Sails (Espoo), Pipe Rigging (Helsinki), Tracker Rigging, Norsap, B-Sails.',
+          'Venetarvikkeet: Maritim, Nautikulma, Kaatrakauppa (Hki), Biltema, Puuilo.',
+          'Pohjamaalit: International (AkzoNobel), Hempel, Seajet, Nautix, Teknos.',
+          'Epoksit: West System, Sicomin.',
+          'Telakat Hki: HSK, NJK, HSS, HMV, Merellinen Helsinki, Sörnäisten Venekerho.',
+          '',
+          '═══ TIIMI ═══',
+          'Iiro Törmä — työnjohtaja (vastaa työn etenemisestä ja tehtävien jaosta).',
+          'Anton Baer — miehistö (projektin yhteinen omistaja).',
+          'Juhani Lindh — miehistö (tiiviisti mukana).',
+          '',
+          '═══ PAKOLLISET VARUSTEET (Traficom, >5,6 m purjevene) ═══',
+          'Pelastusliivit / henkilö, ankkuri + köysi, äyskäri/tyhjennyspumppu, pilli, kompassi, merikartat, navigointivalot, käsisammutin.',
+        ].join('\n'),
+        tone: 'Ystävällinen, tekninen, suora. Ei ylimääräisiä varoituksia tai vastuuvapautuslausekkeita — oletus on että tiimi tietää mitä tekee. Kysy jos kysymys on moniselitteinen (esim. "onko tämä letku kunnossa" → mitä letkua, mitä oireita, onko kuvaa). Anna hintahaarukat, ei yksittäisiä lukuja. Mainitse lähde kun viittaat ohjeeseen (Yanmar-käsikirja, valmistajan tuotesivu, foorumikokemus).',
+        restrictions: 'Älä lupaa mitä et voi pitää. Älä piilota teknisiä rajoituksia tai turvallisuushuomioita silloin kun ne ovat oikeasti merkityksellisiä. Älä toista koko venekontekstia joka vastauksessa — oleta että tiimi tuntee peruspalat. Jos kysytään jotain mihin tarvitaan kuva tai tarkempi tieto, pyydä sitä eikä arvaa.',
+        welcomeDesc: 'Tunnen Ihaan — Avance 245 (1983) — tekniset tiedot, Yanmar 1GM10 -moottorin, tunnetut viat, kunnostuksen vaiheet ja suomalaiset toimittajat. Kysy teknistä, hintaa, työjärjestystä tai diagnostiikkaa.',
+        suggestions: [
+          'Mitä teen ensimmäisenä inventaariossa?',
+          'Mistä ostan Yanmar 1GM10 huoltosarjan?',
+          'Miten tunnistan takilan uusimistarpeen?',
+          'Paljonko pohjamaalia tarvitsen Ihaan kokoiselle veneelle?',
+          'Mikä on hyvä työjärjestys kevätkunnostukselle?',
+          'Mitkä ovat tämän kauden kriittiset turvallisuustarkistukset?',
+        ],
+      };
+      await setDoc(doc(db, 'organizations', orgId, 'data', 'aiProfile'), { v: JSON.stringify(IHAA_AI_PROFILE), ts: Date.now(), updatedBy: user.uid });
 
       // orgTeams: yksi tiimi "Miehistö"
       const teams = [
@@ -595,21 +680,83 @@ export default function AdminPage() {
       ];
       await setDoc(doc(db, 'organizations', orgId, 'data', 'orgTeams'), { v: JSON.stringify(teams), ts: Date.now(), updatedBy: user.uid });
 
-      // orgTeamMembers — Anton (linkataan omaan tiliin), Iiro ja Juhani ilman linkkejä kunnes lisätään
+      // orgTeamMembers — Iiro on työnjohtaja. Anton linkataan omaan tiliin.
       const members = [
         {
           id: 'anton', name: 'Anton Baer', role: 'Miehistö', teamId: 'miehisto', type: 'permanent',
           avatar: 'A', email: user.email || '', linkedUserEmails: [user.email || ''].filter(Boolean),
-          isManager: true,
         },
-        { id: 'iiro', name: 'Iiro Törmä', role: 'Miehistö', teamId: 'miehisto', type: 'permanent', avatar: 'I' },
+        { id: 'iiro', name: 'Iiro Törmä', role: 'Työnjohtaja', teamId: 'miehisto', type: 'permanent', avatar: 'I', isManager: true },
         { id: 'juhani', name: 'Juhani Lindh', role: 'Miehistö', teamId: 'miehisto', type: 'permanent', avatar: 'J' },
       ];
       await setDoc(doc(db, 'organizations', orgId, 'data', 'orgTeamMembers'), { v: JSON.stringify(members), ts: Date.now(), updatedBy: user.uid });
 
-      // Initialize empty collections
+      // Initialize empty collections (merge: true — ei ylikirjoita jos on jo dataa)
       for (const key of ['projects', 'publications', 'media_meta', 'media_uploaded', 'media_collections', 'tasks', 'meetingNotes', 'projectNotes', 'meetings', 'meetingPolls']) {
         await setDoc(doc(db, 'organizations', orgId, 'data', key), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid }, { merge: true });
+      }
+
+      // ── Budjetti: kategoriat + alkukulut (vain jos tyhjä, ei ylikirjoita) ──
+      const budgetCats = [
+        { id: 'cat_hankinta',   name: 'Hankinta',        color: '#9b7cf6' },
+        { id: 'cat_moottori',   name: 'Moottori',        color: '#ef6b6b' },
+        { id: 'cat_runko',      name: 'Runko & pohja',   color: '#2a8a86' },
+        { id: 'cat_takila',     name: 'Takila & purjeet', color: '#3788b2' },
+        { id: 'cat_telakka',    name: 'Telakka & paikka', color: '#f1b434' },
+        { id: 'cat_vakuutus',   name: 'Vakuutus',        color: '#e45c81' },
+        { id: 'cat_turva',      name: 'Turvavarusteet',  color: '#2dd4a0' },
+        { id: 'cat_tarvike',    name: 'Tarvikkeet',      color: '#888' },
+      ];
+      const budgetSettings = {
+        defaultYear: 2026,
+        currency: 'EUR',
+        showSplit: true,
+        splitMembers: ['Anton Baer', 'Iiro Törmä', 'Juhani Lindh'],
+      };
+      const seedEntries = [
+        {
+          id: 'be_seed_boat',
+          type: 'expense',
+          date: '2026-04-01',
+          description: 'Ihaa — Avance 245 (1983) hankinta',
+          amount: 1000,
+          category: 'cat_hankinta',
+          paidBy: 'Iiro Törmä',
+          vendor: 'Nettivene',
+          invoiceNumber: '1028781',
+          notes: 'Alkuperäinen ostohinta.',
+          createdAt: Date.now(),
+          createdBy: user.uid,
+        },
+        {
+          id: 'be_seed_paikka',
+          type: 'expense',
+          date: '2026-04-01',
+          description: 'Venepaikka 2026',
+          amount: 150,
+          category: 'cat_telakka',
+          paidBy: 'Iiro Törmä',
+          createdAt: Date.now() + 1,
+          createdBy: user.uid,
+        },
+      ];
+
+      // Kategoriat ja asetukset päivitetään aina (ei käyttäjän muokattavia näissä)
+      await setDoc(doc(db, 'organizations', orgId, 'data', 'budgetCategories'), { v: JSON.stringify(budgetCats), ts: Date.now(), updatedBy: user.uid });
+      await setDoc(doc(db, 'organizations', orgId, 'data', 'budgetSettings'), { v: JSON.stringify(budgetSettings), ts: Date.now(), updatedBy: user.uid });
+
+      // Kulut: lisätään vain jos doc on tyhjä tai ei ole olemassa — ei ylikirjoita käyttäjän syötteitä
+      const existingBudgetSnap = await getDocs(collection(db, 'organizations', orgId, 'data'));
+      const existingBudgetDoc = existingBudgetSnap.docs.find(d => d.id === 'budgetEntries');
+      let shouldSeedEntries = true;
+      if (existingBudgetDoc) {
+        try {
+          const parsed = JSON.parse(existingBudgetDoc.data().v);
+          if (Array.isArray(parsed) && parsed.length > 0) shouldSeedEntries = false;
+        } catch { /* treat as empty */ }
+      }
+      if (shouldSeedEntries) {
+        await setDoc(doc(db, 'organizations', orgId, 'data', 'budgetEntries'), { v: JSON.stringify(seedEntries), ts: Date.now(), updatedBy: user.uid });
       }
 
       // Add Ihaa to current user's org list
@@ -714,6 +861,43 @@ export default function AdminPage() {
           </div>
           <button className="btn btn-primary btn-sm" onClick={createLuuri} disabled={seeding}>
             {seeding ? 'Päivitetään...' : 'Päivitä data'}
+          </button>
+        </div>
+      )}
+
+      {/* Päivitä Ihaa jos on jo olemassa */}
+      {hasIhaa && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(42,138,134,.06), rgba(155,124,246,.04))',
+          border: '1px solid rgba(42,138,134,.2)', borderRadius: 'var(--rl)',
+          padding: '1rem 1.25rem', marginBottom: '1rem',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '.5rem' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '.88rem', fontWeight: 700 }}>Päivitä Ihaa</div>
+              <div style={{ fontSize: '.72rem', color: 'var(--t2)', marginTop: '.15rem' }}>
+                Ajaa uusimman AI-profiilin (Avance 245 + Yanmar 1GM10 -konteksti), budjettikategoriat, Iiro työnjohtajaksi, projects-moduuli pois. Ei poista käyttäjän syöttämää dataa. Jäsenten sähköpostit valinnaisia — lisää vain jos heitä ei ole vielä lisätty.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.5rem', flexWrap: 'wrap' }}>
+            <input
+              className="input"
+              placeholder="Iiro Törmän sähköposti (valinnainen)"
+              value={iiroEmail}
+              onChange={e => setIiroEmail(e.target.value)}
+              style={{ flex: '1 1 200px', fontSize: '.78rem' }}
+            />
+            <input
+              className="input"
+              placeholder="Juhani Lindhin sähköposti (valinnainen)"
+              value={juhaniEmail}
+              onChange={e => setJuhaniEmail(e.target.value)}
+              style={{ flex: '1 1 200px', fontSize: '.78rem' }}
+            />
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={createIhaa} disabled={seeding}>
+            {seeding ? 'Päivitetään...' : 'Päivitä Ihaa'}
           </button>
         </div>
       )}
