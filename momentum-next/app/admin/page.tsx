@@ -661,7 +661,7 @@ export default function AdminPage() {
           'Pelastusliivit / henkilö, ankkuri + köysi, äyskäri/tyhjennyspumppu, pilli, kompassi, merikartat, navigointivalot, käsisammutin.',
         ].join('\n'),
         tone: 'Ystävällinen, tekninen, suora. Ei ylimääräisiä varoituksia tai vastuuvapautuslausekkeita — oletus on että tiimi tietää mitä tekee. Kysy jos kysymys on moniselitteinen (esim. "onko tämä letku kunnossa" → mitä letkua, mitä oireita, onko kuvaa). Anna hintahaarukat, ei yksittäisiä lukuja. Mainitse lähde kun viittaat ohjeeseen (Yanmar-käsikirja, valmistajan tuotesivu, foorumikokemus).',
-        restrictions: 'Älä lupaa mitä et voi pitää. Älä piilota teknisiä rajoituksia tai turvallisuushuomioita silloin kun ne ovat oikeasti merkityksellisiä. Älä toista koko venekontekstia joka vastauksessa — oleta että tiimi tuntee peruspalat. Jos kysytään jotain mihin tarvitaan kuva tai tarkempi tieto, pyydä sitä eikä arvaa.',
+        restrictions: 'Älä lupaa mitä et voi pitää. Älä piilota teknisiä rajoituksia tai turvallisuushuomioita silloin kun ne ovat oikeasti merkityksellisiä. Älä toista koko venekontekstia joka vastauksessa — oleta että tiimi tuntee peruspalat. Jos kysytään jotain mihin tarvitaan kuva tai tarkempi tieto, pyydä sitä eikä arvaa. ÄLÄ KÄYTÄ MARKDOWN-MUOTOILUA: ei otsikoita (# tai ##), ei lihavointia (**), ei kursivointia, ei taulukoita, ei emojeja, ei koodiblokkeja. Vastaa selkotekstillä ja normaaleilla kappaleilla. Käytä lista-merkintää ("- ") vain jos sisältö on oikeasti lista — muuten juoksevaa tekstiä. Momentum näyttää vastaukset ilman markdown-renderöintiä, joten markdown-merkinnät näkyvät rumana raakatekstinä.',
         welcomeDesc: 'Tunnen Ihaan — Avance 245 (1983) — tekniset tiedot, Yanmar 1GM10 -moottorin, tunnetut viat, kunnostuksen vaiheet ja suomalaiset toimittajat. Kysy teknistä, hintaa, työjärjestystä tai diagnostiikkaa.',
         suggestions: [
           'Mitä teen ensimmäisenä inventaariossa?',
@@ -716,7 +716,6 @@ export default function AdminPage() {
       const seedEntries = [
         {
           id: 'be_seed_boat',
-          type: 'expense',
           date: '2026-04-01',
           description: 'Ihaa — Avance 245 (1983) hankinta',
           amount: 1000,
@@ -730,7 +729,6 @@ export default function AdminPage() {
         },
         {
           id: 'be_seed_paikka',
-          type: 'expense',
           date: '2026-04-01',
           description: 'Venepaikka 2026',
           amount: 150,

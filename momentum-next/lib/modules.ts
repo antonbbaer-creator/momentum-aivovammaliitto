@@ -33,10 +33,11 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   projects:  { id: 'projects',  label: 'Projektit',  icon: '▣', path: '/projects',  alwaysOn: false },
   tyonjako:  { id: 'tyonjako',  label: 'Työnjako',   icon: '≈', path: '/tyonjako',  alwaysOn: false },
   palaute:   { id: 'palaute',   label: 'Palaute',    icon: '◆', path: '/palaute',   alwaysOn: false },
+  ohjeet:    { id: 'ohjeet',    label: 'Ohjeet',     icon: '?', path: '/ohjeet',    alwaysOn: false },
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'palaute'];
+export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'ohjeet', 'palaute'];
 
 // Default modules for new orgs (viestintaorgit)
 export const DEFAULT_MODULES: Record<string, boolean> = {
@@ -56,6 +57,7 @@ export const DEFAULT_MODULES: Record<string, boolean> = {
   ohjelma: false,
   muistiinpanot: false,
   muistiinpanotProjekti: true,
+  ohjeet: false,
   palaverit: false,
   projects: true,
   tyonjako: true,
@@ -79,6 +81,7 @@ export const AVL_MODULES: Record<string, boolean> = {
   ohjelma: false,
   muistiinpanot: true,
   muistiinpanotProjekti: true,
+  ohjeet: false,
   palaverit: false,
   projects: true,
   tyonjako: true,
@@ -102,6 +105,7 @@ export const JUHLATOIMIKUNTA_MODULES: Record<string, boolean> = {
   ohjelma: true,
   muistiinpanot: true,
   muistiinpanotProjekti: true,
+  ohjeet: false,
   palaverit: false,
   projects: true,
   tyonjako: true,
@@ -125,6 +129,7 @@ export const LUURI_MODULES: Record<string, boolean> = {
   ohjelma: true,
   muistiinpanot: true,
   muistiinpanotProjekti: true,
+  ohjeet: true,
   palaverit: true,
   projects: true,
   tyonjako: true,
@@ -150,6 +155,7 @@ export const IHAA_MODULES: Record<string, boolean> = {
   ohjelma: false,
   muistiinpanot: true,
   muistiinpanotProjekti: true,
+  ohjeet: true,
   palaverit: true,
   projects: false,
   tyonjako: true,

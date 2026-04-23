@@ -11,7 +11,7 @@ import { softDelete, filterActive } from '@/lib/trash';
 import { getOrgTeamMembers } from '@/lib/org-defaults';
 import { OrgTeamMember, uniqueMembersByName } from '@/lib/team-shared';
 import {
-  BudgetEntry, BudgetCategory, BudgetSettings, EntryType,
+  BudgetEntry, BudgetCategory, BudgetSettings,
   DEFAULT_BUDGET_SETTINGS,
   calculateSplit, summarizeByCategory, totalForYear, fmtEur,
 } from '@/lib/budjetti-shared';
@@ -46,7 +46,6 @@ export default function BudjettiPage() {
   // ── Form state ──
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [fType, setFType] = useState<EntryType>('expense');
   const [fDate, setFDate] = useState(new Date().toISOString().slice(0, 10));
   const [fDesc, setFDesc] = useState('');
   const [fAmount, setFAmount] = useState('');
@@ -59,7 +58,6 @@ export default function BudjettiPage() {
 
   const openNew = () => {
     setEditId(null);
-    setFType('expense');
     setFDate(new Date().toISOString().slice(0, 10));
     setFDesc('');
     setFAmount('');
@@ -74,7 +72,6 @@ export default function BudjettiPage() {
 
   const openEdit = (e: BudgetEntry) => {
     setEditId(e.id);
-    setFType(e.type);
     setFDate(e.date);
     setFDesc(e.description);
     setFAmount(String(e.amount));
@@ -96,7 +93,6 @@ export default function BudjettiPage() {
     const now = Date.now();
     const base: BudgetEntry = {
       id: editId || 'be_' + now + '_' + Math.random().toString(36).slice(2, 6),
-      type: fType,
       date: fDate,
       description: fDesc.trim(),
       amount: Math.round(amt * 100) / 100,
@@ -218,7 +214,7 @@ export default function BudjettiPage() {
   };
 
   return (
-    <AppShell title="Budjetti" subtitle={`${fmtEur(totals.expenses)} kuluja · ${fmtEur(totals.net)} netto (${year})`}>
+    <AppShell title="Budjetti" subtitle={`${fmtEur(totals.expenses)} kuluja — ${totals.count} merkintää (${year})`}>
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
         <select
@@ -245,21 +241,21 @@ export default function BudjettiPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="stats" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '1.25rem' }}>
+      <div className="stats" style={{ gridTemplateColumns: settings.showSplit ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)', marginBottom: '1.25rem' }}>
         <div className="stat">
-          <div className="stat-num" style={{ color: 'var(--red)' }}>{fmtEur(totals.expenses)}</div>
+          <div className="stat-num">{fmtEur(totals.expenses)}</div>
           <div className="stat-lbl">Kulut {year}</div>
         </div>
         <div className="stat">
-          <div className="stat-num" style={{ color: 'var(--green)' }}>{fmtEur(totals.incomes)}</div>
-          <div className="stat-lbl">Tulot {year}</div>
+          <div className="stat-num">{totals.count}</div>
+          <div className="stat-lbl">Merkintää</div>
         </div>
-        <div className="stat">
-          <div className="stat-num" style={{ color: totals.net >= 0 ? 'var(--green)' : 'var(--red)' }}>
-            {fmtEur(totals.net)}
+        {settings.showSplit && splitPeople.length > 0 && split && (
+          <div className="stat">
+            <div className="stat-num">{fmtEur(split.perPersonShare)}</div>
+            <div className="stat-lbl">/ henkilö</div>
           </div>
-          <div className="stat-lbl">Netto</div>
-        </div>
+        )}
       </div>
 
       {/* Split view — jaetut kulut */}
@@ -463,7 +459,6 @@ export default function BudjettiPage() {
       ) : (
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
           {filtered.map((e, i) => {
-            const isIncome = e.type === 'income';
             return (
               <div
                 key={e.id}
@@ -507,10 +502,10 @@ export default function BudjettiPage() {
                 </div>
                 <div style={{
                   fontSize: '.92rem', fontWeight: 700,
-                  color: isIncome ? 'var(--green)' : 'var(--t1)',
+                  color: 'var(--t1)',
                   whiteSpace: 'nowrap',
                 }}>
-                  {isIncome ? '+' : ''}{fmtEur(e.amount)}
+                  {fmtEur(e.amount)}
                 </div>
                 {canEdit && (
                   <button
@@ -549,29 +544,6 @@ export default function BudjettiPage() {
               {editId ? 'Muokkaa merkintää' : 'Uusi merkintä'}
             </h3>
 
-            <div style={{ display: 'flex', gap: '.4rem', marginBottom: '1rem' }}>
-              {(['expense', 'income'] as EntryType[]).map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setFType(t)}
-                  style={{
-                    flex: 1, fontSize: '.8rem', padding: '.45rem .8rem', borderRadius: 9999,
-                    background: fType === t
-                      ? (t === 'expense' ? 'rgba(239,107,107,.15)' : 'rgba(45,212,160,.15)')
-                      : 'var(--elev)',
-                    color: fType === t
-                      ? (t === 'expense' ? 'var(--red)' : 'var(--green)')
-                      : 'var(--t2)',
-                    border: `1px solid ${fType === t ? (t === 'expense' ? 'var(--red)' : 'var(--green)') : 'var(--border)'}`,
-                    fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
-                  {t === 'expense' ? 'Kulu' : 'Tulo'}
-                </button>
-              ))}
-            </div>
-
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: '.6rem' }}>
               <div className="field">
                 <label>Kuvaus *</label>
@@ -595,15 +567,13 @@ export default function BudjettiPage() {
                   {activeCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              {(settings.showSplit || fType === 'expense') && (
-                <div className="field">
-                  <label>Maksoi</label>
-                  <select className="input" value={fPaidBy} onChange={e => setFPaidBy(e.target.value)}>
-                    <option value="">—</option>
-                    {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                  </select>
-                </div>
-              )}
+              <div className="field">
+                <label>Maksoi</label>
+                <select className="input" value={fPaidBy} onChange={e => setFPaidBy(e.target.value)}>
+                  <option value="">—</option>
+                  {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                </select>
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '.6rem' }}>

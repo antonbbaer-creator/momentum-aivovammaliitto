@@ -1,18 +1,15 @@
-// Budjetti-moduuli — kulujen ja tulojen seuranta
+// Budjetti-moduuli — kuluseuranta
 //
 // Suunniteltu toimimaan useissa konteksteissa:
 // - Jaettu harrastusprojekti (Ihaa): split-laskelma kuka maksoi mitä, kuka velkaa kenelle
 // - Voittoa tavoittelematon (AVL, LLFF): kategoriat, budjettitavoitteet, projektibudjetit
 // - Yleiskäyttö: yksinkertainen kululista + kategoriat
 
-export type EntryType = 'expense' | 'income';
-
 export interface BudgetEntry {
   id: string;
-  type: EntryType;          // 'expense' = kulu, 'income' = tulo (harvinaisempi mutta kätevä)
   date: string;             // ISO yyyy-mm-dd
   description: string;
-  amount: number;           // EUR (aina positiivinen; type kertoo suunnan)
+  amount: number;           // EUR (aina positiivinen)
   category?: string;        // viittaa BudgetCategory.id tai vapaa teksti
   paidBy?: string;          // tiimin jäsenen nimi — tärkeää jaetuissa kuluissa
   vendor?: string;          // myyjä/toimittaja
@@ -86,9 +83,8 @@ export function calculateSplit(
     return { total: 0, perPersonShare: 0, rows: [], transfers: [] };
   }
 
-  // Lasketaan vain kulut (ei tuloja) joilla on maksaja
   const relevant = entries.filter(e =>
-    !e.deletedAt && e.type === 'expense' && e.paidBy && people.includes(e.paidBy)
+    !e.deletedAt && e.paidBy && people.includes(e.paidBy)
   );
 
   const paidBy: Record<string, number> = {};
@@ -169,7 +165,7 @@ export function summarizeByCategory(
   });
 
   for (const e of entries) {
-    if (e.deletedAt || e.type !== 'expense') continue;
+    if (e.deletedAt) continue;
     if (year != null && new Date(e.date).getFullYear() !== year) continue;
     const key = e.category && rows.has(e.category) ? e.category : '__uncategorized';
     const row = rows.get(key)!;
@@ -184,18 +180,17 @@ export function summarizeByCategory(
   return result.filter(r => r.id !== '__uncategorized' || r.spent > 0);
 }
 
-export function totalForYear(entries: BudgetEntry[], year: number): { expenses: number; incomes: number; net: number } {
-  let expenses = 0, incomes = 0;
+export function totalForYear(entries: BudgetEntry[], year: number): { expenses: number; count: number } {
+  let expenses = 0, count = 0;
   for (const e of entries) {
     if (e.deletedAt) continue;
     if (new Date(e.date).getFullYear() !== year) continue;
-    if (e.type === 'expense') expenses += e.amount;
-    else incomes += e.amount;
+    expenses += e.amount;
+    count++;
   }
   return {
     expenses: Math.round(expenses * 100) / 100,
-    incomes: Math.round(incomes * 100) / 100,
-    net: Math.round((incomes - expenses) * 100) / 100,
+    count,
   };
 }
 

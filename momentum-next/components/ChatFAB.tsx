@@ -64,6 +64,12 @@ export default function ChatFAB() {
     p.push(`Puhuttele tiimiläisiä nimellä kun tiedät kenelle vastaat. Ehdota konkreettisia toimenpiteitä, älä jää yleiselle tasolle.`);
     p.push(`Vastaa aina suomeksi. Ole lämmin mutta ammattimainen. Pilkettä silmäkulmassa kun tilanne sallii.`);
     p.push(`Kaikki sisältöehdotuksesi noudattavat organisaation strategiaa, arvoja ja viestinnän sävyä.`);
+    // Markdown-kielto globaalisti — chat renderöi vastaukset selkotekstinä
+    p.push(`\n═══ VASTAUSTEN MUOTOILU (TÄRKEÄ) ═══`);
+    p.push(`Momentum näyttää vastauksesi selkotekstinä ilman markdown-renderöintiä.`);
+    p.push(`ÄLÄ KÄYTÄ markdown-syntaksia: ei # tai ## -otsikoita, ei **lihavointia**, ei *kursivointia*, ei taulukoita, ei koodiblokkeja, ei emojeja.`);
+    p.push(`Käytä normaaleja kappaleita ja tarvittaessa yksinkertaisia ranskalaisilla viivoilla (- ) tehtyjä listoja vain kun sisältö on oikeasti lista. Muuten juoksevaa tekstiä.`);
+    p.push(`Tee vastauksesta napakka: suora ja informatiivinen, ilman ylimääräistä koristelua.`);
     if (org.tone?.length) p.push(`Viestinnän sävyt: ${org.tone.join(', ')}.`);
     // Viestintä vs. tiedotus -määritelmät
     if (org.viestintaDefinitions) {
