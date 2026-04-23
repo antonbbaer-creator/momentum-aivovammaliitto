@@ -18,6 +18,8 @@ import {
   resolveUserMember,
 } from '@/lib/team-shared';
 import { getGrantsKey, getOrgGrants, getOrgTeamMembers } from '@/lib/org-defaults';
+import MarkdownText from '@/components/MarkdownText';
+import { mergeAiProfile } from '@/lib/ihaa-defaults';
 
 import { workerFetch } from '@/lib/worker-fetch';
 
@@ -28,6 +30,8 @@ export default function DashboardPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
   const [org] = useOrgData<any>('org', {});
+  const [aiProfileRaw] = useOrgData<any>('aiProfile', {});
+  const aiProfile = (mergeAiProfile(orgSlug, aiProfileRaw) || {}) as Record<string, any>;
   const [projects, setProjects] = useOrgData<any[]>('projects', []);
   const [teamMessages, setTeamMessages] = useOrgData<any[]>('teamMessages', []);
   const [rawGrants] = useOrgData<Grant[]>(getGrantsKey(orgSlug), getOrgGrants(orgSlug));
@@ -378,12 +382,27 @@ export default function DashboardPage() {
       {/* AI Actions — bottom of page */}
       {(() => {
         const isJuhla = orgSlug === 'juhlatoimikunta';
-        const statusPrompt = isJuhla
+        // Aiprofile-spesifit promptit ylikirjoittavat oletukset
+        const activeProjectsList = projects.filter((p: any) => p.st === 'active' && !p.archived).map((p: any) => p.t).join(', ') || 'ei aktiivisia';
+        const defaultStatus = isJuhla
           ? 'Anna tilannekatsaus juhlien jarjestelyista. Mita pitaisi seuraavaksi hoitaa? Avoimia tehtavia: ' + myTasks.length + '.'
-          : 'Anna tilannekatsaus ' + (org.name || 'organisaation') + ' viestinnästä juuri nyt. Mitä on meneillään? Aktiiviset projektit: ' + (projects.filter((p: any) => p.st === 'active' && !p.archived).map((p: any) => p.t).join(', ') || 'ei aktiivisia') + '. Avoimia tehtäviä: ' + myTasks.length + '.';
-        const inspPrompt = isJuhla
+          : 'Anna tilannekatsaus ' + (org.name || 'organisaation') + ' viestinnästä juuri nyt. Mitä on meneillään? Aktiiviset projektit: ' + activeProjectsList + '. Avoimia tehtäviä: ' + myTasks.length + '.';
+        const defaultInsp = isJuhla
           ? 'Anna yksi inspiroiva ja konkreettinen idea 70-vuotissyntymapaivajahlien jarjestamiseen. Keskity johonkin naihin teemoista: koristeluun, ohjelmaan, puheisiin, yllatyshetkiin, musiikkiin, valokuvaukseen, tai lamminhenkisiin yksityiskohtiin jotka tekevat juhlista ikimuistoiset. Anna tarkkoja ja helposti toteutettavia ehdotuksia.'
           : 'Kerro yksi todellinen, dokumentoitu esimerkki siitä miten kulttuurialan yhdistys tai järjestö on muuttanut maailmaa parempaan suuntaan. Keskity oikeisiin tapahtumiin: esim. elokuvafestivaalit jotka ovat nostaneet ihmisoikeuskysymyksiä, teatteriprojektit jotka ovat tuoneet syrjäytyneitä yhteisöjä yhteen, taidejärjestöt jotka ovat vaikuttaneet lainsäädäntöön, tai kulttuuritapahtumat jotka ovat edistäneet mielenterveyden destigmatisointia. Kerro mikä järjestö, mitä he tekivät, mikä oli konkreettinen vaikutus, ja mitä me voisimme oppia heiltä. Käytä vain todellisia, oikeita esimerkkejä — älä keksi.';
+        const statusPrompt = aiProfile?.statusPrompt
+          ? (aiProfile.statusPrompt as string)
+              .replace('{tasks}', String(myTasks.length))
+              .replace('{activeProjects}', activeProjectsList)
+              .replace('{orgName}', org.name || 'organisaation')
+          : defaultStatus;
+        const inspPrompt: string = aiProfile?.inspirationPrompt || defaultInsp;
+        const statusDesc: string = aiProfile?.statusDesc
+          || (isJuhla ? 'Missa mennaan juhlien jarjestelyissa?' : 'Mitä viestinnässä tapahtuu juuri nyt?');
+        const statusLabel: string = aiProfile?.statusLabel || 'Tilannekatsaus';
+        const inspDesc: string = aiProfile?.inspirationDesc
+          || (isJuhla ? 'Ideoita ikimuistoisiin juhliin' : 'Kulttuurialan yhdistykset jotka muuttivat maailmaa');
+        const inspLabel: string = aiProfile?.inspirationLabel || 'Inspiraatiota';
         return (
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem', marginBottom: aiResponse || aiLoading ? '1rem' : 0 }}>
             <div className="dc" onClick={() => askAI(statusPrompt)}
@@ -394,8 +413,8 @@ export default function DashboardPage() {
                 <div style={{ width: 20, height: 20, marginBottom: '.5rem', color: 'var(--pri-l)' }}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '100%', height: '100%' }}><circle cx="12" cy="12" r="9"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88" fill="currentColor" opacity=".25"/></svg>
                 </div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, letterSpacing: '.02em' }}>Tilannekatsaus</div>
-                <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.2rem', lineHeight: 1.5 }}>{isJuhla ? 'Missa mennaan juhlien jarjestelyissa?' : 'Mitä viestinnässä tapahtuu juuri nyt?'}</div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, letterSpacing: '.02em' }}>{statusLabel}</div>
+                <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.2rem', lineHeight: 1.5 }}>{statusDesc}</div>
               </div>
             </div>
             <div className="dc" onClick={() => askAI(inspPrompt)}
@@ -406,8 +425,8 @@ export default function DashboardPage() {
                 <div style={{ width: 20, height: 20, marginBottom: '.5rem', color: 'var(--green-l)' }}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '100%', height: '100%' }}><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
                 </div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, letterSpacing: '.02em' }}>Inspiraatiota</div>
-                <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.2rem', lineHeight: 1.5 }}>{isJuhla ? 'Ideoita ikimuistoisiin juhliin' : 'Kulttuurialan yhdistykset jotka muuttivat maailmaa'}</div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, letterSpacing: '.02em' }}>{inspLabel}</div>
+                <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.2rem', lineHeight: 1.5 }}>{inspDesc}</div>
               </div>
             </div>
           </div>
@@ -425,7 +444,7 @@ export default function DashboardPage() {
           {aiLoading ? (
             <div className="typing"><span /><span /><span /></div>
           ) : (
-            <p style={{ fontSize: '.88rem', color: 'var(--t2)', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{aiResponse}</p>
+            <MarkdownText text={aiResponse} style={{ fontSize: '.88rem', color: 'var(--t2)', lineHeight: 1.8 }} />
           )}
         </div>
       )}

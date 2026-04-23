@@ -5,6 +5,8 @@ import { useAuth } from '@/lib/auth';
 import { useOrgData } from '@/lib/firestore';
 import { workerFetch } from '@/lib/worker-fetch';
 import { useIsMobile } from '@/lib/use-mobile';
+import MarkdownText from './MarkdownText';
+import { mergeAiProfile } from '@/lib/ihaa-defaults';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -17,7 +19,10 @@ export default function ChatFAB() {
   const [projects] = useOrgData<any[]>('projects', []);
   const [events] = useOrgData<any[]>('events', []);
   const [publications] = useOrgData<any[]>('publications', []);
-  const [aiProfile] = useOrgData<any>('aiProfile', {});
+  const [aiProfileRaw] = useOrgData<any>('aiProfile', {});
+  // Yhdistä koodi-defaultit ja Firestore — Firestore voittaa per-kenttä, mutta
+  // uudet koodissa määritellyt kentät tulevat mukaan ilman admin-paneelin päivitystä.
+  const aiProfile = (mergeAiProfile(activeOrg || '', aiProfileRaw) || {}) as Record<string, any>;
 
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -64,12 +69,10 @@ export default function ChatFAB() {
     p.push(`Puhuttele tiimiläisiä nimellä kun tiedät kenelle vastaat. Ehdota konkreettisia toimenpiteitä, älä jää yleiselle tasolle.`);
     p.push(`Vastaa aina suomeksi. Ole lämmin mutta ammattimainen. Pilkettä silmäkulmassa kun tilanne sallii.`);
     p.push(`Kaikki sisältöehdotuksesi noudattavat organisaation strategiaa, arvoja ja viestinnän sävyä.`);
-    // Markdown-kielto globaalisti — chat renderöi vastaukset selkotekstinä
-    p.push(`\n═══ VASTAUSTEN MUOTOILU (TÄRKEÄ) ═══`);
-    p.push(`Momentum näyttää vastauksesi selkotekstinä ilman markdown-renderöintiä.`);
-    p.push(`ÄLÄ KÄYTÄ markdown-syntaksia: ei # tai ## -otsikoita, ei **lihavointia**, ei *kursivointia*, ei taulukoita, ei koodiblokkeja, ei emojeja.`);
-    p.push(`Käytä normaaleja kappaleita ja tarvittaessa yksinkertaisia ranskalaisilla viivoilla (- ) tehtyjä listoja vain kun sisältö on oikeasti lista. Muuten juoksevaa tekstiä.`);
-    p.push(`Tee vastauksesta napakka: suora ja informatiivinen, ilman ylimääräistä koristelua.`);
+    p.push(`\n═══ VASTAUSTEN MUOTOILU ═══`);
+    p.push(`Momentum renderöi vastauksesi tyylikkäästi: voit käyttää kevyttä markdownia — **lihavointi**, *kursivointi*, ## otsikot (vain kun tarpeen), ranskalaiset viivat (- ) listoihin, 1. 2. 3. numeroituihin listoihin.`);
+    p.push(`ÄLÄ kuitenkaan käytä: taulukoita, koodilohkoja, emojeja eikä liian monta otsikkotasoa. Pidä vastaukset napakkoina ja lukukelpoisina.`);
+    p.push(`Käytä listaa vain kun sisältö on oikeasti lista. Muuten juoksevaa tekstiä.`);
     if (org.tone?.length) p.push(`Viestinnän sävyt: ${org.tone.join(', ')}.`);
     // Viestintä vs. tiedotus -määritelmät
     if (org.viestintaDefinitions) {
@@ -379,9 +382,13 @@ export default function ChatFAB() {
                     maxWidth: '80%', padding: '.7rem 1rem', borderRadius: 'var(--rl)',
                     background: msg.role === 'user' ? 'var(--pri)' : 'var(--elev)',
                     color: msg.role === 'user' ? '#fff' : 'var(--t1)',
-                    fontSize: '.85rem', lineHeight: 1.6, whiteSpace: 'pre-wrap',
+                    fontSize: '.85rem', lineHeight: 1.6,
                   }}>
-                    {msg.content}
+                    {msg.role === 'assistant' ? (
+                      <MarkdownText text={msg.content} />
+                    ) : (
+                      <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                    )}
                   </div>
                 </div>
               ))}

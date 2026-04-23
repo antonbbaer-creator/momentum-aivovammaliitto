@@ -15,8 +15,17 @@ import {
   DEFAULT_BUDGET_SETTINGS,
   calculateSplit, summarizeByCategory, totalForYear, fmtEur,
 } from '@/lib/budjetti-shared';
+import { IHAA_BUDGET_CATEGORIES, IHAA_BUDGET_SETTINGS } from '@/lib/ihaa-defaults';
 
-const DEFAULT_CATEGORIES: BudgetCategory[] = [];
+// Koodi-defaultit orgSlugin perusteella. Jos Firestoressa on data, se voittaa.
+function defaultCategoriesForOrg(orgSlug: string): BudgetCategory[] {
+  if (orgSlug === 'ihaa') return IHAA_BUDGET_CATEGORIES;
+  return [];
+}
+function defaultSettingsForOrg(orgSlug: string): BudgetSettings {
+  if (orgSlug === 'ihaa') return IHAA_BUDGET_SETTINGS;
+  return DEFAULT_BUDGET_SETTINGS;
+}
 
 export default function BudjettiPage() {
   const params = useParams();
@@ -25,9 +34,14 @@ export default function BudjettiPage() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
+  // Koodi-defaultit org-spesifeille budjettikategorioille ja asetuksille.
+  // useOrgData kytkee niihin kun Firestoressa ei ole vielä arvoa.
+  const catDefaults = useMemo(() => defaultCategoriesForOrg(orgSlug), [orgSlug]);
+  const settingsDefaults = useMemo(() => defaultSettingsForOrg(orgSlug), [orgSlug]);
+
   const [entries, setEntries] = useOrgData<BudgetEntry[]>('budgetEntries', []);
-  const [categories, setCategories] = useOrgData<BudgetCategory[]>('budgetCategories', DEFAULT_CATEGORIES);
-  const [settings, setSettings] = useOrgData<BudgetSettings>('budgetSettings', DEFAULT_BUDGET_SETTINGS);
+  const [categories, setCategories] = useOrgData<BudgetCategory[]>('budgetCategories', catDefaults);
+  const [settings, setSettings] = useOrgData<BudgetSettings>('budgetSettings', settingsDefaults);
   const [membersRaw] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const members = useMemo(() => uniqueMembersByName(membersRaw), [membersRaw]);
 

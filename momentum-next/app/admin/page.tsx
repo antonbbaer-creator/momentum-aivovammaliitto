@@ -83,14 +83,47 @@ export default function AdminPage() {
           displayName: user.displayName || '', email: user.email || '', photoURL: user.photoURL || '',
         }, { merge: true });
 
-        // Write org data
-        await setDoc(doc(db, 'organizations', orgId, 'data', 'org'), { v: JSON.stringify(orgData), ts: Date.now(), updatedBy: user.uid });
-        await setDoc(doc(db, 'organizations', orgId, 'data', 'events'), { v: JSON.stringify(events), ts: Date.now(), updatedBy: user.uid });
-        await setDoc(doc(db, 'organizations', orgId, 'data', 'channelStats'), { v: JSON.stringify(channelStats), ts: Date.now(), updatedBy: user.uid });
+        // Write org data — org/events/channelStats kirjoitetaan vain jos docia ei ole.
+        // Nama ovat isoja kustomoituja dokumentteja jotka eivat saa "reseedata" itseaan.
+        const existingOrgSnap = await getDocs(collection(db, 'organizations', orgId, 'data'));
+        const existingInit = new Map<string, string>();
+        for (const d of existingOrgSnap.docs) existingInit.set(d.id, d.data().v || '');
+        const writeIfMissing = async (key: string, value: unknown) => {
+          const existing = existingInit.get(key);
+          let shouldWrite = true;
+          if (existing) {
+            try {
+              const parsed = JSON.parse(existing);
+              if (parsed && (Array.isArray(parsed) ? parsed.length > 0 : Object.keys(parsed).length > 0)) shouldWrite = false;
+            } catch { /* invalid — treat as empty */ }
+          }
+          if (shouldWrite) {
+            await setDoc(doc(db, 'organizations', orgId, 'data', key), { v: JSON.stringify(value), ts: Date.now(), updatedBy: user.uid });
+          }
+        };
+        await writeIfMissing('org', orgData);
+        await writeIfMissing('events', events);
+        await writeIfMissing('channelStats', channelStats);
 
-        // Initialize empty collections
+        // Initialize empty collections — KRIITTINEN: vain jos docia ei ole tai se on tyhja.
+        // Setdoc merge-optio ei suojaa kun docilla on vain v-kentta — tarkistetaan etukateen
+        // jotta ei ylikirjoiteta tuotannon dataa (esim. LLFF-muistiinpanot).
+        const seedSnap = await getDocs(collection(db, 'organizations', orgId, 'data'));
+        const seedExisting = new Map<string, string>();
+        for (const d of seedSnap.docs) seedExisting.set(d.id, d.data().v || '');
         for (const key of ['projects', 'publications', 'media_meta', 'media_uploaded', 'media_collections']) {
-          await setDoc(doc(db, 'organizations', orgId, 'data', key), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid }, { merge: true });
+          const existing = seedExisting.get(key);
+          let shouldSeed = true;
+          if (existing) {
+            try {
+              const parsed = JSON.parse(existing);
+              if (Array.isArray(parsed) && parsed.length > 0) shouldSeed = false;
+              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length > 0) shouldSeed = false;
+            } catch { /* treat invalid as empty */ }
+          }
+          if (shouldSeed) {
+            await setDoc(doc(db, 'organizations', orgId, 'data', key), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid });
+          }
         }
 
         // Seed org-specific modules
@@ -356,9 +389,24 @@ export default function AdminPage() {
       await setDoc(doc(db, 'organizations', orgId, 'data', 'channelStats'), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid });
       // Seed modules
       await setDoc(doc(db, 'organizations', orgId, 'data', 'modules'), { v: JSON.stringify(JUHLATOIMIKUNTA_MODULES), ts: Date.now(), updatedBy: user.uid });
-      // Initialize empty collections
-      for (const key of ['projects', 'publications', 'media_meta', 'media_uploaded', 'media_collections']) {
-        await setDoc(doc(db, 'organizations', orgId, 'data', key), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid }, { merge: true });
+      // Initialize empty collections — vain jos doc puuttuu tai on tyhja (suojaa tuotantodataa)
+      {
+        const juhlaSnap = await getDocs(collection(db, 'organizations', orgId, 'data'));
+        const juhlaExisting = new Map<string, string>();
+        for (const d of juhlaSnap.docs) juhlaExisting.set(d.id, d.data().v || '');
+        for (const key of ['projects', 'publications', 'media_meta', 'media_uploaded', 'media_collections']) {
+          const existing = juhlaExisting.get(key);
+          let shouldSeed = true;
+          if (existing) {
+            try {
+              const parsed = JSON.parse(existing);
+              if (parsed && (Array.isArray(parsed) ? parsed.length > 0 : Object.keys(parsed).length > 0)) shouldSeed = false;
+            } catch { /* treat invalid as empty */ }
+          }
+          if (shouldSeed) {
+            await setDoc(doc(db, 'organizations', orgId, 'data', key), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid });
+          }
+        }
       }
       // Add to user's org list
       const userOrgsSnap = await getDocs(query(collection(db, 'userOrgs')));
@@ -530,8 +578,24 @@ export default function AdminPage() {
         restrictions: 'Älä lupaa mitä et voi pitää. Älä piilota teknisiä rajoituksia (latenssi, rautavaatimukset, ylläpitokulut). Älä markkinoi ideologialla jos faktatkin riittävät.',
       };
       await setDoc(doc(db, 'organizations', orgId, 'data', 'aiProfile'), { v: JSON.stringify(LUURI_AI_PROFILE), ts: Date.now(), updatedBy: user.uid });
-      for (const key of ['projects', 'publications', 'media_meta', 'media_uploaded', 'media_collections']) {
-        await setDoc(doc(db, 'organizations', orgId, 'data', key), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid }, { merge: true });
+      // Initialize empty collections — vain jos doc puuttuu tai on tyhja (suojaa tuotantodataa)
+      {
+        const luuriSnap = await getDocs(collection(db, 'organizations', orgId, 'data'));
+        const luuriExisting = new Map<string, string>();
+        for (const d of luuriSnap.docs) luuriExisting.set(d.id, d.data().v || '');
+        for (const key of ['projects', 'publications', 'media_meta', 'media_uploaded', 'media_collections']) {
+          const existing = luuriExisting.get(key);
+          let shouldSeed = true;
+          if (existing) {
+            try {
+              const parsed = JSON.parse(existing);
+              if (parsed && (Array.isArray(parsed) ? parsed.length > 0 : Object.keys(parsed).length > 0)) shouldSeed = false;
+            } catch { /* treat invalid as empty */ }
+          }
+          if (shouldSeed) {
+            await setDoc(doc(db, 'organizations', orgId, 'data', key), { v: JSON.stringify([]), ts: Date.now(), updatedBy: user.uid });
+          }
+        }
       }
       const userOrgsSnap = await getDocs(query(collection(db, 'userOrgs')));
       let existingOrgs: any[] = [];
