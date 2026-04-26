@@ -12,6 +12,8 @@ import { buildAssignment } from '@/lib/assignments-shared';
 import { useIsMobile } from '@/lib/use-mobile';
 import { softDelete, filterActive } from '@/lib/trash';
 import { workerFetch } from '@/lib/worker-fetch';
+import DrivePicker, { PickedItem } from '@/components/DrivePicker';
+import { useDriveStatus, getFileContent, exportToDoc } from '@/lib/drive';
 
 interface ActionItem {
   text: string;
@@ -105,6 +107,61 @@ export default function MuistiinpanotPage() {
   const [nContent, setNContent] = useState('');
   const [nRawTranscription, setNRawTranscription] = useState('');
   const [nCleanTranscription, setNCleanTranscription] = useState('');
+
+  const driveStatus = useDriveStatus();
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  const [driveBusy, setDriveBusy] = useState(false);
+
+  const importFromDrive = async (items: PickedItem[]) => {
+    if (items.length === 0) return;
+    setDriveBusy(true);
+    try {
+      const newNotes: MeetingNote[] = [];
+      for (const it of items) {
+        if (it.isFolder) continue;
+        try {
+          const content = await getFileContent(it.id, it.mimeType);
+          newNotes.push({
+            id: 'mn_' + Date.now() + '_' + it.id.slice(0, 6),
+            title: it.name.replace(/\.(docx?|md|txt)$/i, ''),
+            date: new Date().toISOString().split('T')[0],
+            attendees: [],
+            content,
+            createdAt: Date.now(),
+          });
+        } catch (err: any) {
+          toast(`"${it.name}" ei latautunut: ${err?.message || err}`, 'error');
+        }
+      }
+      if (newNotes.length > 0) {
+        setNotes(prev => [...newNotes, ...prev]);
+        toast(`${newNotes.length} muistiinpano${newNotes.length === 1 ? '' : 'a'} tuotu Drivesta`, 'success');
+      }
+    } finally {
+      setDriveBusy(false);
+    }
+  };
+
+  const exportNoteToDrive = async (note: MeetingNote) => {
+    setDriveBusy(true);
+    try {
+      const md = [
+        `# ${note.title}`,
+        `*${note.date}*`,
+        note.attendees.length > 0 ? `**Osallistujat:** ${note.attendees.join(', ')}` : '',
+        '',
+        note.content,
+        note.summary ? `\n\n## Yhteenveto\n\n${note.summary}` : '',
+      ].filter(Boolean).join('\n');
+      const file = await exportToDoc(note.title || 'Muistiinpano', md);
+      toast('Vienti onnistui — avaa Drivessä', 'success');
+      if (file.webViewLink) window.open(file.webViewLink, '_blank', 'noopener');
+    } catch (e: any) {
+      toast(`Vienti epäonnistui: ${e?.message || e}`, 'error');
+    } finally {
+      setDriveBusy(false);
+    }
+  };
 
   const openNew = () => {
     setEditId(null);
@@ -1025,6 +1082,16 @@ Paivitetty yhteenveto:`;
               >
                 {summarizing ? 'Luodaan...' : detail.summary ? 'Paivita yhteenveto' : 'Luo AI-yhteenveto'}
               </button>
+              {driveStatus.connected && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => exportNoteToDrive(detail)}
+                  disabled={driveBusy}
+                  title="Vie tämä muistiinpano Google Docsiksi Driveen"
+                >
+                  {driveBusy ? 'Viedään…' : 'Vie Driveen'}
+                </button>
+              )}
               <button className="btn btn-ghost btn-sm" onClick={() => remove(detail.id)} style={{ color: 'var(--red)', marginLeft: 'auto' }}>Poista</button>
             </>
           )}
@@ -1036,9 +1103,26 @@ Paivitetty yhteenveto:`;
   // List view
   return (
     <AppShell title="Muistiinpanot" subtitle={`${notes.length} muistiinpanoa`}>
+      <DrivePicker
+        mode="doc"
+        multi
+        open={drivePickerOpen}
+        setOpen={setDrivePickerOpen}
+        onPick={importFromDrive}
+      />
       {canEdit && (
         <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
           <button className="btn btn-primary btn-sm" onClick={openNew}>+ Uusi muistiinpano</button>
+          {driveStatus.connected && (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setDrivePickerOpen(true)}
+              disabled={driveBusy}
+              title="Tuo Google Doc tai tekstitiedosto Drivesta"
+            >
+              {driveBusy ? 'Hetki…' : 'Tuo Drivesta'}
+            </button>
+          )}
           {!isRecording && !transcribing && (
             <>
               <button className="btn btn-secondary btn-sm" onClick={startRecording} style={{ display: 'flex', alignItems: 'center', gap: '.35rem' }}>

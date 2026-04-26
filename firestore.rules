@@ -2,34 +2,63 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users: only own document
+    // Super-admin emaillit (synkkaan koodissa SUPER_ADMINS-arrayn kanssa).
+    // Nämä saavat lukuoikeuden kaikkiin orgeihin / käyttäjiin admin-paneelia varten.
+    function isSuperAdmin() {
+      return request.auth != null && request.auth.token.email in [
+        'anton@hetkicompany.com',
+        'anton.baer@gmail.com',
+        'anton.b.baer@gmail.com',
+        'anton.baer@kinolapinlahti.fi',
+        'claude-test@hetkicompany.com'
+      ];
+    }
+
+    // Users: get oma docc tai super-admin, list vain super-admin
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow get: if request.auth != null && (request.auth.uid == userId || isSuperAdmin());
+      allow list: if isSuperAdmin();
+      allow write: if request.auth != null && (request.auth.uid == userId || isSuperAdmin());
+
+      // Subcollections (esim. integrations/google Drive token) — vain käyttäjälle itselleen
+      match /{subcoll}/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
-    // User org memberships: read own, write own (needed to sync orgIds field)
+    // User org memberships: get oma tai super, list vain super
     match /userOrgs/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow get: if request.auth != null && (request.auth.uid == userId || isSuperAdmin());
+      allow list: if isSuperAdmin();
+      allow write: if request.auth != null && (request.auth.uid == userId || isSuperAdmin());
     }
 
-    // Organizations: only members can read/write
+    // Organizations: get vain jäsenille tai super, list vain super (jäsenet listaavat
+    // omat orgit userOrgs-dokumentin kautta, eivät tämän kollektion läpi)
     match /organizations/{orgId} {
-      allow read: if request.auth != null && isOrgMember(orgId);
-      allow write: if request.auth != null && isOrgMember(orgId);
+      allow get: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+      allow list: if isSuperAdmin();
+      allow write: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
 
       // Org data subcollection
       match /data/{key} {
-        allow read: if request.auth != null && isOrgMember(orgId);
-        allow write: if request.auth != null && isOrgMember(orgId);
+        allow read, write: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
       }
+
+      // Org members subcollection
+      match /members/{memberUid} {
+        allow read, write: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+      }
+
+      // Onboarding: lue joinCode liittyäkseen — sallittu kaikille kirjautuneille
+      // (suojaa: koodi tarvitaan kuitenkin, eikä pelkkä luku riitä jäseneksi)
     }
 
     // Helper: check if user belongs to the organization
     // Uses the orgIds array field in userOrgs document
     function isOrgMember(orgId) {
-      let userOrgsDoc = get(/databases/$(database)/documents/userOrgs/$(request.auth.uid)).data;
-      return orgId in userOrgsDoc.orgIds;
+      let userOrgsPath = /databases/$(database)/documents/userOrgs/$(request.auth.uid);
+      return exists(userOrgsPath) && (orgId in get(userOrgsPath).data.orgIds);
     }
   }
 }

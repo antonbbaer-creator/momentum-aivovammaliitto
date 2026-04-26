@@ -17,6 +17,18 @@ import {
 } from '@/lib/assignments-shared';
 import Link from 'next/link';
 import { ProjectNote, canViewNote, stageLabel, stageColor } from '@/lib/notes-shared';
+import DrivePicker, { PickedItem } from '@/components/DrivePicker';
+import { useDriveStatus } from '@/lib/drive';
+
+export interface DriveAttachment {
+  id: string;          // Drive file id
+  name: string;
+  mimeType: string;
+  url?: string;        // webViewLink
+  iconUrl?: string;
+  thumbnailUrl?: string;
+  addedAt: number;
+}
 
 interface Task extends Assignable {
   id: number; text: string; done: boolean; deadline: string;
@@ -37,6 +49,7 @@ export interface Project {
   phaseId?: string;  // NEW: optional link to a yearwheel phase
   deletedAt?: number;
   noteSeedIds?: string[]; // muistiinpanojen id:t joista projekti on syntynyt
+  driveAttachments?: DriveAttachment[]; // Google Drive -liitteet
 }
 
 interface Props {
@@ -69,6 +82,9 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
   const [rawPhases] = useOrgData<YearPhase[]>('yearwheel', getOrgYearwheel(orgSlug));
   const phases = useMemo(() => rawPhases.map(normalizePhase), [rawPhases]);
+
+  const driveStatus = useDriveStatus();
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
 
   const [mode, setMode] = useState<'kanban' | 'new' | 'detail'>('kanban');
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -361,6 +377,78 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
             </div>
           </form>
         </div>
+
+        {/* Drive-liitteet */}
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.5rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase' }}>
+              Drive-liitteet ({(selected.driveAttachments || []).length})
+            </h3>
+            {driveStatus.connected ? (
+              <button className="btn btn-ghost btn-sm" onClick={() => setDrivePickerOpen(true)}>+ Liitä Drivesta</button>
+            ) : (
+              <Link href={`/${orgSlug}/settings`} style={{ fontSize: '.7rem', color: 'var(--t3)' }}>Yhdistä Drive ↗</Link>
+            )}
+          </div>
+          {(selected.driveAttachments || []).length === 0 ? (
+            <p style={{ fontSize: '.78rem', color: 'var(--t3)' }}>Ei liitteitä. Liitä tiedostoja Drivesta yllä olevasta napista.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+              {(selected.driveAttachments || []).map(att => (
+                <div key={att.id} style={{
+                  display: 'flex', alignItems: 'center', gap: '.6rem',
+                  padding: '.55rem .75rem', background: 'var(--elev)',
+                  border: '1px solid var(--border)', borderRadius: 'var(--r)',
+                }}>
+                  {att.iconUrl ? (
+                    <img src={att.iconUrl} alt="" style={{ width: 18, height: 18, flexShrink: 0 }} />
+                  ) : (
+                    <span style={{ width: 18, height: 18, flexShrink: 0 }} aria-hidden />
+                  )}
+                  <a href={att.url} target="_blank" rel="noopener noreferrer"
+                    style={{ flex: 1, fontSize: '.85rem', color: 'var(--t1)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {att.name}
+                  </a>
+                  <span style={{ fontSize: '.65rem', color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                    {att.mimeType.includes('document') ? 'Doc' : att.mimeType.includes('spreadsheet') ? 'Sheet' : att.mimeType.includes('presentation') ? 'Slide' : att.mimeType.includes('image/') ? 'Kuva' : att.mimeType.includes('video/') ? 'Video' : att.mimeType.includes('pdf') ? 'PDF' : 'Tiedosto'}
+                  </span>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => updateProject(selected.id, { driveAttachments: (selected.driveAttachments || []).filter(a => a.id !== att.id) })}
+                    title="Poista liite"
+                    style={{ padding: '.2rem .5rem', fontSize: '.7rem', color: 'var(--t3)' }}
+                  >×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <DrivePicker
+          mode="file"
+          multi
+          open={drivePickerOpen}
+          setOpen={setDrivePickerOpen}
+          onPick={(items: PickedItem[]) => {
+            if (items.length === 0) return;
+            const newAttachments: DriveAttachment[] = items
+              .filter(it => !it.isFolder)
+              .map(it => ({
+                id: it.id,
+                name: it.name,
+                mimeType: it.mimeType,
+                url: it.url,
+                iconUrl: it.iconUrl,
+                thumbnailUrl: it.thumbnailUrl,
+                addedAt: Date.now(),
+              }));
+            const existing = selected.driveAttachments || [];
+            const existingIds = new Set(existing.map(a => a.id));
+            const merged = [...existing, ...newAttachments.filter(a => !existingIds.has(a.id))];
+            updateProject(selected.id, { driveAttachments: merged });
+            toast(`${newAttachments.length} liite${newAttachments.length === 1 ? '' : 'ttä'} lisätty`, 'success');
+          }}
+        />
 
         {(() => {
           const uid = user?.uid || '';

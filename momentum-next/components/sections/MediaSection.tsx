@@ -8,6 +8,7 @@ import { useToast } from '@/lib/toast';
 import { useIsMobile } from '@/lib/use-mobile';
 
 import { workerFetch, WORKER_URL } from '@/lib/worker-fetch';
+import DriveFolderBrowser from '@/components/DriveFolderBrowser';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
 
 interface MediaFile { id: string; name: string; size: number; type: string; ext: string; path: string; thumb: string; fullUrl: string; folder: string; source: string; r2Key?: string; added?: string; }
@@ -416,6 +417,13 @@ export default function MediaSection() {
             <span style={{ fontSize: '.82rem', fontWeight: 600, color: 'var(--pri-l)' }}>Ladataan pilveen... {uploadProgress}</span>
           </div>
         )}
+
+        {/* Drive-kansiot — selailtavissa kun Drive on yhdistetty */}
+        <DriveFolderBrowser
+          mimeStartsWith="image/"
+          storageKey="mediaDriveFolders"
+          title="Drive-kansiot · kuvat"
+        />
 
         {canEdit && (
           <div onClick={() => fileRef.current?.click()} style={{ marginBottom: '1.5rem', border: '2px dashed var(--border)', borderRadius: 'var(--r)', padding: '1.5rem', textAlign: 'center', cursor: 'pointer', transition: 'all .2s', background: 'var(--elev)' }}

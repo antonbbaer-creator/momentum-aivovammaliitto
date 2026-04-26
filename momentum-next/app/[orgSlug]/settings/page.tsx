@@ -9,6 +9,7 @@ import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, getDoc } from '
 import { db } from '@/lib/firebase';
 import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, getDefaultModules } from '@/lib/modules';
 import { useToast } from '@/lib/toast';
+import { connectDrive, disconnectDrive, useDriveStatus } from '@/lib/drive';
 
 interface Member { uid: string; displayName: string; email: string; photoURL: string; role: string; joinedAt: string; }
 
@@ -22,6 +23,10 @@ export default function SettingsPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [inviteText, setInviteText] = useState('');
+  const [inviteSubject, setInviteSubject] = useState('');
+  const [inviteCopied, setInviteCopied] = useState(false);
   const [editingOrg, setEditingOrg] = useState(false);
   const [orgName, setOrgName] = useState('');
   const [orgSlogan, setOrgSlogan] = useState('');
@@ -30,6 +35,9 @@ export default function SettingsPage() {
   const [codeCopied, setCodeCopied] = useState(false);
   const [textSize, setTextSizeState] = useState('sm');
   const [compactMode, setCompactModeState] = useState(false);
+  const [theme, setThemeState] = useState<'light' | 'dark'>('light');
+  const driveStatus = useDriveStatus();
+  const [driveBusy, setDriveBusy] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [joinError, setJoinError] = useState('');
   const [joining, setJoining] = useState(false);
@@ -45,7 +53,17 @@ export default function SettingsPage() {
     if (savedSize && ['sm', 'md', 'lg'].includes(savedSize)) setTextSizeState(savedSize);
     const savedCompact = localStorage.getItem('momentum_compactMode');
     if (savedCompact === 'true') setCompactModeState(true);
+    const savedTheme = localStorage.getItem('momentum_theme');
+    const initial: 'light' | 'dark' = savedTheme === 'dark' ? 'dark' : 'light';
+    setThemeState(initial);
+    document.documentElement.dataset.theme = initial;
   }, []);
+
+  const setTheme = (t: 'light' | 'dark') => {
+    setThemeState(t);
+    localStorage.setItem('momentum_theme', t);
+    document.documentElement.dataset.theme = t;
+  };
 
   const setTextSize = (key: string) => {
     setTextSizeState(key);
@@ -141,15 +159,72 @@ export default function SettingsPage() {
     setMembers(prev => prev.map(m => m.uid === uid ? { ...m, role: newRole } : m));
   };
 
-  const sendInvite = async () => {
-    if (!activeOrg || !inviteEmail.trim()) return;
-    await setDoc(doc(collection(db, 'organizations', activeOrg, 'invitations')), {
-      email: inviteEmail.trim().toLowerCase(), role: inviteRole,
-      invitedBy: user!.uid, invitedByName: user!.displayName || '',
-      createdAt: new Date().toISOString(), status: 'pending',
-    });
+  const buildInviteText = () => {
+    const orgName = org.name || activeOrg || 'Hetki-yhteisö';
+    const inviter = user?.displayName || user?.email || '';
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://momentum.hetkicompany.com';
+    const code = orgJoinCode || '(pyydä salasana ylläpitäjältä)';
+    const roleLabel = inviteRole === 'admin' ? 'pääkäyttäjänä (admin)' : 'jäsenenä';
+    const subject = `Kutsu yhteisöön ${orgName} — Hetki Momentum`;
+    const body = `Hei!
+
+${inviter ? inviter + ' on kutsunut' : 'Sinut on kutsuttu'} sinut liittymään yhteisöön "${orgName}" ${roleLabel} Hetki Momentum -työtilassa.
+
+Momentum on tiimitila, jossa hoidetaan yhteistä toimintaa: tehtävät, aikataulut, kalenterit, viestintä ja muistiinpanot samassa paikassa.
+
+Näin liityt:
+1. Mene osoitteeseen ${baseUrl}
+2. Kirjaudu sisään Googlella tai luo uusi tili sähköpostillasi
+3. Syötä yhteisön salasana: ${code}
+
+Tämä salasana on tarkoitettu vain sinulle ja luotetuille tiimiläisille — älä jaa sitä julkisesti.
+
+Tervetuloa mukaan!${inviter ? '\n\n— ' + inviter : ''}`;
+    return { subject, body };
+  };
+
+  const openInviteModal = () => {
+    if (!inviteEmail.trim()) return;
+    const { subject, body } = buildInviteText();
+    setInviteSubject(subject);
+    setInviteText(body);
+    setInviteCopied(false);
+    setInviteModalOpen(true);
+  };
+
+  const recordInvite = async () => {
+    if (!activeOrg || !inviteEmail.trim() || !user) return;
+    try {
+      await setDoc(doc(collection(db, 'organizations', activeOrg, 'invitations')), {
+        email: inviteEmail.trim().toLowerCase(), role: inviteRole,
+        invitedBy: user.uid, invitedByName: user.displayName || '',
+        createdAt: new Date().toISOString(), status: 'pending',
+      });
+    } catch (e) {
+      console.error('Invite record error:', e);
+    }
+  };
+
+  const sendInviteEmail = async () => {
+    if (!inviteEmail.trim()) return;
+    await recordInvite();
+    const mailto = `mailto:${encodeURIComponent(inviteEmail.trim())}?subject=${encodeURIComponent(inviteSubject)}&body=${encodeURIComponent(inviteText)}`;
+    window.location.href = mailto;
+    toast(`Sähköpostiohjelma avattu: ${inviteEmail}`, 'success');
+    setInviteModalOpen(false);
     setInviteEmail('');
-    alert(`Kutsu lähetetty: ${inviteEmail}`);
+  };
+
+  const copyInviteText = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteText);
+      setInviteCopied(true);
+      await recordInvite();
+      setTimeout(() => setInviteCopied(false), 2000);
+    } catch (e) {
+      console.error('Copy error:', e);
+      toast('Tekstin kopiointi epäonnistui', 'error');
+    }
   };
 
   return (
@@ -190,7 +265,7 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '.75rem 1rem', background: 'var(--elev)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}>
             <div>
               <div style={{ fontSize: '.82rem', fontWeight: 600 }}>Kompakti tila</div>
-              <div style={{ fontSize: '.68rem', color: 'var(--t3)' }}>Pienentaa valimatkat elementtien valilla</div>
+              <div style={{ fontSize: '.68rem', color: 'var(--t3)' }}>Pienentää välimatkat elementtien välillä</div>
             </div>
             <button onClick={() => setCompactMode(!compactMode)} style={{
               width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
@@ -204,6 +279,81 @@ export default function SettingsPage() {
                 transition: 'left .2s ease',
               }} />
             </button>
+          </div>
+
+          {/* Google Drive -yhteys */}
+          <div style={{ marginTop: '.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '.82rem', fontWeight: 600, marginBottom: '.2rem' }}>Google Drive</div>
+                <div style={{ fontSize: '.7rem', color: 'var(--t3)', lineHeight: 1.5 }}>
+                  {driveStatus.loading ? 'Tarkistetaan yhteyttä…' : driveStatus.connected
+                    ? <>Yhdistetty {driveStatus.email ? <b style={{ color: 'var(--t2)' }}>{driveStatus.email}</b> : null}{driveStatus.expiresAt ? <> · token voimassa {new Date(driveStatus.expiresAt).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })} asti</> : null}</>
+                    : 'Yhdistä Drive jotta voit tuoda ja viedä dokumentteja, kuvia ja kansioita Momentumiin.'}
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  setDriveBusy(true);
+                  try {
+                    if (driveStatus.connected) {
+                      await disconnectDrive();
+                      toast('Drive-yhteys katkaistu', 'info');
+                    } else {
+                      const tok = await connectDrive();
+                      toast(`Drive yhdistetty${tok.email ? ` · ${tok.email}` : ''}`, 'success');
+                    }
+                  } catch (e: any) {
+                    toast(e?.message || 'Drive-yhteys epäonnistui', 'error');
+                  } finally {
+                    setDriveBusy(false);
+                  }
+                }}
+                disabled={driveBusy || driveStatus.loading}
+                style={{
+                  padding: '.55rem 1rem', cursor: driveBusy ? 'wait' : 'pointer',
+                  background: driveStatus.connected ? 'var(--paper-l)' : 'var(--ink)',
+                  color: driveStatus.connected ? 'var(--ink)' : 'var(--paper)',
+                  border: `1px solid ${driveStatus.connected ? 'var(--rule)' : 'var(--ink)'}`,
+                  fontFamily: 'var(--font-display)', fontSize: '.72rem', fontWeight: 500,
+                  letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                  opacity: driveBusy ? 0.5 : 1,
+                }}
+              >
+                {driveBusy ? 'Hetki…' : driveStatus.connected ? 'Katkaise' : 'Yhdistä Drive'}
+              </button>
+            </div>
+            {driveStatus.connected && driveStatus.expiresAt && driveStatus.expiresAt - Date.now() < 10 * 60 * 1000 && (
+              <div style={{ fontSize: '.68rem', color: 'var(--yellow)', marginTop: '.4rem' }}>
+                Token vanhenee pian — yhdistä uudelleen jatkaaksesi.
+              </div>
+            )}
+          </div>
+
+          {/* Teema (vaalea / tumma) */}
+          <div style={{ marginTop: '.85rem' }}>
+            <div style={{ fontSize: '.82rem', fontWeight: 600, marginBottom: '.6rem' }}>Teema</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.4rem' }}>
+              {([
+                { key: 'light' as const, label: 'Vaalea', desc: 'Kerma-paperi' },
+                { key: 'dark' as const, label: 'Tumma', desc: 'Inverttipaperi' },
+              ]).map(t => (
+                <button
+                  key={t.key}
+                  onClick={() => setTheme(t.key)}
+                  style={{
+                    padding: '.85rem', cursor: 'pointer',
+                    background: theme === t.key ? 'var(--paper-d)' : 'var(--paper-l)',
+                    border: `1px solid ${theme === t.key ? 'var(--ink)' : 'var(--rule)'}`,
+                    color: 'var(--ink)', textAlign: 'left',
+                    fontFamily: 'var(--font-display)',
+                  }}
+                >
+                  <div style={{ fontSize: '.82rem', fontWeight: 500, letterSpacing: '.04em', textTransform: 'uppercase' }}>{t.label}</div>
+                  <div style={{ fontSize: '.68rem', color: 'var(--ink2)', fontFamily: 'var(--font)', marginTop: '.2rem' }}>{t.desc}</div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -350,13 +500,19 @@ export default function SettingsPage() {
               )}
             </div>
           ))}
-          {isAdmin && (
-            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '.5rem' }}>
-              <input className="input" placeholder="Sähköposti" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} style={{ flex: 1 }} />
-              <select className="input" value={inviteRole} onChange={e => setInviteRole(e.target.value as any)} style={{ width: 'auto' }}>
-                <option value="member">Jäsen</option><option value="admin">Admin</option>
-              </select>
-              <button className="btn btn-primary btn-sm" onClick={sendInvite} disabled={!inviteEmail.trim()}>Kutsu</button>
+          {(isAdmin || isSuperAdmin) && (
+            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '.78rem', fontWeight: 700, color: 'var(--t2)', marginBottom: '.35rem' }}>Kutsu uusi jäsen</div>
+              <p style={{ fontSize: '.72rem', color: 'var(--t3)', marginBottom: '.6rem', lineHeight: 1.5 }}>
+                Syötä sähköposti ja rooli — saat valmiin kutsuviestin yhteisön salasanalla. Voit lähettää sen sähköpostilla tai kopioida tekstin muuhun kanavaan.
+              </p>
+              <div style={{ display: 'flex', gap: '.5rem' }}>
+                <input className="input" placeholder="Sähköposti" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} style={{ flex: 1 }} />
+                <select className="input" value={inviteRole} onChange={e => setInviteRole(e.target.value as any)} style={{ width: 'auto' }}>
+                  <option value="member">Jäsen</option><option value="admin">Admin</option>
+                </select>
+                <button className="btn btn-primary btn-sm" onClick={openInviteModal} disabled={!inviteEmail.trim()}>Kutsu</button>
+              </div>
             </div>
           )}
         </div>
@@ -413,6 +569,68 @@ export default function SettingsPage() {
           <button className="btn btn-secondary" onClick={logout}>Kirjaudu ulos</button>
         </div>
       </div>
+
+      {/* Invite modal */}
+      {inviteModalOpen && (
+        <div
+          onClick={() => setInviteModalOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 2000, padding: '1rem',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--card)', border: '1px solid var(--border)',
+              borderRadius: 'var(--rl)', width: '100%', maxWidth: 620,
+              maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+              boxShadow: '0 20px 60px rgba(0,0,0,.5)',
+            }}
+          >
+            <div style={{ padding: '1.1rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.95rem', fontWeight: 600 }}>Kutsu jäsen yhteisöön</h3>
+                <p style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.15rem' }}>
+                  Vastaanottaja: <strong style={{ color: 'var(--t1)' }}>{inviteEmail}</strong> · Rooli: {inviteRole === 'admin' ? 'Admin' : 'Jäsen'}
+                </p>
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={() => setInviteModalOpen(false)} aria-label="Sulje">×</button>
+            </div>
+
+            <div style={{ padding: '1.25rem 1.5rem', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '.9rem' }}>
+              <div className="field">
+                <label style={{ fontSize: '.75rem', fontWeight: 600, color: 'var(--t2)' }}>Otsikko</label>
+                <input className="input" value={inviteSubject} onChange={e => setInviteSubject(e.target.value)} />
+              </div>
+              <div className="field">
+                <label style={{ fontSize: '.75rem', fontWeight: 600, color: 'var(--t2)' }}>Kutsuviesti</label>
+                <textarea
+                  className="input"
+                  value={inviteText}
+                  onChange={e => setInviteText(e.target.value)}
+                  rows={14}
+                  style={{ fontFamily: 'inherit', lineHeight: 1.55, fontSize: '.84rem', resize: 'vertical', minHeight: 240 }}
+                />
+                <p style={{ fontSize: '.68rem', color: 'var(--t3)', marginTop: '.35rem', lineHeight: 1.5 }}>
+                  Voit muokata viestiä vapaasti ennen lähetystä. Salasana on valmiiksi mukana — jaa vain luotetuille.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setInviteModalOpen(false)}>Peruuta</button>
+              <button className="btn btn-secondary btn-sm" onClick={copyInviteText}>
+                {inviteCopied ? 'Kopioitu!' : 'Kopioi teksti'}
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={sendInviteEmail}>
+                Lähetä sähköpostilla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
