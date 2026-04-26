@@ -649,6 +649,25 @@ const _activeOrg=(()=>{try{return JSON.parse(localStorage.getItem('momentum_acti
 const useOrgState=(key,def)=>usePersistedState(_activeOrg+'_'+key,def);
 const switchOrg=(orgId)=>{localStorage.setItem('momentum_activeOrg',JSON.stringify(orgId));window.location.reload()};
 
+// ══════ TASK DELEGATION HELPERS ══════
+// Task shape: {id, text, done, assignedTo, assignedBy, status, rejectReason, createdAt}
+// Legacy tasks (missing status) → treated as 'accepted' with no assignee
+const normalizeTask=(tk)=>({
+  id:tk.id,text:tk.text,done:!!tk.done,
+  assignedTo:tk.assignedTo||null,
+  assignedBy:tk.assignedBy||null,
+  status:tk.status||'accepted',
+  rejectReason:tk.rejectReason||null,
+  createdAt:tk.createdAt||tk.id||Date.now()
+});
+const taskVisibleAs=(tk,user)=>{
+  // returns 'inbox'|'mine'|'assigned'|'rejected-to-me'|null
+  if(tk.assignedTo===user&&tk.status==='pending')return'inbox';
+  if(tk.assignedTo===user&&tk.status==='accepted'&&!tk.done)return'mine';
+  if(tk.assignedBy===user&&tk.assignedTo!==user)return'assigned';
+  return null;
+};
+
 // Migration: move legacy un-namespaced keys to avl namespace (runs once)
 const _migrateOrgData=(()=>{
   if(localStorage.getItem('momentum_migrated_v1'))return;
@@ -2021,7 +2040,7 @@ function NewProject({toast,prj,setPrj,onDone,t}){
   </div>);}
 
 // ══════ PIPELINE ══════
-function Pipeline({prj,setPrj,toast,t,org}){
+function Pipeline({prj,setPrj,toast,t,org,currentUser}){
   const[mode,setMode]=useState('kanban');
   const[selId,setSelId]=useState(null);
   const[showArchive,setShowArchive]=useState(false);
@@ -2039,7 +2058,7 @@ function Pipeline({prj,setPrj,toast,t,org}){
   const onDrop=(e,targetSt)=>{e.preventDefault();if(dragId){setPrj(p=>p.map(x=>x.id===dragId?{...x,st:targetSt}:x));setDragId(null);toast('Tila päivitetty','success')}};
 
   // Detail view
-  if(mode==='detail'&&selId){const proj=prj.find(p=>p.id===selId);if(proj)return<ProjectDetail project={proj} prj={prj} setPrj={setPrj} toast={toast} t={t} onBack={()=>{setMode('kanban');setSelId(null)}}/>}
+  if(mode==='detail'&&selId){const proj=prj.find(p=>p.id===selId);if(proj)return<ProjectDetail project={proj} prj={prj} setPrj={setPrj} toast={toast} t={t} org={org} currentUser={currentUser} onBack={()=>{setMode('kanban');setSelId(null)}}/>}
   // New project
   if(mode==='new')return<NewProject toast={toast} prj={prj} setPrj={setPrj} onDone={()=>setMode('kanban')} t={t}/>;
 
@@ -2103,27 +2122,62 @@ function Pipeline({prj,setPrj,toast,t,org}){
   </div>);}
 
 // ══════ PROJECT DETAIL ══════
-function ProjectDetail({project,prj,setPrj,toast,t,onBack}){
+function ProjectDetail({project,prj,setPrj,toast,t,onBack,org,currentUser}){
   const[tab,setTab]=useState('overview');
   const[commentText,setCT]=useState('');
   const[newName,setNName]=useState('');
   const[newRole,setNRole]=useState('');
   const[newTask,setNewTask]=useState('');
+  const[newTaskAssignee,setNewTaskAssignee]=useState(currentUser);
+  const[rejectModal,setRejectModal]=useState(null); // {taskId, reason}
   const[editingDesc,setEditingDesc]=useState(false);
   const[descDraft,setDescDraft]=useState(project.d||'');
 
   const update=(u)=>setPrj(ps=>ps.map(p=>p.id===project.id?{...p,...u}:p));
 
+  // Pool of assignable people: project team ∪ org team, unique by name, plus current user
+  const assigneePool=(()=>{
+    const seen=new Set();const list=[];
+    const add=(m)=>{if(m&&m.name&&!seen.has(m.name)){seen.add(m.name);list.push(m)}};
+    (project.team||[]).forEach(add);
+    (org?.team||[]).forEach(m=>add({name:m.name,role:m.role,avatar:(m.name||'?')[0].toUpperCase()}));
+    add({name:currentUser,role:'Minä',avatar:(currentUser||'?')[0].toUpperCase()});
+    return list;
+  })();
+
   // Tasks
   const addTask=()=>{if(!newTask.trim())return;
-    update({tasks:[...(project.tasks||[]),{id:Date.now(),text:newTask,done:false}]});
-    setNewTask('');toast('Tehtävä lisätty','success')};
-  const toggleTask=(id)=>update({tasks:(project.tasks||[]).map(t=>t.id===id?{...t,done:!t.done}:t)});
+    const assignee=newTaskAssignee||currentUser;
+    const selfAssigned=assignee===currentUser;
+    update({tasks:[...(project.tasks||[]),{
+      id:Date.now(),text:newTask,done:false,
+      assignedTo:assignee,assignedBy:currentUser,
+      status:selfAssigned?'accepted':'pending',
+      rejectReason:null,createdAt:Date.now()
+    }]});
+    setNewTask('');setNewTaskAssignee(currentUser);
+    toast(selfAssigned?'Tehtävä lisätty':'Tehtävä lähetetty hyväksyttäväksi','success')};
+  const toggleTask=(id)=>{
+    const tk=(project.tasks||[]).find(x=>x.id===id);
+    if(!tk)return;
+    // Only assignee can complete; pending/rejected can't be toggled
+    if((tk.status||'accepted')!=='accepted')return;
+    if(tk.assignedTo&&tk.assignedTo!==currentUser)return;
+    update({tasks:(project.tasks||[]).map(t=>t.id===id?{...t,done:!t.done}:t)});
+  };
   const removeTask=(id)=>update({tasks:(project.tasks||[]).filter(t=>t.id!==id)});
+  const acceptTask=(id)=>{update({tasks:(project.tasks||[]).map(t=>t.id===id?{...t,status:'accepted'}:t)});toast('Tehtävä hyväksytty','success')};
+  const rejectTask=(id,reason)=>{
+    update({tasks:(project.tasks||[]).map(t=>t.id===id?{...t,status:'rejected',assignedTo:null,rejectReason:reason||'(ei syytä)'}:t)});
+    toast('Tehtävä hylätty','info');setRejectModal(null)};
+  const reassignTask=(id,who)=>{
+    const selfAssigned=who===currentUser;
+    update({tasks:(project.tasks||[]).map(t=>t.id===id?{...t,assignedTo:who,assignedBy:currentUser,status:selfAssigned?'accepted':'pending',rejectReason:null}:t)});
+    toast(selfAssigned?'Otit tehtävän itsellesi':'Tehtävä jaettu uudelleen','success')};
 
   // Comments
   const addComment=()=>{if(!commentText.trim())return;
-    update({comments:[...(project.comments||[]),{id:Date.now(),author:'Anton Baer',text:commentText,timestamp:new Date().toISOString()}]});
+    update({comments:[...(project.comments||[]),{id:Date.now(),author:currentUser,text:commentText,timestamp:new Date().toISOString()}]});
     setCT('');toast('Kommentti lisätty','success')};
 
   // Team
@@ -2189,21 +2243,77 @@ function ProjectDetail({project,prj,setPrj,toast,t,onBack}){
     {tab==='tasks'&&<div className="bcard"><div className="bcard-h"><h3>Tehtävät</h3><span style={{fontSize:'.75rem',color:'var(--t3)'}}>{tasks.filter(x=>x.done).length}/{tasks.length} valmiina</span></div>
     <div className="bcard-b">
       {/* Task list */}
-      {tasks.map(tk=><div key={tk.id} style={{display:'flex',alignItems:'center',gap:'.6rem',padding:'.6rem .75rem',background:tk.done?'rgba(45,212,160,.05)':'var(--elev)',border:'1px solid '+(tk.done?'rgba(45,212,160,.2)':'var(--border)'),borderRadius:'var(--r)',marginBottom:'.4rem',cursor:'pointer'}} onClick={()=>toggleTask(tk.id)}>
-        <div style={{width:20,height:20,borderRadius:4,border:'2px solid '+(tk.done?'var(--green)':'var(--border)'),background:tk.done?'var(--green)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .2s'}}>
-          {tk.done&&<span style={{color:'#fff',fontSize:'.7rem',fontWeight:700}}>{'\u2713'}</span>}
-        </div>
-        <span style={{flex:1,fontSize:'.85rem',fontWeight:500,textDecoration:tk.done?'line-through':'none',color:tk.done?'var(--t3)':'var(--t1)',transition:'all .2s'}}>{tk.text}</span>
-        <button className="res-rm" onClick={e=>{e.stopPropagation();removeTask(tk.id)}}>{'\u00d7'}</button>
-      </div>)}
+      {tasks.map(tkRaw=>{
+        const tk=normalizeTask(tkRaw);
+        const isMine=tk.assignedTo===currentUser;
+        const iAssigned=tk.assignedBy===currentUser;
+        const isPending=tk.status==='pending';
+        const isRejected=tk.status==='rejected';
+        const canToggle=tk.status==='accepted'&&(isMine||!tk.assignedTo);
+        const bg=tk.done?'rgba(45,212,160,.05)':isRejected?'rgba(239,68,68,.06)':isPending?'rgba(245,158,11,.06)':'var(--elev)';
+        const border='1px solid '+(tk.done?'rgba(45,212,160,.2)':isRejected?'rgba(239,68,68,.25)':isPending?'rgba(245,158,11,.25)':'var(--border)');
+        return<div key={tk.id} style={{background:bg,border,borderRadius:'var(--r)',marginBottom:'.4rem',padding:'.6rem .75rem'}}>
+          <div style={{display:'flex',alignItems:'center',gap:'.6rem'}}>
+            <div onClick={()=>canToggle&&toggleTask(tk.id)} style={{width:20,height:20,borderRadius:4,border:'2px solid '+(tk.done?'var(--green)':'var(--border)'),background:tk.done?'var(--green)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,cursor:canToggle?'pointer':'default',opacity:canToggle?1:.5}}>
+              {tk.done&&<span style={{color:'#fff',fontSize:'.7rem',fontWeight:700}}>{'\u2713'}</span>}
+            </div>
+            <span style={{flex:1,fontSize:'.85rem',fontWeight:500,textDecoration:tk.done?'line-through':'none',color:tk.done?'var(--t3)':'var(--t1)'}}>{tk.text}</span>
+            {/* Status chip */}
+            {isPending&&<span style={{fontSize:'.62rem',fontWeight:700,padding:'.15rem .5rem',borderRadius:4,background:'rgba(245,158,11,.15)',color:'#b45309',textTransform:'uppercase',letterSpacing:'.04em'}}>Odottaa</span>}
+            {isRejected&&<span style={{fontSize:'.62rem',fontWeight:700,padding:'.15rem .5rem',borderRadius:4,background:'rgba(239,68,68,.15)',color:'#b91c1c',textTransform:'uppercase',letterSpacing:'.04em'}}>Hylätty</span>}
+            <button className="res-rm" onClick={e=>{e.stopPropagation();removeTask(tk.id)}}>{'\u00d7'}</button>
+          </div>
+          {/* Assignment line */}
+          {(tk.assignedBy||tk.assignedTo)&&<div style={{fontSize:'.68rem',color:'var(--t3)',marginTop:'.35rem',marginLeft:'1.6rem'}}>
+            {tk.assignedBy||'?'} {'\u2192'} {tk.assignedTo||'(ei tekijää)'}
+          </div>}
+          {/* Reject reason */}
+          {isRejected&&tk.rejectReason&&<div style={{fontSize:'.7rem',color:'var(--t2)',marginTop:'.35rem',marginLeft:'1.6rem',fontStyle:'italic'}}>
+            Syy: {tk.rejectReason}
+          </div>}
+          {/* Action buttons */}
+          {isPending&&isMine&&<div style={{display:'flex',gap:'.4rem',marginTop:'.5rem',marginLeft:'1.6rem'}}>
+            <button className="btn btn-primary btn-sm" onClick={()=>acceptTask(tk.id)}>Hyväksy</button>
+            <button className="btn btn-ghost btn-sm" onClick={()=>setRejectModal({taskId:tk.id,reason:''})}>Hylkää</button>
+          </div>}
+          {isRejected&&<div style={{display:'flex',gap:'.4rem',marginTop:'.5rem',marginLeft:'1.6rem',alignItems:'center',flexWrap:'wrap'}}>
+            <span style={{fontSize:'.7rem',color:'var(--t3)'}}>Jaa uudelleen:</span>
+            <select className="input" style={{width:'auto',fontSize:'.75rem',padding:'.2rem .4rem'}} onChange={e=>{if(e.target.value){reassignTask(tk.id,e.target.value);e.target.value=''}}} defaultValue="">
+              <option value="">Valitse...</option>
+              {assigneePool.map(m=><option key={m.name} value={m.name}>{m.name}{m.name===currentUser?' (minä)':''}</option>)}
+            </select>
+          </div>}
+        </div>;
+      })}
       {tasks.length===0&&<div style={{textAlign:'center',padding:'2rem',color:'var(--t3)',fontSize:'.85rem'}}>Ei vielä tehtäviä. Lisää ensimmäinen alta.</div>}
       {/* Add task */}
-      <div style={{display:'flex',gap:'.5rem',marginTop:'.75rem',paddingTop:'.75rem',borderTop:'1px solid var(--border)'}}>
-        <input className="input" placeholder="Uusi tehtävä..." value={newTask} onChange={e=>setNewTask(e.target.value)} style={{flex:1}}
-          onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addTask()}}}/>
-        <button className="btn btn-primary btn-sm" onClick={addTask} disabled={!newTask.trim()}>+ Lisää</button>
+      <div style={{marginTop:'.75rem',paddingTop:'.75rem',borderTop:'1px solid var(--border)'}}>
+        <div style={{display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
+          <input className="input" placeholder="Uusi tehtävä..." value={newTask} onChange={e=>setNewTask(e.target.value)} style={{flex:'1 1 200px'}}
+            onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addTask()}}}/>
+          <select className="input" value={newTaskAssignee} onChange={e=>setNewTaskAssignee(e.target.value)} style={{width:'auto',fontSize:'.82rem'}}>
+            {assigneePool.map(m=><option key={m.name} value={m.name}>{m.name===currentUser?'Itselle':m.name}</option>)}
+          </select>
+          <button className="btn btn-primary btn-sm" onClick={addTask} disabled={!newTask.trim()}>+ Lisää</button>
+        </div>
+        {newTaskAssignee&&newTaskAssignee!==currentUser&&<div style={{fontSize:'.7rem',color:'var(--t3)',marginTop:'.4rem'}}>Tehtävä lähetetään {newTaskAssignee}:lle hyväksyttäväksi</div>}
       </div>
     </div></div>}
+
+    {/* Reject modal */}
+    {rejectModal&&<div className="chat-panel-ov" onClick={()=>setRejectModal(null)} style={{display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}}>
+      <div onClick={e=>e.stopPropagation()} className="bcard" style={{maxWidth:420,width:'90%'}}>
+        <div className="bcard-h"><h3>Hylkää tehtävä</h3></div>
+        <div className="bcard-b">
+          <p style={{fontSize:'.82rem',color:'var(--t2)',marginBottom:'.75rem'}}>Kerro antajalle miksi et voi ottaa tehtävää. Se palaa jaettavaksi uudelleen.</p>
+          <textarea className="input textarea" placeholder="Esim. liikaa kiireitä juuri nyt..." value={rejectModal.reason} onChange={e=>setRejectModal({...rejectModal,reason:e.target.value})} style={{minHeight:80,marginBottom:'.75rem'}} autoFocus/>
+          <div style={{display:'flex',gap:'.5rem',justifyContent:'flex-end'}}>
+            <button className="btn btn-ghost" onClick={()=>setRejectModal(null)}>Peruuta</button>
+            <button className="btn btn-primary" onClick={()=>rejectTask(rejectModal.taskId,rejectModal.reason)}>Lähetä hylkäys</button>
+          </div>
+        </div>
+      </div>
+    </div>}
 
     {/* ═══ TEAM ═══ */}
     {tab==='team'&&<div className="bcard"><div className="bcard-h"><h3>Projektitiimi</h3><span style={{fontSize:'.75rem',color:'var(--t3)'}}>{(project.team||[]).length} jäsentä</span></div>
@@ -3695,6 +3805,223 @@ function Settings({toast,org,setOrg,resetAll,t,lang,setLang,activeOrg,fbStatus})
     </div></div>
   </div>);}
 
+// ══════ PERSONA SWITCHER ══════
+function PersonaSwitcher({currentUser,setCurrentUser,team}){
+  const[open,setOpen]=useState(false);
+  const me=team.find(m=>m.name===currentUser);
+  const initials=(currentUser||'?').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase();
+  const role=me?.role||'Tiimijäsen';
+  // Fallback if team empty: just show current user, no switching
+  return(<div style={{display:'flex',alignItems:'center',gap:'.65rem',cursor:team.length>0?'pointer':'default',width:'100%',position:'relative'}} onClick={()=>team.length>0&&setOpen(!open)}>
+    <div className="ava">{initials}</div>
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{fontSize:'.8rem',fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{currentUser}</div>
+      <div style={{fontSize:'.62rem',color:'var(--t3)',fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{role}</div>
+    </div>
+    {team.length>0&&<span style={{color:'var(--t3)',fontSize:'.7rem'}}>{open?'\u25bc':'\u25b2'}</span>}
+    {open&&<div style={{position:'absolute',bottom:'calc(100% + 8px)',left:0,right:0,background:'var(--card)',border:'1px solid var(--border)',borderRadius:'var(--r)',boxShadow:'0 8px 24px rgba(0,0,0,.3)',overflow:'hidden',zIndex:100}} onClick={e=>e.stopPropagation()}>
+      <div style={{padding:'.5rem .75rem',fontSize:'.62rem',color:'var(--t3)',textTransform:'uppercase',letterSpacing:'.06em',fontWeight:600,borderBottom:'1px solid var(--border)'}}>Vaihda käyttäjää</div>
+      {team.map(m=><div key={m.name} onClick={()=>{setCurrentUser(m.name);setOpen(false)}} style={{display:'flex',alignItems:'center',gap:'.6rem',padding:'.55rem .75rem',cursor:'pointer',background:m.name===currentUser?'var(--elev)':'transparent',borderLeft:m.name===currentUser?'3px solid var(--pri)':'3px solid transparent'}}>
+        <div className="ava" style={{width:28,height:28,fontSize:'.65rem'}}>{(m.name||'?').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase()}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:'.78rem',fontWeight:600,color:'var(--t1)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{m.name}</div>
+          <div style={{fontSize:'.6rem',color:'var(--t3)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{m.role}</div>
+        </div>
+      </div>)}
+    </div>}
+  </div>);
+}
+
+// ══════ TEAM PANEL ══════
+function TeamPanel({prj,setPrj,toast,currentUser,org,goToProject}){
+  const[tab,setTab]=useState('workload');
+  const[rejectModal,setRejectModal]=useState(null); // {projectId, taskId, reason}
+  const[expanded,setExpanded]=useState({}); // {memberName: bool}
+
+  // Gather tasks across all non-archived projects with project context
+  const flat=[];
+  prj.filter(p=>!p.archived).forEach(p=>(p.tasks||[]).forEach(tk=>flat.push({tk:normalizeTask(tk),project:p})));
+
+  const inbox=flat.filter(x=>x.tk.assignedTo===currentUser&&x.tk.status==='pending');
+  const mine=flat.filter(x=>x.tk.assignedTo===currentUser&&x.tk.status==='accepted');
+  const assigned=flat.filter(x=>x.tk.assignedBy===currentUser&&x.tk.assignedTo!==currentUser);
+  const rejectedForMe=flat.filter(x=>x.tk.assignedBy===currentUser&&x.tk.status==='rejected');
+
+  const updateTask=(projectId,taskId,patch)=>setPrj(ps=>ps.map(p=>p.id===projectId?{...p,tasks:(p.tasks||[]).map(t=>t.id===taskId?{...t,...patch}:t)}:p));
+  const accept=(pid,tid)=>{updateTask(pid,tid,{status:'accepted'});toast('Tehtävä hyväksytty','success')};
+  const reject=(pid,tid,reason)=>{updateTask(pid,tid,{status:'rejected',assignedTo:null,rejectReason:reason||'(ei syytä)'});toast('Tehtävä hylätty','info');setRejectModal(null)};
+  const toggleDone=(pid,tid,cur)=>updateTask(pid,tid,{done:!cur});
+  const reassign=(pid,tid,who)=>{
+    const self=who===currentUser;
+    updateTask(pid,tid,{assignedTo:who,assignedBy:currentUser,status:self?'accepted':'pending',rejectReason:null});
+    toast(self?'Otit tehtävän itsellesi':'Tehtävä jaettu uudelleen','success')};
+
+  // Assignee pool = org.team + current user
+  const pool=(()=>{const seen=new Set();const list=[];
+    const add=(m)=>{if(m&&m.name&&!seen.has(m.name)){seen.add(m.name);list.push(m)}};
+    (org?.team||[]).forEach(add);add({name:currentUser,role:'Minä'});return list;})();
+
+  const tabs=[
+    {id:'workload',label:'Työkuorma',count:0},
+    {id:'inbox',label:'Saapuneet',count:inbox.length,hot:inbox.length>0},
+    {id:'mine',label:'Minun työt',count:mine.filter(x=>!x.tk.done).length},
+    {id:'assigned',label:'Antamani',count:assigned.length,hot:rejectedForMe.length>0}
+  ];
+
+  // Workload per person: every org.team member + any assignee seen in tasks
+  const everyone=(()=>{const seen=new Set();const list=[];
+    (org?.team||[]).forEach(m=>{if(!seen.has(m.name)){seen.add(m.name);list.push({name:m.name,role:m.role,avatar:(m.name||'?')[0].toUpperCase()})}});
+    flat.forEach(x=>{if(x.tk.assignedTo&&!seen.has(x.tk.assignedTo)){seen.add(x.tk.assignedTo);list.push({name:x.tk.assignedTo,role:'Tiimijäsen',avatar:(x.tk.assignedTo||'?')[0].toUpperCase()})}});
+    return list;})();
+  const workloadFor=(name)=>{
+    const all=flat.filter(x=>x.tk.assignedTo===name);
+    return{
+      pending:all.filter(x=>x.tk.status==='pending'),
+      active:all.filter(x=>x.tk.status==='accepted'&&!x.tk.done),
+      done:all.filter(x=>x.tk.status==='accepted'&&x.tk.done),
+      all
+    };
+  };
+
+  const byAssigner=(()=>{const g={};mine.forEach(x=>{const k=x.tk.assignedBy||'(itse)';if(!g[k])g[k]=[];g[k].push(x)});return g})();
+  const byAssignee=(()=>{const g={};assigned.forEach(x=>{const k=x.tk.assignedTo||'(ei tekijää)';if(!g[k])g[k]=[];g[k].push(x)});return g})();
+
+  const TaskRow=({x,actions})=><div style={{background:'var(--elev)',border:'1px solid var(--border)',borderRadius:'var(--r)',padding:'.75rem .9rem',marginBottom:'.5rem'}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'.75rem',flexWrap:'wrap'}}>
+      <div style={{flex:1,minWidth:200}}>
+        <div style={{fontSize:'.88rem',fontWeight:600,color:'var(--t1)',textDecoration:x.tk.done?'line-through':'none'}}>{x.tk.text}</div>
+        <div style={{fontSize:'.7rem',color:'var(--t3)',marginTop:'.25rem'}}>
+          Projekti: <span style={{color:'var(--t2)',fontWeight:500}}>{x.project.t}</span>
+          {x.tk.assignedBy&&<span> {'\u00b7'} {x.tk.assignedBy} {'\u2192'} {x.tk.assignedTo||'(ei tekijää)'}</span>}
+        </div>
+        {x.tk.rejectReason&&<div style={{fontSize:'.72rem',color:'var(--t2)',marginTop:'.4rem',fontStyle:'italic',padding:'.35rem .5rem',background:'rgba(239,68,68,.06)',borderRadius:4,borderLeft:'2px solid rgba(239,68,68,.4)'}}>Syy: {x.tk.rejectReason}</div>}
+      </div>
+      <div style={{display:'flex',gap:'.4rem',flexWrap:'wrap',alignItems:'center'}}>{actions}</div>
+    </div>
+  </div>;
+
+  return(<div className="page-enter" style={{maxWidth:920,margin:'0 auto'}}>
+    {/* Tabs */}
+    <div style={{display:'flex',gap:'.35rem',marginBottom:'1.5rem',background:'var(--elev)',borderRadius:'var(--r)',padding:'3px',flexWrap:'wrap'}}>
+      {tabs.map(tb=><button key={tb.id} className={`cal-view-btn ${tab===tb.id?'act':''}`} onClick={()=>setTab(tb.id)}>
+        {tb.label}{tb.count>0&&<span className="badge badge-n" style={{marginLeft:'.4rem',background:tb.hot?'var(--red,#ef4444)':undefined,color:tb.hot?'#fff':undefined}}>{tb.count}</span>}
+      </button>)}
+    </div>
+
+    {/* WORKLOAD */}
+    {tab==='workload'&&<div>
+      <div style={{fontSize:'.78rem',color:'var(--t3)',marginBottom:'1rem'}}>Näet tiimin työkuorman ja voit jakaa tehtäviä tasaisemmin. Klikkaa henkilöä nähdäksesi kaikki hänen tehtävänsä.</div>
+      {everyone.length===0&&<div className="bcard"><div className="bcard-b" style={{textAlign:'center',padding:'2.5rem',color:'var(--t3)',fontSize:'.9rem'}}>Ei tiimiläisiä. Lisää tiimiläisiä Strategia-sivulla.</div></div>}
+      {everyone.map(m=>{
+        const w=workloadFor(m.name);
+        const isOpen=!!expanded[m.name];
+        const isMe=m.name===currentUser;
+        // Simple workload heuristic: 0 active = idle, 1-3 = ok, 4-6 = busy, 7+ = overload
+        const load=w.active.length;
+        const loadLabel=load===0?'Ei tehtäviä':load<=3?'Sopiva':load<=6?'Kiireinen':'Ylikuormitettu';
+        const loadColor=load===0?'var(--t3)':load<=3?'var(--green)':load<=6?'#f59e0b':'#ef4444';
+        const loadBg=load===0?'var(--elev)':load<=3?'rgba(45,212,160,.1)':load<=6?'rgba(245,158,11,.1)':'rgba(239,68,68,.1)';
+        return<div key={m.name} className="bcard" style={{marginBottom:'.75rem',borderLeft:isMe?'3px solid var(--pri)':'3px solid transparent'}}>
+          <div style={{padding:'1rem 1.25rem',cursor:'pointer',display:'flex',alignItems:'center',gap:'1rem',flexWrap:'wrap'}} onClick={()=>setExpanded(p=>({...p,[m.name]:!isOpen}))}>
+            <div className="ava" style={{width:42,height:42,fontSize:'.9rem',background:'var(--pri)',flexShrink:0}}>{m.avatar}</div>
+            <div style={{flex:1,minWidth:150}}>
+              <div style={{fontSize:'.95rem',fontWeight:600}}>{m.name}{isMe&&<span style={{fontSize:'.62rem',color:'var(--pri)',marginLeft:'.5rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em'}}>Minä</span>}</div>
+              <div style={{fontSize:'.72rem',color:'var(--t3)'}}>{m.role}</div>
+            </div>
+            {/* Status pill */}
+            <div style={{fontSize:'.72rem',fontWeight:700,padding:'.3rem .7rem',borderRadius:6,background:loadBg,color:loadColor,textTransform:'uppercase',letterSpacing:'.04em'}}>{loadLabel}</div>
+            {/* Counts */}
+            <div style={{display:'flex',gap:'.75rem',fontSize:'.72rem'}}>
+              {w.pending.length>0&&<div style={{color:'#b45309'}}><strong>{w.pending.length}</strong> odottaa</div>}
+              <div style={{color:'var(--t2)'}}><strong style={{fontSize:'.85rem',color:'var(--t1)'}}>{w.active.length}</strong> työn alla</div>
+              <div style={{color:'var(--t3)'}}><strong>{w.done.length}</strong> valmis</div>
+            </div>
+            <span style={{color:'var(--t3)',fontSize:'.8rem'}}>{isOpen?'\u25b2':'\u25bc'}</span>
+          </div>
+          {isOpen&&<div style={{padding:'0 1.25rem 1rem',borderTop:'1px solid var(--border)'}}>
+            {w.all.length===0&&<div style={{textAlign:'center',padding:'1.5rem',color:'var(--t3)',fontSize:'.85rem'}}>Ei tehtäviä. {m.name} on vapaa uusille tehtäville.</div>}
+            {w.pending.length>0&&<div style={{marginTop:'.75rem'}}>
+              <div style={{fontSize:'.68rem',color:'#b45309',fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:'.4rem'}}>Odottaa hyväksyntää ({w.pending.length})</div>
+              {w.pending.map(x=><TaskRow key={x.tk.id} x={x} actions={null}/>)}
+            </div>}
+            {w.active.length>0&&<div style={{marginTop:'.75rem'}}>
+              <div style={{fontSize:'.68rem',color:'var(--t2)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:'.4rem'}}>Työn alla ({w.active.length})</div>
+              {w.active.map(x=><TaskRow key={x.tk.id} x={x} actions={null}/>)}
+            </div>}
+            {w.done.length>0&&<div style={{marginTop:'.75rem'}}>
+              <div style={{fontSize:'.68rem',color:'var(--t3)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:'.4rem'}}>Valmis ({w.done.length})</div>
+              {w.done.map(x=><TaskRow key={x.tk.id} x={x} actions={null}/>)}
+            </div>}
+          </div>}
+        </div>;
+      })}
+    </div>}
+
+    {/* INBOX */}
+    {tab==='inbox'&&<div className="bcard"><div className="bcard-h"><h3>Saapuneet tehtävät</h3><span style={{fontSize:'.75rem',color:'var(--t3)'}}>Odottaa hyväksyntääsi</span></div>
+      <div className="bcard-b">
+        {inbox.length===0&&<div style={{textAlign:'center',padding:'2.5rem',color:'var(--t3)',fontSize:'.9rem'}}>Ei uusia tehtäviä. Hyvä!</div>}
+        {inbox.map(x=><TaskRow key={x.tk.id} x={x} actions={<>
+          <button className="btn btn-primary btn-sm" onClick={()=>accept(x.project.id,x.tk.id)}>Hyväksy</button>
+          <button className="btn btn-ghost btn-sm" onClick={()=>setRejectModal({projectId:x.project.id,taskId:x.tk.id,reason:''})}>Hylkää</button>
+        </>}/>)}
+      </div>
+    </div>}
+
+    {/* MINE */}
+    {tab==='mine'&&<div>
+      {mine.length===0&&<div className="bcard"><div className="bcard-b" style={{textAlign:'center',padding:'2.5rem',color:'var(--t3)',fontSize:'.9rem'}}>Ei aktiivisia tehtäviä sinulle.</div></div>}
+      {Object.keys(byAssigner).map(k=><div key={k} className="bcard" style={{marginBottom:'1rem'}}>
+        <div className="bcard-h"><h3>{k===currentUser||k==='(itse)'?'Itselleni antamat':k+' antoi sinulle'}</h3><span style={{fontSize:'.75rem',color:'var(--t3)'}}>{byAssigner[k].filter(x=>!x.tk.done).length} avointa / {byAssigner[k].length} yhteensä</span></div>
+        <div className="bcard-b">
+          {byAssigner[k].map(x=><TaskRow key={x.tk.id} x={x} actions={<>
+            <button className="btn btn-sm" style={{background:x.tk.done?'var(--green)':'var(--elev)',color:x.tk.done?'#fff':'var(--t2)',border:'1px solid '+(x.tk.done?'var(--green)':'var(--border)')}} onClick={()=>toggleDone(x.project.id,x.tk.id,x.tk.done)}>{x.tk.done?'\u2713 Valmis':'Merkitse valmiiksi'}</button>
+          </>}/>)}
+        </div>
+      </div>)}
+    </div>}
+
+    {/* ASSIGNED */}
+    {tab==='assigned'&&<div>
+      {rejectedForMe.length>0&&<div className="bcard" style={{marginBottom:'1rem',borderLeft:'3px solid rgba(239,68,68,.6)'}}>
+        <div className="bcard-h"><h3>Hylätyt tehtäväsi</h3><span style={{fontSize:'.75rem',color:'var(--t3)'}}>Jaa uudelleen tai ota itsellesi</span></div>
+        <div className="bcard-b">
+          {rejectedForMe.map(x=><TaskRow key={x.tk.id} x={x} actions={
+            <select className="input" style={{width:'auto',fontSize:'.78rem',padding:'.25rem .5rem'}} defaultValue="" onChange={e=>{if(e.target.value){reassign(x.project.id,x.tk.id,e.target.value);e.target.value=''}}}>
+              <option value="">Jaa uudelleen...</option>
+              {pool.map(m=><option key={m.name} value={m.name}>{m.name===currentUser?'Ota itselle':m.name}</option>)}
+            </select>
+          }/>)}
+        </div>
+      </div>}
+      {assigned.filter(x=>x.tk.status!=='rejected').length===0&&rejectedForMe.length===0&&<div className="bcard"><div className="bcard-b" style={{textAlign:'center',padding:'2.5rem',color:'var(--t3)',fontSize:'.9rem'}}>Et ole antanut tehtäviä muille.</div></div>}
+      {Object.keys(byAssignee).filter(k=>byAssignee[k].some(x=>x.tk.status!=='rejected')).map(k=><div key={k} className="bcard" style={{marginBottom:'1rem'}}>
+        <div className="bcard-h"><h3>{k}</h3><span style={{fontSize:'.75rem',color:'var(--t3)'}}>{byAssignee[k].filter(x=>x.tk.status!=='rejected').length} tehtävää</span></div>
+        <div className="bcard-b">
+          {byAssignee[k].filter(x=>x.tk.status!=='rejected').map(x=><TaskRow key={x.tk.id} x={x} actions={
+            <span style={{fontSize:'.7rem',fontWeight:700,padding:'.2rem .55rem',borderRadius:4,textTransform:'uppercase',letterSpacing:'.04em',background:x.tk.done?'rgba(45,212,160,.15)':x.tk.status==='pending'?'rgba(245,158,11,.15)':'var(--elev)',color:x.tk.done?'#047857':x.tk.status==='pending'?'#b45309':'var(--t2)'}}>{x.tk.done?'Valmis':x.tk.status==='pending'?'Odottaa':'Työn alla'}</span>
+          }/>)}
+        </div>
+      </div>)}
+    </div>}
+
+    {/* Reject modal */}
+    {rejectModal&&<div className="chat-panel-ov" onClick={()=>setRejectModal(null)} style={{display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}}>
+      <div onClick={e=>e.stopPropagation()} className="bcard" style={{maxWidth:420,width:'90%'}}>
+        <div className="bcard-h"><h3>Hylkää tehtävä</h3></div>
+        <div className="bcard-b">
+          <p style={{fontSize:'.82rem',color:'var(--t2)',marginBottom:'.75rem'}}>Kerro antajalle miksi et voi ottaa tehtävää. Se palaa jaettavaksi uudelleen.</p>
+          <textarea className="input textarea" placeholder="Esim. liikaa kiireitä juuri nyt..." value={rejectModal.reason} onChange={e=>setRejectModal({...rejectModal,reason:e.target.value})} style={{minHeight:80,marginBottom:'.75rem'}} autoFocus/>
+          <div style={{display:'flex',gap:'.5rem',justifyContent:'flex-end'}}>
+            <button className="btn btn-ghost" onClick={()=>setRejectModal(null)}>Peruuta</button>
+            <button className="btn btn-primary" onClick={()=>reject(rejectModal.projectId,rejectModal.taskId,rejectModal.reason)}>Lähetä hylkäys</button>
+          </div>
+        </div>
+      </div>
+    </div>}
+  </div>);
+}
+
 // ══════ APP ══════
 function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('onboarded',true);const[v,setV]=useState('home');
   const activeOrg=_activeOrg;
@@ -3702,6 +4029,11 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
   const orgDef=ORG_DEFAULTS[activeOrg]||ORG_DEFAULTS.avl;
   const[org,setOrg]=useOrgState('org',orgDef.org);
   const[prj,setPrj]=useOrgState('projects',[]);
+  const[currentUser,setCurrentUser]=useOrgState('currentUser',(orgDef.org.team?.[0]?.name)||'Anton Baer');
+  // Count tasks pending acceptance for current user (for nav badge)
+  const inboxCount=prj.reduce((n,p)=>n+(p.tasks||[]).filter(tk=>tk.assignedTo===currentUser&&tk.status==='pending').length,0);
+  const rejectedForMeCount=prj.reduce((n,p)=>n+(p.tasks||[]).filter(tk=>tk.assignedBy===currentUser&&tk.status==='rejected').length,0);
+  const teamBadge=inboxCount+rejectedForMeCount;
   const[events,setEvents]=useOrgState('events',orgDef.events);
   const[chStats,setChStats]=useOrgState('channelStats',orgCtx.channelStats);
   const[pubs,setPubs]=useOrgState('publications',[]);
@@ -3724,8 +4056,8 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
   useEffect(()=>{if(mobNav)document.body.classList.add('no-scroll');else document.body.classList.remove('no-scroll');return()=>document.body.classList.remove('no-scroll')},[mobNav]);
   const goTo=(page)=>{setV(page);setMobNav(false)};
   if(!ob)return<><Toasts t={toasts}/><Onboarding onDone={()=>setOB(true)} toast={add} setOrg={setOrg} t={t}/></>;
-  const nav=[{id:'home',l:t('home'),ic:'\u25c9'},{id:'strategy',l:t('strategy'),ic:'\u25c8'},{id:'pipeline',l:t('projects'),ic:'\u2630',cnt:prj.length},{id:'publications',l:'Julkaisut',ic:'\u25b6',cnt:pubs.filter(p=>p.status==='ready').length},{id:'calendar',l:t('calendar'),ic:'\u25a6'},{id:'channels',l:'Kanavat',ic:'\u25c7'},{id:'media',l:'Mediapankki',ic:'\u25a3'}];
-  const hdr={home:{t:t('home'),s:(org.s||org.name||'Hetki')},pipeline:{t:t('projects'),s:prj.length+' '+t('projects').toLowerCase()},publications:{t:'Julkaisut',s:pubs.length+' julkaisua'},calendar:{t:t('calendar'),s:events.length+' '+t('publications_plural')},strategy:{t:t('strategy'),s:org.slogan||t('strategy')},channels:{t:'Kanavat',s:'Somekanavien hallinta ja analytiikka'},media:{t:'Mediapankki',s:'Valokuvat, videot ja grafiikat'},settings:{t:t('settings'),s:t('manageOrg')}};
+  const nav=[{id:'home',l:t('home'),ic:'\u25c9'},{id:'strategy',l:t('strategy'),ic:'\u25c8'},{id:'pipeline',l:t('projects'),ic:'\u2630',cnt:prj.length},{id:'team',l:'Työnjako',ic:'\u25c6',cnt:teamBadge},{id:'publications',l:'Julkaisut',ic:'\u25b6',cnt:pubs.filter(p=>p.status==='ready').length},{id:'calendar',l:t('calendar'),ic:'\u25a6'},{id:'channels',l:'Kanavat',ic:'\u25c7'},{id:'media',l:'Mediapankki',ic:'\u25a3'}];
+  const hdr={home:{t:t('home'),s:(org.s||org.name||'Hetki')},pipeline:{t:t('projects'),s:prj.length+' '+t('projects').toLowerCase()},team:{t:'Työnjako',s:'Tehtävien jakaminen ja tiimin työkuorma'},publications:{t:'Julkaisut',s:pubs.length+' julkaisua'},calendar:{t:t('calendar'),s:events.length+' '+t('publications_plural')},strategy:{t:t('strategy'),s:org.slogan||t('strategy')},channels:{t:'Kanavat',s:'Somekanavien hallinta ja analytiikka'},media:{t:'Mediapankki',s:'Valokuvat, videot ja grafiikat'},settings:{t:t('settings'),s:t('manageOrg')}};
   const h=hdr[v]||hdr.home;
   const navContent=<>
     <div className="side-hd" style={{position:'relative'}}><div className="logo-text"><img src="media/brand/hetki-logo-white.png" alt="Hetki"/> Momentum</div></div>
@@ -3736,7 +4068,9 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
       <div className="nav-sec">{t('system')}</div>
       <div className={`nav-i ${v==='settings'?'act':''}`} onClick={()=>goTo('settings')}><span className="nav-ic">{'\u2699'}</span><span>{t('settings')}</span></div>
     </nav>
-    <div className="side-ft"><div className="color-band" style={{position:'absolute',top:0,left:0,right:0}}><span style={{background:'var(--hetki-blue)'}}/><span style={{background:'var(--hetki-green)'}}/><span style={{background:'var(--hetki-yellow)'}}/><span style={{background:'var(--hetki-pink)'}}/><span style={{background:'var(--hetki-black)'}}/></div><div className="ava">{'AB'}</div><div><div style={{fontSize:'.8rem',fontWeight:600}}>Anton Baer</div><div style={{fontSize:'.62rem',color:'var(--t3)',fontWeight:500}}>Viestintävastaava</div></div></div>
+    <div className="side-ft" style={{position:'relative'}}><div className="color-band" style={{position:'absolute',top:0,left:0,right:0}}><span style={{background:'var(--hetki-blue)'}}/><span style={{background:'var(--hetki-green)'}}/><span style={{background:'var(--hetki-yellow)'}}/><span style={{background:'var(--hetki-pink)'}}/><span style={{background:'var(--hetki-black)'}}/></div>
+      <PersonaSwitcher currentUser={currentUser} setCurrentUser={setCurrentUser} team={org.team||[]}/>
+    </div>
   </>;
   return(<div className="app"><Toasts t={toasts}/>
     {/* Desktop sidebar */}
@@ -3760,7 +4094,8 @@ function App(){const{toasts,add}=useToast();const[ob,setOB]=usePersistedState('o
       </header>
       <div className="page">
         {v==='home'&&<Home go={setV} toast={add} prj={prj} events={events} org={org} t={t} chStats={chStats} setChStats={setChStats} orgCtx={orgCtx}/>}
-        {v==='pipeline'&&<Pipeline prj={prj} setPrj={setPrj} toast={add} t={t} org={org}/>}
+        {v==='pipeline'&&<Pipeline prj={prj} setPrj={setPrj} toast={add} t={t} org={org} currentUser={currentUser}/>}
+        {v==='team'&&<TeamPanel prj={prj} setPrj={setPrj} toast={add} currentUser={currentUser} org={org} goToProject={(id)=>setV('pipeline')}/>}
         {v==='calendar'&&<Cal toast={add} events={events} setEvents={setEvents} org={org} t={t}/>}
         {v==='strategy'&&<Strat toast={add} org={org} setOrg={setOrg} t={t} chStats={chStats}/>}
         {v==='channels'&&<Channels toast={add} t={t} org={org} chStats={chStats} setChStats={setChStats}/>}

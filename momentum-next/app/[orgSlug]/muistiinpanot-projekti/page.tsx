@@ -822,20 +822,27 @@ export default function MuistiinpanotProjektiPage() {
       </div>
 
       {canEdit && !composerActive && (
-        <button
-          onClick={() => setPickerOpen(true)}
-          style={{
-            width: '100%', textAlign: 'left',
-            background: 'var(--elev)', border: '1px dashed var(--border)',
-            borderRadius: 'var(--rl)', padding: '1rem 1.25rem',
-            fontSize: '.95rem', color: 'var(--t3)', cursor: 'pointer',
-            fontFamily: 'inherit', marginBottom: '1.25rem',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#9b7cf6'; (e.currentTarget as HTMLElement).style.color = 'var(--t2)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.color = 'var(--t3)'; }}
-        >
-          Aloita uusi idea…
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.5rem', marginBottom: '1.5rem' }}>
+          <button
+            onClick={() => kickOff({ kind: 'blank' })}
+            className="btn btn-primary"
+            style={{ fontSize: '.9rem', padding: '.6rem 1.4rem' }}
+          >
+            Uusi muistiinpano
+          </button>
+          <button
+            onClick={() => setPickerOpen(true)}
+            style={{
+              background: 'none', border: 'none', color: 'var(--t3)',
+              fontSize: '.75rem', cursor: 'pointer', fontFamily: 'inherit',
+              padding: '.15rem .4rem',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--t1)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--t3)'; }}
+          >
+            Muut aloitustavat ▾
+          </button>
+        </div>
       )}
 
       {/* Herätä-valikko: 4 alkupistettä */}
@@ -965,9 +972,12 @@ export default function MuistiinpanotProjektiPage() {
       {/* Composer (after kick-off chosen) */}
       {composerOpen && (
         <div style={{
-          background: 'var(--card)', border: '1px solid #9b7cf6',
-          borderRadius: 'var(--rl)', padding: isMobile ? '1rem' : '1.25rem 1.5rem',
-          marginBottom: '1.25rem', backgroundImage: CREATIVE_BG,
+          background: 'var(--elev)', border: '1px solid var(--border)',
+          borderRadius: 'var(--rl)',
+          padding: isMobile ? '1.25rem 1.25rem 1rem' : '2rem 2.5rem 1.25rem',
+          marginBottom: '1.5rem',
+          maxWidth: 760, marginLeft: 'auto', marginRight: 'auto',
+          boxShadow: '0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25)',
         }}>
           {/* Source hint — "mistä tämä lähti" */}
           {(cSourceQuestion || sourceNoteForComposer || sourceProjectForComposer) && (
@@ -985,9 +995,10 @@ export default function MuistiinpanotProjektiPage() {
             style={{
               width: '100%', background: 'transparent', border: 'none', outline: 'none',
               fontFamily: 'var(--font-display), Georgia, serif',
-              fontSize: isMobile ? '1.1rem' : '1.35rem',
+              fontSize: isMobile ? '1.25rem' : '1.75rem',
               fontWeight: 600, color: 'var(--t1)',
-              padding: '.1rem 0 .35rem', letterSpacing: '-.01em',
+              padding: '.25rem 0 .5rem', letterSpacing: '-.015em',
+              marginBottom: '.25rem',
             }}
           />
           <textarea
@@ -995,17 +1006,17 @@ export default function MuistiinpanotProjektiPage() {
             value={cContent}
             onChange={e => onCContent(e.target.value)}
             placeholder={cSourceQuestion ? 'Vastaa kysymykseen tai kirjoita vapaasti…' : 'Aloita kirjoittaminen — kaikki tallentuu automaattisesti. Esc sulkee.'}
-            rows={6}
+            rows={10}
             onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); finishComposer(); } }}
             style={{
               width: '100%', background: 'transparent', border: 'none', outline: 'none',
-              fontSize: '.95rem', lineHeight: 1.75, color: 'var(--t1)',
-              fontFamily: 'inherit', resize: 'vertical', minHeight: 140,
+              fontSize: '1rem', lineHeight: 1.8, color: 'var(--t1)',
+              fontFamily: 'inherit', resize: 'vertical', minHeight: 320,
               padding: '.25rem 0',
             }}
           />
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.35rem', alignItems: 'center', marginTop: '.5rem', paddingTop: '.5rem', borderTop: '1px dashed var(--border)' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.35rem', alignItems: 'center', marginTop: '1.25rem', paddingTop: '.65rem', borderTop: '1px solid rgba(255,255,255,.04)' }}>
             <button
               type="button"
               onClick={toggleCVis}
@@ -1056,7 +1067,7 @@ export default function MuistiinpanotProjektiPage() {
             {transcribing && recordingTarget === 'composer' && <span style={{ fontSize: '.7rem', color: 'var(--pri)' }}>Litteroidaan…</span>}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginTop: '.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginTop: '.35rem' }}>
             <span style={{ fontSize: '.66rem', color: 'var(--t3)', fontStyle: 'italic' }}>
               {cSavedAt ? `Tallennettu ${relativeSaved(cSavedAt)}` : 'Tallentuu automaattisesti ensimmäisestä merkistä'}
             </span>
