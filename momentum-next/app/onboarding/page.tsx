@@ -125,7 +125,7 @@ export default function OnboardingPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <div>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 500, letterSpacing: '.02em' }}>
-              <img src="/brand/hetki-logo-white.png" alt="Hetki" style={{ height: 22, marginRight: '.6rem', verticalAlign: 'middle' }} />
+              <img src="/brand/hetki-logo-black.png" alt="Hetki" style={{ height: 22, marginRight: '.6rem', verticalAlign: 'middle' }} />
               Momentum
             </h1>
             <p style={{ color: 'var(--t3)', fontSize: '.88rem', marginTop: '.25rem' }}>

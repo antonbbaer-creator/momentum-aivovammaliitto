@@ -1,10 +1,9 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import AppShell from '@/components/AppShell';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
-import { useToast } from '@/lib/toast';
 import { useRouter, useParams } from 'next/navigation';
 import { useIsMobile } from '@/lib/use-mobile';
 import {
@@ -20,12 +19,26 @@ import {
 import { getGrantsKey, getOrgGrants, getOrgTeamMembers } from '@/lib/org-defaults';
 import MarkdownText from '@/components/MarkdownText';
 import { mergeAiProfile } from '@/lib/ihaa-defaults';
-
 import { workerFetch } from '@/lib/worker-fetch';
+import type { Meeting } from '@/lib/meetings-shared';
+import { YearPhase, parseLocalDate, normalizePhase } from '@/lib/yearwheel-shared';
+
+const TONES = ['blue', 'green', 'yellow', 'pink', 'black'] as const;
+type Tone = typeof TONES[number];
+
+function toneFor(idLike: number | string | undefined, fallbackIdx = 0): Tone {
+  const s = String(idLike ?? fallbackIdx);
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return TONES[h % TONES.length];
+}
+
+function fmtFi(n: number): string {
+  return n.toLocaleString('fi-FI');
+}
 
 export default function DashboardPage() {
-  const { user, orgs, activeOrg } = useAuth();
-  const { toast } = useToast();
+  const { user, activeOrg } = useAuth();
   const router = useRouter();
   const params = useParams();
   const orgSlug = params.orgSlug as string;
@@ -36,12 +49,15 @@ export default function DashboardPage() {
   const [teamMessages, setTeamMessages] = useOrgData<any[]>('teamMessages', []);
   const [rawGrants] = useOrgData<Grant[]>(getGrantsKey(orgSlug), getOrgGrants(orgSlug));
   const [orgMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
+  const [meetings] = useOrgData<Meeting[]>('meetings', []);
+  const [yearPhasesRaw] = useOrgData<YearPhase[]>('yearPhases', []);
+  const yearPhases = useMemo(() => (yearPhasesRaw || [])
+    .filter(p => !p.deletedAt)
+    .map(normalizePhase), [yearPhasesRaw]);
   const grants = useMemo(() => rawGrants.map(normalizeGrant), [rawGrants]);
 
-  // Match currently-logged-in user to their OrgTeamMember record
   const myMember = useMemo(() => resolveUserMember(orgMembers, user), [orgMembers, user]);
 
-  // Grants assigned to me (exclude rejected AND past deadlines)
   const myGrants = useMemo(() => myMember ? grants
     .filter(g => {
       if (g.responsibleId !== myMember.id) return false;
@@ -63,9 +79,32 @@ export default function DashboardPage() {
 
   const firstName = user?.displayName?.split(' ')[0] || 'käyttäjä';
 
-  // My open project tasks — match by displayName OR first name (if nickname)
+  // Typewriter-efekti tervehdykselle
+  const greetingFull = `Hei, ${firstName}.`;
+  const [typed, setTyped] = useState('');
+  const [typingDone, setTypingDone] = useState(false);
+  useEffect(() => {
+    setTyped('');
+    setTypingDone(false);
+    let i = 0;
+    const tick = () => {
+      i++;
+      setTyped(greetingFull.slice(0, i));
+      if (i >= greetingFull.length) {
+        setTypingDone(true);
+        return;
+      }
+      // Pikkupaussi pilkun ja välilyönnin kohdalla
+      const ch = greetingFull[i - 1];
+      const delay = ch === ',' ? 220 : ch === ' ' ? 90 : 65 + Math.random() * 60;
+      timer = setTimeout(tick, delay);
+    };
+    let timer = setTimeout(tick, 220);
+    return () => clearTimeout(timer);
+  }, [greetingFull]);
+
   const myTasks = useMemo(() => projects.flatMap((p: any) =>
-    (p.tasks || []).map((t: any, ti: number) => ({ ...t, projectName: p.t, projectId: p.id, taskIndex: ti }))
+    (p.tasks || []).map((t: any, ti: number) => ({ ...t, projectName: p.t, projectId: p.id, taskIndex: ti, projectTone: p.tone }))
   ).filter((t: any) => {
     if (t.done) return false;
     if (!t.assignee) return false;
@@ -74,77 +113,87 @@ export default function DashboardPage() {
     return false;
   }), [projects, user?.displayName, myMember]);
 
-  // Yhdistetty tehtävälista — sisältää sekä projektitehtävät että apurahat
-  // yhdessä, lajiteltuna kiireellisyyden mukaan
+  // Project tone map for color-coding
+  const projectToneMap = useMemo(() => {
+    const m = new Map<number | string, Tone>();
+    projects.forEach((p: any, i: number) => {
+      const explicit = (p.tone && TONES.includes(p.tone)) ? p.tone as Tone : null;
+      m.set(p.id, explicit || toneFor(p.id, i));
+    });
+    return m;
+  }, [projects]);
+
   interface UnifiedItem {
     id: string;
     kind: 'task' | 'grant';
     title: string;
     subtitle: string;
+    projectShort: string;
+    tone: Tone;
     deadline?: string;
     deadlineText?: string;
     days: number | null;
-    color: string;
     onClick: () => void;
-    // Task-only fields
     taskRef?: { projectId: number; taskIndex: number };
+    kindLabel: string;
   }
 
   const unifiedList: UnifiedItem[] = useMemo(() => [
-    ...myTasks.map((t: any): UnifiedItem => ({
-      id: `task_${t.projectId}_${t.taskIndex}`,
-      kind: 'task',
-      title: t.text,
-      subtitle: t.projectName,
-      deadline: t.deadline,
-      deadlineText: t.deadline,
-      days: t.deadline ? Math.ceil((new Date(t.deadline).getTime() - Date.now()) / 86400000) : null,
-      color: 'var(--pri)',
-      onClick: () => router.push(`/${orgSlug}/projects`),
-      taskRef: { projectId: t.projectId, taskIndex: t.taskIndex },
-    })),
+    ...myTasks.map((t: any): UnifiedItem => {
+      const days = t.deadline ? Math.ceil((new Date(t.deadline).getTime() - Date.now()) / 86400000) : null;
+      const tone = projectToneMap.get(t.projectId) || 'blue';
+      return {
+        id: `task_${t.projectId}_${t.taskIndex}`,
+        kind: 'task',
+        title: t.text,
+        subtitle: t.from === 'Itse' ? 'Itse asetettu' : (t.assignedBy ? `Lähettäjä · ${t.assignedBy}` : t.projectName),
+        projectShort: (t.projectName || '').toUpperCase().slice(0, 16),
+        tone,
+        deadline: t.deadline,
+        deadlineText: t.deadline ? new Date(t.deadline).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' }) + '.' : '',
+        days,
+        onClick: () => router.push(`/${orgSlug}/projects`),
+        taskRef: { projectId: t.projectId, taskIndex: t.taskIndex },
+        kindLabel: 'Tehtävä',
+      };
+    }),
     ...myGrants.map((g): UnifiedItem => {
       const sd = STATUS_DEFS[g.status];
+      const days = daysUntilDeadline(g);
       return {
         id: `grant_${g.id}`,
         kind: 'grant',
         title: `${g.funder}: ${g.grantName}`,
-        subtitle: `Apuraha · ${g.year} · ${sd.label}${g.amount > 0 ? ' · ' + (g.amount >= 1000 ? `${(g.amount / 1000).toFixed(g.amount % 1000 === 0 ? 0 : 1)}k €` : `${g.amount} €`) : ''}`,
+        subtitle: `Apuraha · ${g.year} · ${sd.label}`,
+        projectShort: 'APURAHAT',
+        tone: 'green',
         deadline: g.deadline,
-        deadlineText: g.deadlineText,
-        days: daysUntilDeadline(g),
-        color: sd.color,
+        deadlineText: g.deadlineText || (g.deadline ? new Date(g.deadline).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' }) + '.' : ''),
+        days,
         onClick: () => router.push(`/${orgSlug}/budget`),
+        kindLabel: 'Apuraha',
       };
     }),
   ].sort((a, b) => {
     const da = a.days ?? 999999;
     const db = b.days ?? 999999;
     return da - db;
-  }), [myTasks, myGrants, router, orgSlug]);
+  }), [myTasks, myGrants, router, orgSlug, projectToneMap]);
 
-  // My projects (where I have open tasks)
+  const urgentTasks = unifiedList.filter(t => t.days !== null && t.days <= 7);
+  const laterTasks = unifiedList.filter(t => t.days === null || t.days > 7);
+
   const myProjects = useMemo(() => {
     const ids = new Set(myTasks.map((t: any) => t.projectId));
-    return projects.filter((p: any) => ids.has(p.id));
+    return projects.filter((p: any) => ids.has(p.id) && !p.archived);
   }, [myTasks, projects]);
 
-  // Unassigned tasks across active projects
-  const unassignedTasks = useMemo(() => projects.filter((p: any) => !p.archived && p.st !== 'done').flatMap((p: any) =>
-    (p.tasks || []).map((t: any, ti: number) => ({ ...t, projectName: p.t, projectId: p.id, taskIndex: ti }))
-  ).filter((t: any) => !t.assignee && !t.done), [projects]);
-
-  const todayStr = new Date().toISOString().slice(0, 10);
-
-  // Toggle task done from dashboard — fade out, then save after 5s (with undo)
-  const undoTimers = React.useRef<Record<string, NodeJS.Timeout>>({});
+  const undoTimers = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const toggleTask = (projectId: number, taskIndex: number) => {
     const key = `${projectId}_${taskIndex}`;
     setCompletedTasks(prev => new Set([...prev, key]));
-    // Clear any existing timer for this task
     if (undoTimers.current[key]) clearTimeout(undoTimers.current[key]);
-    // Set 5s timer to actually save
     undoTimers.current[key] = setTimeout(() => {
       setProjects(prev => prev.map(p => {
         if (p.id !== projectId) return p;
@@ -166,23 +215,108 @@ export default function DashboardPage() {
     setCompletedTasks(prev => { const n = new Set(prev); n.delete(key); return n; });
   };
 
-  const deadlineColor = (dl: string) => {
-    if (!dl) return null;
-    const diff = new Date(dl).getTime() - Date.now();
-    const day = 86400000;
-    if (diff < 0) return { color: 'var(--red)', label: 'Myöhässä' };
-    if (diff < 7 * day) return { color: 'var(--red)', label: Math.ceil(diff / day) + ' pv' };
-    if (diff < 30 * day) return { color: 'var(--yellow)', label: Math.ceil(diff / day) + ' pv' };
-    return { color: 'var(--green)', label: Math.ceil(diff / day) + ' pv' };
-  };
+  // Festival countdown — only if org has festivalStartDate
+  const festivalStart: Date | null = useMemo(() => {
+    const v = (org as any)?.festivalStartDate;
+    if (!v) return null;
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  }, [org]);
+  const daysToFestival = festivalStart
+    ? Math.max(0, Math.ceil((festivalStart.getTime() - Date.now()) / 86400000))
+    : null;
 
-  // AI query
+  // Today's agenda from meetings
+  const todayMeetings = useMemo(() => {
+    if (!meetings || meetings.length === 0) return [];
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+    return meetings
+      .filter(m => !m.deletedAt && m.status !== 'cancelled' && m.date === todayStr)
+      .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''))
+      .slice(0, 6);
+  }, [meetings]);
+
+  // Waiting (delegated requests where I am the requester)
+  const waitingItems = useMemo(() => {
+    if (!user?.displayName) return [];
+    const myName = user.displayName;
+    return (teamMessages || [])
+      .filter((m: any) => m.type === 'request' && !m.done && m.from === myName && m.to)
+      .slice(0, 6)
+      .map((m: any, i: number) => ({
+        id: m.id || `w_${i}`,
+        title: m.text,
+        who: m.to,
+        ageDays: m.timestamp ? Math.max(0, Math.floor((Date.now() - m.timestamp) / 86400000)) : null,
+        tone: 'blue' as Tone,
+      }));
+  }, [teamMessages, user?.displayName]);
+
+  // Activity (last 5 team messages, excluding open requests)
+  const activityItems = useMemo(() => {
+    return (teamMessages || [])
+      .filter((m: any) => m.type !== 'request' || m.done)
+      .sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0))
+      .slice(0, 5)
+      .map((m: any, i: number) => ({
+        id: m.id || `a_${i}`,
+        who: m.from || 'Tiimiläinen',
+        verb: m.type === 'request' ? 'merkitsi tehdyksi pyynnön' : 'kirjoitti',
+        what: m.text || '',
+        t: m.timestamp ? new Date(m.timestamp).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' }) : '',
+        tone: 'blue' as Tone,
+      }));
+  }, [teamMessages]);
+
+  // Year wheel — käyttää oikeaa yearPhases-dataa Firestoresta. Jos tyhjä, koko sektio piilotetaan.
+  const yearPhasesView = useMemo(() => {
+    if (yearPhases.length === 0) return [];
+    const yr = new Date().getFullYear();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return yearPhases
+      .map(p => {
+        const sd = p.startDate ? parseLocalDate(p.startDate) : new Date(yr, p.startMonth - 1, 1);
+        const ed = p.endDate ? parseLocalDate(p.endDate) : new Date(yr, p.endMonth, 0);
+        const total = ed.getTime() - sd.getTime();
+        const elapsed = today.getTime() - sd.getTime();
+        const status: 'done' | 'cur' | 'todo' = today > ed ? 'done' : (today >= sd ? 'cur' : 'todo');
+        const pct = status === 'done' ? 100 : status === 'cur' ? Math.max(0, Math.min(100, Math.round(elapsed / total * 100))) : 0;
+        // Map category color → tone keyword
+        const catTone: Record<string, Tone> = { planning: 'blue', production: 'yellow', execution: 'pink', reflection: 'green' };
+        const tone = catTone[p.category] || 'blue';
+        const monthsLabel = (() => {
+          const start = sd.toLocaleDateString('fi-FI', { month: 'short' });
+          const end = ed.toLocaleDateString('fi-FI', { month: 'short' });
+          return `${start.toUpperCase()}–${end.toUpperCase()}`.replace(/\./g, '');
+        })();
+        return { id: p.id, name: p.name, monthsLabel, tone, status, pct, sd };
+      })
+      .sort((a, b) => a.sd.getTime() - b.sd.getTime());
+  }, [yearPhases]);
+  const currentPhaseIdx = yearPhasesView.findIndex(p => p.status === 'cur');
+
+  // Grants summary
+  const grantsSummary = useMemo(() => {
+    const awarded = grants.filter(g => g.status === 'confirmed').reduce((s, g) => s + (g.amount || 0), 0);
+    const applied = grants.filter(g => ['applied', 'confirmed', 'rejected'].includes(g.status)).reduce((s, g) => s + (g.amount || 0), 0);
+    const upcoming = grants
+      .filter(g => g.status !== 'confirmed' && g.status !== 'rejected')
+      .sort((a, b) => (daysUntilDeadline(a) ?? 999999) - (daysUntilDeadline(b) ?? 999999))
+      .slice(0, 3);
+    return { awarded, applied, upcoming };
+  }, [grants]);
+
   const askAI = async (prompt: string) => {
     setAiLoading(true); setAiResponse('');
     try {
       const isJuhla = orgSlug === 'juhlatoimikunta';
       const systemCtx = isJuhla
-        ? 'Olet osaava ja inspiroiva juhlajarjestaja-AI. Autat Sirpan 70-vuotissyntymapaivajahlien suunnittelussa. Juhlat jarjestetaan lauantaina 25.4.2026 Tyttojen talolla Kalliossa (Hameentie 13 A, Helsinki). Tiimi: Sonja Baer (vetaja), Raisa Baer, Elina Savo, Anton Baer. Vastaa lyhyesti, lamminhenkisesti ja konkreettisesti suomeksi. Anna kaytannollisia ja luovia ideoita juhlien jarjestamiseen.'
+        ? 'Olet osaava ja inspiroiva juhlajärjestäjä-AI. Vastaa lyhyesti, lämminhenkisesti ja konkreettisesti suomeksi.'
         : `Olet ${org.name || 'organisaation'} viestinnän AI-kumppani. Vastaa lyhyesti ja konkreettisesti suomeksi. ${org.commsMission ? 'Viestinnän missio: ' + org.commsMission : ''} ${org.tone?.length ? 'Sävyt: ' + org.tone.join(', ') : ''}`;
       const res = await workerFetch('/api/chat', {
         method: 'POST',
@@ -190,264 +324,391 @@ export default function DashboardPage() {
         body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], systemContext: systemCtx }),
       });
       if (res.ok) { const data = await res.json(); setAiResponse(data.response || ''); }
-    } catch (e) { setAiResponse('Yhteysvirhe. Yritä uudelleen.'); }
+    } catch { setAiResponse('Yhteysvirhe. Yritä uudelleen.'); }
     finally { setAiLoading(false); }
   };
 
+  const dateKicker = (() => {
+    const d = new Date();
+    const wd = new Intl.DateTimeFormat('fi-FI', { weekday: 'long' }).format(d);
+    const dm = new Intl.DateTimeFormat('fi-FI', { day: 'numeric', month: 'numeric', year: 'numeric' }).format(d);
+    return `${wd.charAt(0).toUpperCase() + wd.slice(1)} ${dm}`;
+  })();
+
+  const urgentCount = urgentTasks.length;
+  const tasksCountLabel = unifiedList.length === 0
+    ? 'Ei avoimia tehtäviä'
+    : urgentCount > 0
+      ? `${urgentCount} kiireellistä, loput voi tehdä myöhemmin`
+      : `${unifiedList.length} avointa tehtävää`;
+
+  // Renderöi yksi tehtävärivi
+  const TaskRow = ({ item }: { item: UnifiedItem }) => {
+    const isDone = item.taskRef ? completedTasks.has(`${item.taskRef.projectId}_${item.taskRef.taskIndex}`) : false;
+    const isUrgent = item.days !== null && item.days <= 7;
+    const dueLabel = item.days === 0 ? 'Tänään'
+      : (item.days !== null && item.days > 0 ? `${item.days} pv` : (item.deadlineText || ''));
+    return (
+      <div className="trow" style={{ '--c': `var(--${item.tone})`, opacity: isDone ? 0.45 : 1, textDecoration: isDone ? 'line-through' : 'none' } as React.CSSProperties}>
+        {item.kind === 'task' && item.taskRef ? (
+          <button
+            type="button"
+            className="chk"
+            aria-label={isDone ? 'Palauta' : 'Merkitse tehdyksi'}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isDone) undoTask(item.taskRef!.projectId, item.taskRef!.taskIndex);
+              else toggleTask(item.taskRef!.projectId, item.taskRef!.taskIndex);
+            }}
+            style={{ background: isDone ? 'var(--ink)' : 'transparent' }}
+          />
+        ) : (
+          <span className="chk" style={{ background: 'var(--c, var(--ink))', borderColor: 'var(--c, var(--ink))' }} aria-hidden />
+        )}
+        <span className="ptag" title={item.projectShort}><span>{item.projectShort}</span></span>
+        <div onClick={item.onClick} style={{ cursor: 'pointer', minWidth: 0 }}>
+          <div className="ttitle">{item.title}</div>
+          <div className="tsub">{item.subtitle}</div>
+        </div>
+        <span className="tkind">{item.kindLabel}</span>
+        <span className={`tdue ${isUrgent ? 'urg' : ''}`}>{dueLabel}</span>
+      </div>
+    );
+  };
+
   return (
-    <AppShell title={`Hei, ${firstName}!`} subtitle={org.name || ''}>
-
-      {/* Sinun tehtäväsi — yhdistetty lista: projektitehtävät + apurahat samassa */}
-      <div className="dc dc-brand" style={{ marginBottom: '1.5rem' }}>
-        <div className="dc-h">
-          <div>
-            <h3>Sinun tehtäväsi</h3>
-            <p style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.15rem' }}>Mitä tänään työstetään?</p>
-          </div>
-          <span style={{ fontSize: '.75rem', color: unifiedList.length > 0 ? 'var(--pri-l)' : 'var(--t3)' }}>{unifiedList.length} {unifiedList.length === 1 ? 'kohde' : 'kohdetta'}</span>
+    <AppShell title="Koti" subtitle={org.name || ''}>
+      {/* Hero */}
+      <section className="hero">
+        <div className="hero-l">
+          <div className="kicker">{dateKicker}</div>
+          <h1 aria-label={greetingFull}>
+            <span aria-hidden>{typed || '\u00A0'}</span>
+            <span className={`tw-cur ${typingDone ? 'tw-cur--done' : ''}`} aria-hidden />
+          </h1>
+          <p className="lede" style={{ opacity: typingDone ? 1 : 0, transition: 'opacity .4s ease' }}>
+            <b>{tasksCountLabel}.</b> {urgentCount > 0
+              ? 'Aloita kiireellisistä, loput voit tehdä huomenna tai delegoida.'
+              : 'Hyvä päivä keskittyä projektisuunnitteluun ja inspiraation hakuun.'}
+          </p>
         </div>
-        <div className="dc-b" style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
-          {unifiedList.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--t3)' }}>
-              <p style={{ fontSize: '.88rem', marginBottom: '.5rem' }}>Ei avoimia tehtäviä sinulle.</p>
-              <p style={{ fontSize: '.75rem' }}>
-                Projektitehtäviä voi määritellä Projektit-sivulta, apurahoja Apurahat-sivulta.
-              </p>
-            </div>
-          ) : (
-            unifiedList.map((item) => {
-              const isDone = item.taskRef ? completedTasks.has(`${item.taskRef.projectId}_${item.taskRef.taskIndex}`) : false;
-              const days = item.days;
-              const urgent = days !== null && days >= 0 && days <= 14;
-              const warn = days !== null && days >= 0 && days <= 30;
-              const dlColor = urgent ? 'var(--red)' : warn ? 'var(--yellow)' : 'var(--green)';
-              const isGrant = item.kind === 'grant';
-              return (
-                <div key={item.id} style={{
-                  display: 'flex', alignItems: 'center', gap: '.75rem',
-                  padding: '.65rem .85rem',
-                  background: isDone ? 'rgba(45,212,160,.06)' : 'var(--elev)',
-                  border: `1px solid ${isDone ? 'rgba(45,212,160,.2)' : 'var(--border)'}`,
-                  borderLeft: `3px solid ${isDone ? 'var(--green)' : item.color}`,
-                  borderRadius: 'var(--r)',
-                  opacity: isDone ? 0.5 : 1,
-                  transition: 'all .3s ease',
-                  textDecoration: isDone ? 'line-through' : 'none',
-                }}>
-                  {/* Checkbox ONLY for project tasks (grants käsitellään Apurahat-sivulla) */}
-                  {item.kind === 'task' && item.taskRef && (
-                    <input
-                      type="checkbox"
-                      checked={isDone}
-                      onChange={() => !isDone && toggleTask(item.taskRef!.projectId, item.taskRef!.taskIndex)}
-                      style={{ width: 18, height: 18, cursor: isDone ? 'default' : 'pointer', flexShrink: 0, accentColor: 'var(--green)' }}
-                    />
-                  )}
-                  {item.kind === 'grant' && (
-                    <div style={{
-                      width: 22, height: 22, borderRadius: '50%',
-                      background: item.color, color: '#fff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '.58rem', fontWeight: 600, flexShrink: 0,
-                    }}>€</div>
-                  )}
-                  <div style={{ flex: 1, cursor: 'pointer', minWidth: 0 }} onClick={item.onClick}>
-                    <div style={{ fontSize: '.85rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {item.title}
-                    </div>
-                    <div style={{ fontSize: '.68rem', color: 'var(--t3)', marginTop: '.1rem' }}>
-                      {item.subtitle}
-                    </div>
-                  </div>
-                  {/* Deadline display */}
-                  {isDone ? (
-                    <button
-                      onClick={e => { e.stopPropagation(); if (item.taskRef) undoTask(item.taskRef.projectId, item.taskRef.taskIndex); }}
-                      style={{ fontSize: '.65rem', fontWeight: 600, color: 'var(--pri-l)', background: 'rgba(5,107,159,.1)', border: '1px solid rgba(5,107,159,.2)', borderRadius: 'var(--r)', padding: '.25rem .6rem', cursor: 'pointer', flexShrink: 0 }}
-                    >
-                      Palauta
-                    </button>
-                  ) : (
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      {isGrant && item.deadlineText && (
-                        <div style={{ fontSize: '.65rem', fontWeight: 500, color: 'var(--t2)' }}>{item.deadlineText}</div>
-                      )}
-                      {days !== null && days >= 0 && (
-                        <div style={{ fontSize: '.6rem', fontWeight: 600, color: dlColor, marginTop: isGrant ? '.1rem' : 0 }}>
-                          {days === 0 ? 'TÄNÄÄN' : `${days} pv`}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* Ei merkittyä team-member-rekordia — vihje käyttäjälle */}
-      {!myMember && myGrants.length === 0 && orgMembers.length > 0 && (
-        <div style={{ background: 'rgba(241,180,52,.04)', border: '1px solid rgba(241,180,52,.2)', borderRadius: 'var(--rl)', padding: '.85rem 1.25rem', marginBottom: '1.5rem' }}>
-          <div style={{ fontSize: '.78rem', color: 'var(--t2)', lineHeight: 1.5 }}>
-            <strong style={{ color: 'var(--yellow)' }}>Tietoa puuttuu:</strong> Käyttäjätiliäsi ({user?.displayName || user?.email}) ei ole linkitetty tiimiläistietoihin.
-            Apurahat ja vastuut näkyvät täällä kun tiimissäsi on tiimiläinen jonka nimi tai sähköposti vastaa sinua.
-            <button onClick={() => router.push(`/${orgSlug}/team`)} style={{ marginLeft: '.5rem', background: 'transparent', border: 'none', color: 'var(--pri-l)', cursor: 'pointer', fontWeight: 600 }}>Avaa Tiimi →</button>
-          </div>
-        </div>
-      )}
-
-      {/* Requests to me */}
-      {(() => {
-        const myRequests = teamMessages.filter((m: any) => m.type === 'request' && m.to === user?.displayName && !m.done);
-        if (myRequests.length === 0) return null;
-        return (
-          <div style={{ background: 'rgba(241,180,52,.04)', border: '1px solid rgba(241,180,52,.2)', borderRadius: 'var(--rl)', padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.82rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em', color: 'var(--yellow)', marginBottom: '.75rem' }}>
-              {myRequests.length} {myRequests.length === 1 ? 'pyyntö' : 'pyyntöä'} sinulle
-            </h3>
-            {myRequests.map((msg: any) => (
-              <div key={msg.id} style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '.65rem .75rem', background: 'rgba(241,180,52,.04)', borderRadius: 'var(--r)', marginBottom: '.35rem' }}>
-                <div className="ava" style={{ width: 28, height: 28, fontSize: '.6rem', background: 'var(--yellow)', color: '#000', flexShrink: 0 }}>{msg.from[0]}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '.82rem', fontWeight: 600 }}>{msg.text}</div>
-                  <div style={{ fontSize: '.65rem', color: 'var(--t3)', marginTop: '.1rem' }}>{msg.from} {'·'} {new Date(msg.timestamp).toLocaleDateString('fi-FI')}</div>
-                </div>
-                <button className="btn btn-ghost btn-sm" onClick={() => setTeamMessages(prev => prev.map((m: any) => m.id === msg.id ? { ...m, done: true } : m))}
-                  style={{ fontSize: '.68rem', color: 'var(--green)' }}>Tehty</button>
+        {daysToFestival !== null && (
+          <div className="count">
+            <div className="top"></div>
+            <div className="body">
+              <div className="ttl">Festivaaliin</div>
+              <div className="num">{daysToFestival}</div>
+              <div className="lbl">päivää</div>
+              <div className="meta">
+                <span><b>{festivalStart?.toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' })}.</b></span>
+                <span>VK <b>{Math.ceil(daysToFestival / 7)}</b></span>
               </div>
-            ))}
+            </div>
           </div>
-        );
-      })()}
+        )}
+      </section>
 
-      {/* My projects */}
-      <div className="dc" style={{ marginBottom: '1.5rem' }}>
-        <div className="dc-h">
-          <h3>Sinun projektisi</h3>
-        </div>
-        <div className="dc-b">
-          {myProjects.length === 0 ? (
-            <p style={{ color: 'var(--t3)', fontSize: '.82rem', textAlign: 'center', padding: '1rem' }}>Ei projekteja joissa sinulle on tehtäviä.</p>
-          ) : (
-            myProjects.slice(0, 5).map((p: any) => {
-              const myOpen = (p.tasks || []).filter((t: any) => t.assignee === user?.displayName && !t.done).length;
-              const dlc = p.deadline ? deadlineColor(p.deadline) : null;
-              return (
-                <div key={p.id} onClick={() => router.push(`/${orgSlug}/projects`)}
-                  style={{ padding: '.6rem 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '.85rem', fontWeight: 500 }}>{p.t}</span>
-                    {dlc && <span style={{ fontSize: '.65rem', color: dlc.color, fontWeight: 500 }}>{dlc.label}</span>}
-                  </div>
-                  <div style={{ fontSize: '.68rem', color: 'var(--t3)', marginTop: '.15rem' }}>{myOpen} avointa tehtävää sinulle</div>
-                </div>
-              );
-            })
+      <div className="cols">
+        <div>
+          {/* Tehtäväsi */}
+          <section style={{ marginBottom: 32 }}>
+            <div className="sec-h">
+              <div className="t"><span className="n">01</span>Tehtäväsi</div>
+              <div className="meta"><b>{unifiedList.length}</b> Avointa{urgentCount > 0 ? <> · <b>{urgentCount}</b> Kiireellistä</> : null}</div>
+            </div>
+            {unifiedList.length === 0 ? (
+              <div style={{ padding: '24px 0', color: 'var(--ink2)', fontSize: 14 }}>
+                Ei avoimia tehtäviä sinulle. Projektitehtäviä voi määritellä Projektit-sivulta, apurahoja Apurahat-sivulta.
+              </div>
+            ) : (
+              <div className="tlist">
+                {urgentTasks.length > 0 && <div className="tg">Kiireellinen — viikon sisällä</div>}
+                {urgentTasks.map(item => <TaskRow key={item.id} item={item} />)}
+                {laterTasks.length > 0 && <div className="tg" style={{ paddingTop: 18 }}>Myöhemmin</div>}
+                {laterTasks.map(item => <TaskRow key={item.id} item={item} />)}
+              </div>
+            )}
+          </section>
+
+          {/* Projektisi */}
+          {myProjects.length > 0 && (
+            <section style={{ marginBottom: 32 }}>
+              <div className="sec-h">
+                <div className="t"><span className="n">02</span>Projektisi</div>
+                <button className="btn-link" onClick={() => router.push(`/${orgSlug}/projects`)}>Kaikki projektit ↗</button>
+              </div>
+              <div className="pgrid">
+                {myProjects.slice(0, 5).map((p: any) => {
+                  const tone = projectToneMap.get(p.id) || 'blue';
+                  const myOpen = (p.tasks || []).filter((t: any) => t.assignee === user?.displayName && !t.done).length;
+                  const totalTasks = (p.tasks || []).length;
+                  const done = (p.tasks || []).filter((t: any) => t.done).length;
+                  const progress = totalTasks > 0 ? Math.round((done / totalTasks) * 100) : 0;
+                  const dl = p.deadline ? new Date(p.deadline).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' }) + '.' : '—';
+                  return (
+                    <div key={p.id} className="pcard" style={{ '--c': `var(--${tone})` } as React.CSSProperties}
+                      onClick={() => router.push(`/${orgSlug}/projects`)}>
+                      <div className="pkick">{(p.t || '').slice(0, 18).toUpperCase()}</div>
+                      <div className="pname">{p.t}</div>
+                      <div className="plead">{p.lead || p.responsible || '—'}{p.phase ? ` · ${p.phase}` : ''}</div>
+                      <div className="pbottom">
+                        <div className="ppct">{progress}<sub>%</sub></div>
+                        <div className="pbar"><i style={{ width: `${progress}%` }} /></div>
+                        <div className="popen">
+                          <span><b>{myOpen}</b> Avointa</span>
+                          <span>DL <b>{dl}</b></span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
           )}
-        </div>
-      </div>
 
-      {/* Unassigned tasks warning */}
-      {unassignedTasks.length > 0 && (
-        <div style={{ background: 'rgba(241,180,52,.04)', border: '1px solid rgba(241,180,52,.2)', borderRadius: 'var(--rl)', padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem' }}>
-            <span style={{ color: 'var(--yellow)', fontSize: '1rem' }}>{'⚠'}</span>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.82rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em', color: 'var(--yellow)' }}>
-              {unassignedTasks.length} tehtävää ilman tekijää
-            </h3>
-          </div>
-          {unassignedTasks.slice(0, 6).map((task: any, i: number) => {
-            const dlc = task.deadline ? deadlineColor(task.deadline) : null;
-            return (
-              <div key={i} onClick={() => router.push(`/${orgSlug}/projects`)}
-                style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '.5rem .75rem', background: 'rgba(241,180,52,.04)', borderRadius: 'var(--r)', marginBottom: '.35rem', cursor: 'pointer' }}>
-                <div style={{ width: 4, height: 24, borderRadius: 2, background: dlc?.color || 'var(--yellow)', flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: '.82rem', fontWeight: 600 }}>{task.text}</span>
-                  <span style={{ fontSize: '.68rem', color: 'var(--t3)', marginLeft: '.5rem' }}>{task.projectName}</span>
-                </div>
-                {dlc ? (
-                  <span style={{ fontSize: '.65rem', fontWeight: 600, color: dlc.color, flexShrink: 0 }}>{dlc.label}</span>
-                ) : (
-                  <span style={{ fontSize: '.65rem', color: 'var(--t3)', flexShrink: 0 }}>Ei deadlinea</span>
+          {/* Vuosirytmi — vain jos käyttäjä on lisännyt vaiheita yearwheel-sivulla */}
+          {yearPhasesView.length > 0 && (
+            <section style={{ marginBottom: 32 }}>
+              <div className="sec-h">
+                <div className="t"><span className="n">03</span>Vuosirytmi {new Date().getFullYear()}</div>
+                {currentPhaseIdx >= 0 && (
+                  <div className="meta">Vaihe <b>{currentPhaseIdx + 1} / {yearPhasesView.length}</b></div>
                 )}
               </div>
+              <div className="year" style={{ gridTemplateColumns: `repeat(${Math.min(yearPhasesView.length, 6)}, 1fr)` }}>
+                {yearPhasesView.slice(0, 6).map(q => (
+                  <div key={q.id} className={`q ${q.status === 'cur' ? 'cur' : ''} ${q.status === 'done' ? 'done' : ''}`} style={{ '--c': `var(--${q.tone})` } as React.CSSProperties}
+                    onClick={() => router.push(`/${orgSlug}/yearwheel`)}>
+                    <div className="top" />
+                    <div className="ql">{q.monthsLabel}</div>
+                    <div className="qt">{q.name}</div>
+                    <div className="qbar"><i style={{ width: `${q.pct}%` }} /></div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Tiimin aktiviteetti */}
+          {activityItems.length > 0 && (
+            <section style={{ marginBottom: 8 }}>
+              <div className="sec-h">
+                <div className="t"><span className="n">04</span>Mitä tiimissä tapahtui</div>
+                <button className="btn-link" onClick={() => router.push(`/${orgSlug}/viestit`)}>Kaikki ↗</button>
+              </div>
+              <div className="activity">
+                {activityItems.map(a => (
+                  <div key={a.id} className="act-row" style={{ '--c': `var(--${a.tone})` } as React.CSSProperties}>
+                    <div className="at">{a.t}</div>
+                    <div className="ax">
+                      <b>{a.who}</b> {a.verb} <i>{a.what}</i>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* AI Actions */}
+          {(() => {
+            const isJuhla = orgSlug === 'juhlatoimikunta';
+            const activeProjectsList = projects.filter((p: any) => p.st === 'active' && !p.archived).map((p: any) => p.t).join(', ') || 'ei aktiivisia';
+            const defaultStatus = isJuhla
+              ? 'Anna tilannekatsaus juhlien järjestelyistä.'
+              : 'Anna tilannekatsaus ' + (org.name || 'organisaation') + ' viestinnästä juuri nyt. Aktiiviset projektit: ' + activeProjectsList + '. Avoimia tehtäviä: ' + myTasks.length + '.';
+            const defaultInsp = 'Kerro yksi todellinen, dokumentoitu esimerkki kulttuurialan järjestöstä joka muutti maailmaa.';
+            const statusPrompt = aiProfile?.statusPrompt
+              ? (aiProfile.statusPrompt as string)
+                  .replace('{tasks}', String(myTasks.length))
+                  .replace('{activeProjects}', activeProjectsList)
+                  .replace('{orgName}', org.name || 'organisaation')
+              : defaultStatus;
+            const inspPrompt: string = aiProfile?.inspirationPrompt || defaultInsp;
+            const statusDesc: string = aiProfile?.statusDesc || (isJuhla ? 'Missä mennään juhlien järjestelyissä?' : 'Mitä viestinnässä tapahtuu juuri nyt?');
+            const statusLabel: string = aiProfile?.statusLabel || 'Tilannekatsaus';
+            const inspDesc: string = aiProfile?.inspirationDesc || 'Inspiraatiota kulttuurialan vaikuttavista esimerkeistä';
+            const inspLabel: string = aiProfile?.inspirationLabel || 'Inspiraatiota';
+            return (
+              <section style={{ marginTop: 32, marginBottom: 16 }}>
+                <div className="sec-h">
+                  <div className="t"><span className="n">05</span>Hetki ehdottaa</div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 0, border: '1px solid var(--rule)' }}>
+                  <div onClick={() => askAI(statusPrompt)} style={{ padding: '20px 22px', cursor: 'pointer', background: 'var(--paper-l)', borderRight: isMobile ? 'none' : '1px solid var(--rule)', borderBottom: isMobile ? '1px solid var(--rule)' : 'none' }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 10, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 8 }}>{statusLabel}</div>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em', color: 'var(--ink)', marginBottom: 6 }}>Pyydä tilannekatsaus</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.5 }}>{statusDesc}</div>
+                  </div>
+                  <div onClick={() => askAI(inspPrompt)} style={{ padding: '20px 22px', cursor: 'pointer', background: 'var(--paper-l)' }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 10, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--green)', marginBottom: 8 }}>{inspLabel}</div>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em', color: 'var(--ink)', marginBottom: 6 }}>Hae inspiraatiota</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.5 }}>{inspDesc}</div>
+                  </div>
+                </div>
+              </section>
             );
-          })}
-          {unassignedTasks.length > 6 && <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.5rem' }}>+ {unassignedTasks.length - 6} muuta tehtävää</div>}
-        </div>
-      )}
+          })()}
 
-      {/* AI Actions — bottom of page */}
-      {(() => {
-        const isJuhla = orgSlug === 'juhlatoimikunta';
-        // Aiprofile-spesifit promptit ylikirjoittavat oletukset
-        const activeProjectsList = projects.filter((p: any) => p.st === 'active' && !p.archived).map((p: any) => p.t).join(', ') || 'ei aktiivisia';
-        const defaultStatus = isJuhla
-          ? 'Anna tilannekatsaus juhlien jarjestelyista. Mita pitaisi seuraavaksi hoitaa? Avoimia tehtavia: ' + myTasks.length + '.'
-          : 'Anna tilannekatsaus ' + (org.name || 'organisaation') + ' viestinnästä juuri nyt. Mitä on meneillään? Aktiiviset projektit: ' + activeProjectsList + '. Avoimia tehtäviä: ' + myTasks.length + '.';
-        const defaultInsp = isJuhla
-          ? 'Anna yksi inspiroiva ja konkreettinen idea 70-vuotissyntymapaivajahlien jarjestamiseen. Keskity johonkin naihin teemoista: koristeluun, ohjelmaan, puheisiin, yllatyshetkiin, musiikkiin, valokuvaukseen, tai lamminhenkisiin yksityiskohtiin jotka tekevat juhlista ikimuistoiset. Anna tarkkoja ja helposti toteutettavia ehdotuksia.'
-          : 'Kerro yksi todellinen, dokumentoitu esimerkki siitä miten kulttuurialan yhdistys tai järjestö on muuttanut maailmaa parempaan suuntaan. Keskity oikeisiin tapahtumiin: esim. elokuvafestivaalit jotka ovat nostaneet ihmisoikeuskysymyksiä, teatteriprojektit jotka ovat tuoneet syrjäytyneitä yhteisöjä yhteen, taidejärjestöt jotka ovat vaikuttaneet lainsäädäntöön, tai kulttuuritapahtumat jotka ovat edistäneet mielenterveyden destigmatisointia. Kerro mikä järjestö, mitä he tekivät, mikä oli konkreettinen vaikutus, ja mitä me voisimme oppia heiltä. Käytä vain todellisia, oikeita esimerkkejä — älä keksi.';
-        const statusPrompt = aiProfile?.statusPrompt
-          ? (aiProfile.statusPrompt as string)
-              .replace('{tasks}', String(myTasks.length))
-              .replace('{activeProjects}', activeProjectsList)
-              .replace('{orgName}', org.name || 'organisaation')
-          : defaultStatus;
-        const inspPrompt: string = aiProfile?.inspirationPrompt || defaultInsp;
-        const statusDesc: string = aiProfile?.statusDesc
-          || (isJuhla ? 'Missa mennaan juhlien jarjestelyissa?' : 'Mitä viestinnässä tapahtuu juuri nyt?');
-        const statusLabel: string = aiProfile?.statusLabel || 'Tilannekatsaus';
-        const inspDesc: string = aiProfile?.inspirationDesc
-          || (isJuhla ? 'Ideoita ikimuistoisiin juhliin' : 'Kulttuurialan yhdistykset jotka muuttivat maailmaa');
-        const inspLabel: string = aiProfile?.inspirationLabel || 'Inspiraatiota';
-        return (
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem', marginBottom: aiResponse || aiLoading ? '1rem' : 0 }}>
-            <div className="dc" onClick={() => askAI(statusPrompt)}
-              style={{ cursor: 'pointer', borderLeft: '3px solid var(--hetki-blue)', transition: 'all .3s cubic-bezier(.16,1,.3,1)' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--pri-l)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.borderLeftColor = 'var(--hetki-blue)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
-              <div className="dc-b">
-                <div style={{ width: 20, height: 20, marginBottom: '.5rem', color: 'var(--pri-l)' }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '100%', height: '100%' }}><circle cx="12" cy="12" r="9"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88" fill="currentColor" opacity=".25"/></svg>
+          {(aiLoading || aiResponse) && (
+            <section style={{ marginTop: 16 }}>
+              <div style={{ background: 'var(--paper-l)', border: '1px solid var(--rule)', padding: '20px 22px', position: 'relative' }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'var(--accent)' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 10, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--accent)' }}>Hetki</span>
+                  {aiResponse && <button className="btn-link" onClick={() => setAiResponse('')} style={{ marginLeft: 'auto' }}>Sulje</button>}
                 </div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, letterSpacing: '.02em' }}>{statusLabel}</div>
-                <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.2rem', lineHeight: 1.5 }}>{statusDesc}</div>
+                {aiLoading ? (
+                  <div className="typing"><span /><span /><span /></div>
+                ) : (
+                  <MarkdownText text={aiResponse} style={{ fontSize: 14, color: 'var(--ink)', lineHeight: 1.7 }} />
+                )}
               </div>
-            </div>
-            <div className="dc" onClick={() => askAI(inspPrompt)}
-              style={{ cursor: 'pointer', borderLeft: '3px solid var(--hetki-green)', transition: 'all .3s cubic-bezier(.16,1,.3,1)' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--green-l)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.borderLeftColor = 'var(--hetki-green)'; e.currentTarget.style.transform = 'translateY(0)'; }}>
-              <div className="dc-b">
-                <div style={{ width: 20, height: 20, marginBottom: '.5rem', color: 'var(--green-l)' }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '100%', height: '100%' }}><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
-                </div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, letterSpacing: '.02em' }}>{inspLabel}</div>
-                <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginTop: '.2rem', lineHeight: 1.5 }}>{inspDesc}</div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* AI Response */}
-      {(aiLoading || aiResponse) && (
-        <div style={{ background: 'linear-gradient(135deg, rgba(5,107,159,.06), rgba(24,94,91,.04))', border: '1px solid rgba(5,107,159,.15)', borderRadius: 'var(--rl)', padding: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem' }}>
-            <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--pri)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '.55rem', fontWeight: 500, fontFamily: 'var(--font-display)' }}>M</div>
-            <span style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--pri-l)' }}>Momentum</span>
-            {aiResponse && <button className="btn btn-ghost btn-sm" onClick={() => setAiResponse('')} style={{ marginLeft: 'auto', fontSize: '.65rem' }}>Sulje</button>}
-          </div>
-          {aiLoading ? (
-            <div className="typing"><span /><span /><span /></div>
-          ) : (
-            <MarkdownText text={aiResponse} style={{ fontSize: '.88rem', color: 'var(--t2)', lineHeight: 1.8 }} />
+            </section>
           )}
         </div>
-      )}
+
+        {/* Right column */}
+        <div>
+          {/* Tänään (Agenda) */}
+          {todayMeetings.length > 0 && (
+            <section className="rsec">
+              <div className="sec-h">
+                <div className="t">Tänään</div>
+                <div className="meta">{new Intl.DateTimeFormat('fi-FI', { weekday: 'short', day: 'numeric', month: 'numeric' }).format(new Date())}</div>
+              </div>
+              <div className="agenda">
+                {todayMeetings.map((m, i) => {
+                  const time = m.startTime || '';
+                  const dur = (m.startTime && m.endTime) ? (() => {
+                    const [sh, sm] = m.startTime.split(':').map(Number);
+                    const [eh, em] = m.endTime.split(':').map(Number);
+                    if (Number.isFinite(sh) && Number.isFinite(eh)) {
+                      return Math.max(0, (eh * 60 + (em || 0)) - (sh * 60 + (sm || 0)));
+                    }
+                    return null;
+                  })() : null;
+                  return (
+                    <div key={m.id || i} className="agrow" style={{ '--c': `var(--blue)` } as React.CSSProperties}>
+                      <div>
+                        <div className="ag-time">{time}</div>
+                        {dur ? <span className="ag-dur">{dur} min</span> : <span className="ag-dur">—</span>}
+                      </div>
+                      <div>
+                        <div className="ag-t">{m.title || '(Nimetön)'}</div>
+                        {m.attendees && m.attendees.length > 0 && (
+                          <div className="ag-w">{m.attendees.map(a => a.name).filter(Boolean).slice(0, 3).join(', ')}</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Odottaa muilta */}
+          {waitingItems.length > 0 && (
+            <section className="rsec">
+              <div className="sec-h">
+                <div className="t">Odottaa muilta</div>
+                <div className="meta"><b>{waitingItems.length}</b> Kohdetta</div>
+              </div>
+              <div className="wlist">
+                {waitingItems.map(w => (
+                  <div key={w.id} className="wrow" style={{ '--c': `var(--${w.tone})` } as React.CSSProperties}>
+                    <div>
+                      <div className="wt">{w.title}</div>
+                      <div className="ww"><span className="dot" />{w.who}</div>
+                    </div>
+                    <div className="wage">{w.ageDays !== null ? `${w.ageDays} pv` : '—'}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Apurahat */}
+          {grants.length > 0 && (
+            <section className="rsec">
+              <div className="sec-h">
+                <div className="t">Apurahat</div>
+                <button className="btn-link" onClick={() => router.push(`/${orgSlug}/budget`)}>Kaikki ↗</button>
+              </div>
+              <div className="gr-stats">
+                <div className="gr-stat">
+                  <div className="l">Myönnetty</div>
+                  <div className="v">{fmtFi(grantsSummary.awarded)}<span className="cur">€</span></div>
+                </div>
+                <div className="gr-stat">
+                  <div className="l">Haettu</div>
+                  <div className="v lite">{fmtFi(grantsSummary.applied)}<span className="cur">€</span></div>
+                </div>
+              </div>
+              {grantsSummary.upcoming.length > 0 && (
+                <div className="gr-list">
+                  {grantsSummary.upcoming.map((g, i) => {
+                    const sd = STATUS_DEFS[g.status];
+                    const tone = toneFor(g.id, i);
+                    return (
+                      <div key={g.id} className="gr-row" style={{ '--c': `var(--${tone})` } as React.CSSProperties}>
+                        <div>
+                          <div className="gn">{g.funder}</div>
+                          <div className="gst">{sd.label}</div>
+                        </div>
+                        <div className="gd">DL {g.deadlineText || (g.deadline ? new Date(g.deadline).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' }) + '.' : '—')}</div>
+                        <div className="ga">{g.amount > 0 ? `${fmtFi(g.amount)} €` : '—'}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Pyynnöt sinulle (jos on) */}
+          {(() => {
+            const myRequests = (teamMessages || []).filter((m: any) => m.type === 'request' && m.to === user?.displayName && !m.done);
+            if (myRequests.length === 0) return null;
+            return (
+              <section className="rsec">
+                <div className="sec-h">
+                  <div className="t">Pyynnöt sinulle</div>
+                  <div className="meta"><b>{myRequests.length}</b></div>
+                </div>
+                <div className="wlist">
+                  {myRequests.map((msg: any) => (
+                    <div key={msg.id} className="wrow" style={{ '--c': `var(--yellow)` } as React.CSSProperties}>
+                      <div>
+                        <div className="wt">{msg.text}</div>
+                        <div className="ww"><span className="dot" />{msg.from}</div>
+                      </div>
+                      <button
+                        className="btn-link"
+                        onClick={() => setTeamMessages(prev => prev.map((m: any) => m.id === msg.id ? { ...m, done: true } : m))}
+                      >
+                        Tehty
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            );
+          })()}
+
+          {/* Linkitysvinkki */}
+          {!myMember && myGrants.length === 0 && orgMembers.length > 0 && (
+            <section className="rsec">
+              <div style={{ padding: '14px 16px', border: '1px solid var(--rule)', background: 'var(--paper-l)' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 10, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--yellow)', marginBottom: 6 }}>Vinkki</div>
+                <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.5 }}>
+                  Käyttäjätiliäsi ei ole linkitetty tiimiläistietoihin. Apurahat ja vastuut näkyvät kun tiimissäsi on tiimiläinen jonka nimi tai sähköposti vastaa sinua.
+                </div>
+                <button className="btn-link" onClick={() => router.push(`/${orgSlug}/team`)} style={{ marginTop: 10 }}>Avaa Tiimi ↗</button>
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
     </AppShell>
   );
 }

@@ -146,7 +146,7 @@ export default function LoginPage() {
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 500, letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: '.5rem' }}>Momentum</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', color: 'var(--t3)', fontSize: '.88rem' }}>
             <span>by</span>
-            <img src="/brand/hetki-company-logo-white.png" alt="Hetki Company" style={{ height: 24, opacity: 0.7 }} />
+            <img src="/brand/hetki-company-logo-black.png" alt="Hetki Company" style={{ height: 24, opacity: 0.85 }} />
           </div>
         </div>
 

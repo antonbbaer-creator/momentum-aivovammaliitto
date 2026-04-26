@@ -11,6 +11,50 @@ import { mergeAiProfile } from '@/lib/ihaa-defaults';
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  typing?: boolean;   // true kun assistantin vastaus kirjoittautuu merkki kerrallaan
+  shown?: number;     // näytettyjen merkkien määrä typewriter-efektissä
+}
+
+// Konteksti­sidonnaiset "miettiminen"-fraasit. Näytetään kun AI lataa vastausta.
+const THINKING_PHRASES_FALLBACK = [
+  'Pohdin hetken…',
+  'Sparrataan ajatuksia…',
+  'Yhdistelen palasia…',
+  'Etsin oikeaa kulmaa…',
+  'Pidetään kahvitauko ajattelulle…',
+  'Hetki, ideoita putkahtelee…',
+];
+
+const THINKING_PHRASES_CINEMA = [
+  'Kelataan filmiä…',
+  'Selaillaan käsikirjoitusta…',
+  'Säädetään valotusta…',
+  'Tarkennetaan kameraa…',
+  'Editoidaan leikkauksia…',
+  'Kuunnellaan dialogia uudelleen…',
+  'Etsitään ohjaajan visiota…',
+  'Tilataan toinen kahvi setille…',
+  'Valitaan oikea linssi tähän kysymykseen…',
+];
+
+const THINKING_PHRASES_PARTY = [
+  'Sytytellään kynttilöitä…',
+  'Tarkistetaan kakku­suunnitelma…',
+  'Punotaan onnittelupuhetta…',
+  'Soitetaan oikeaa biisiä taustalle…',
+  'Lasken vieraita yhteen…',
+];
+
+function pickThinkingPool(orgSlug: string, orgName?: string): string[] {
+  const slug = (orgSlug || '').toLowerCase();
+  const name = (orgName || '').toLowerCase();
+  if (slug === 'llff' || name.includes('elokuva') || name.includes('film') || name.includes('festival')) {
+    return THINKING_PHRASES_CINEMA;
+  }
+  if (slug === 'juhlatoimikunta' || name.includes('juhla') || name.includes('synttär')) {
+    return THINKING_PHRASES_PARTY;
+  }
+  return THINKING_PHRASES_FALLBACK;
 }
 
 export default function ChatFAB() {
@@ -221,16 +265,52 @@ export default function ChatFAB() {
 
       if (res.ok) {
         const data = await res.json();
-        setMessages(prev => [...prev, { role: 'assistant', content: data.response || 'Virhe vastauksessa.' }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: data.response || 'Virhe vastauksessa.', typing: true, shown: 0 }]);
       } else {
-        setMessages(prev => [...prev, { role: 'assistant', content: 'Yhteysvirhe. Yritä uudelleen.' }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Yhteysvirhe. Yritä uudelleen.', typing: true, shown: 0 }]);
       }
-    } catch (e) {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Yhteysvirhe. Tarkista verkkoyhteys.' }]);
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Yhteysvirhe. Tarkista verkkoyhteys.', typing: true, shown: 0 }]);
     } finally {
       setLoading(false);
     }
   };
+
+  // Typewriter: kirjoita uusin assistantin viesti merkki kerrallaan
+  useEffect(() => {
+    const idx = messages.findIndex(m => m.role === 'assistant' && m.typing);
+    if (idx === -1) return;
+    const msg = messages[idx];
+    const target = msg.content.length;
+    const current = msg.shown ?? 0;
+    if (current >= target) {
+      setMessages(prev => prev.map((m, i) => i === idx ? { ...m, typing: false, shown: target } : m));
+      return;
+    }
+    // Vaihteleva nopeus: pikkupauseet välimerkkien kohdalla, muuten ~12–18ms / merkki
+    const ch = msg.content[current];
+    const burst = current + 1 < target ? Math.min(target, current + 2) : target;
+    const delay = ch === '.' || ch === '!' || ch === '?' ? 220
+      : ch === ',' || ch === ';' ? 90
+      : ch === '\n' ? 60
+      : 14 + Math.random() * 10;
+    const t = setTimeout(() => {
+      setMessages(prev => prev.map((m, i) => i === idx ? { ...m, shown: burst } : m));
+    }, delay);
+    return () => clearTimeout(t);
+  }, [messages]);
+
+  // "Miettimisen" vaihtuva fraasi loading-aikana
+  const thinkingPool = pickThinkingPool(activeOrg || '', org?.name);
+  const [thinkingIdx, setThinkingIdx] = useState(0);
+  useEffect(() => {
+    if (!loading) return;
+    setThinkingIdx(Math.floor(Math.random() * thinkingPool.length));
+    const iv = setInterval(() => {
+      setThinkingIdx(i => (i + 1 + Math.floor(Math.random() * (thinkingPool.length - 1))) % thinkingPool.length);
+    }, 1900);
+    return () => clearInterval(iv);
+  }, [loading, thinkingPool.length]);
 
   // Ulkoinen tapahtuma: avaa paneeli ja aja jono viestejä demo-tarkoitukseen
   useEffect(() => {
@@ -385,7 +465,14 @@ export default function ChatFAB() {
                     fontSize: '.85rem', lineHeight: 1.6,
                   }}>
                     {msg.role === 'assistant' ? (
-                      <MarkdownText text={msg.content} />
+                      msg.typing ? (
+                        <div style={{ whiteSpace: 'pre-wrap', fontSize: '.85rem', lineHeight: 1.6 }}>
+                          {msg.content.slice(0, msg.shown ?? 0)}
+                          <span className="tw-cur" aria-hidden style={{ height: '1em', verticalAlign: '-.15em' }} />
+                        </div>
+                      ) : (
+                        <MarkdownText text={msg.content} />
+                      )
                     ) : (
                       <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
                     )}
@@ -396,8 +483,17 @@ export default function ChatFAB() {
               {loading && (
                 <div style={{ display: 'flex', gap: '.5rem' }}>
                   <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--pri)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.6rem', fontWeight: 700, color: '#fff', fontFamily: 'var(--font-display)' }}>M</div>
-                  <div style={{ padding: '.7rem 1rem', background: 'var(--elev)', borderRadius: 'var(--rl)' }}>
-                    <div className="typing"><span /><span /><span /></div>
+                  <div style={{ padding: '.7rem 1rem', background: 'var(--elev)', borderRadius: 'var(--rl)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span
+                      key={thinkingIdx}
+                      style={{
+                        fontSize: '.82rem', color: 'var(--ink2)', fontStyle: 'italic',
+                        animation: 'twThinkFade .35s ease-out',
+                      }}
+                    >
+                      {thinkingPool[thinkingIdx]}
+                    </span>
+                    <span className="tw-cur" aria-hidden style={{ height: '1em', verticalAlign: '-.15em' }} />
                   </div>
                 </div>
               )}
