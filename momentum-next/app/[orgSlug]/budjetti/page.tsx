@@ -16,6 +16,7 @@ import {
   calculateSplit, summarizeByCategory, totalForYear, fmtEur,
 } from '@/lib/budjetti-shared';
 import { IHAA_BUDGET_CATEGORIES, IHAA_BUDGET_SETTINGS } from '@/lib/ihaa-defaults';
+import BudgetPlanSection from '@/components/sections/BudgetPlanSection';
 
 // Koodi-defaultit orgSlugin perusteella. Jos Firestoressa on data, se voittaa.
 function defaultCategoriesForOrg(orgSlug: string): BudgetCategory[] {
@@ -49,6 +50,7 @@ export default function BudjettiPage() {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterPaidBy, setFilterPaidBy] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const [view, setView] = useState<'plan' | 'actual'>('plan');
 
   // Sync year picker with org's default
   useEffect(() => {
@@ -228,7 +230,21 @@ export default function BudjettiPage() {
   };
 
   return (
-    <AppShell title="Budjetti" subtitle={`${fmtEur(totals.expenses)} kuluja — ${totals.count} merkintää (${year})`}>
+    <AppShell title="Budjetti" subtitle={view === 'plan' ? 'Suunniteltu budjetti' : `${fmtEur(totals.expenses)} kuluja — ${totals.count} merkintää (${year})`}>
+      {/* View tabs */}
+      <div style={{ display: 'flex', gap: '.35rem', marginBottom: '1rem', background: 'var(--elev)', borderRadius: 'var(--r)', padding: '3px', width: 'fit-content' }}>
+        <button className={`cal-view-btn ${view === 'plan' ? 'act' : ''}`} onClick={() => setView('plan')}>
+          Suunnitelma
+        </button>
+        <button className={`cal-view-btn ${view === 'actual' ? 'act' : ''}`} onClick={() => setView('actual')}>
+          Toteuma
+        </button>
+      </div>
+
+      {view === 'plan' ? (
+        <BudgetPlanSection />
+      ) : (
+      <>
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
         <select
@@ -621,6 +637,8 @@ export default function BudjettiPage() {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </AppShell>
   );
