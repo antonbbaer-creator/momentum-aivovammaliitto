@@ -22,6 +22,7 @@ import { mergeAiProfile } from '@/lib/ihaa-defaults';
 import { workerFetch } from '@/lib/worker-fetch';
 import type { Meeting } from '@/lib/meetings-shared';
 import { YearPhase, parseLocalDate, normalizePhase } from '@/lib/yearwheel-shared';
+import QuickLinksSection from '@/components/sections/QuickLinksSection';
 
 const TONES = ['blue', 'green', 'yellow', 'pink', 'black'] as const;
 type Tone = typeof TONES[number];
@@ -377,7 +378,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <AppShell title="Koti" subtitle={org.name || ''}>
+    <AppShell title="Koti" subtitle={org.name || ''} hideTitle>
       {/* Hero */}
       <section className="hero">
         <div className="hero-l">
@@ -489,11 +490,14 @@ export default function DashboardPage() {
             </section>
           )}
 
+          {/* Pikalinkit — yhteiset + omat */}
+          <QuickLinksSection />
+
           {/* Tiimin aktiviteetti */}
           {activityItems.length > 0 && (
             <section style={{ marginBottom: 8 }}>
               <div className="sec-h">
-                <div className="t"><span className="n">04</span>Mitä tiimissä tapahtui</div>
+                <div className="t"><span className="n">05</span>Mitä tiimissä tapahtui</div>
                 <button className="btn-link" onClick={() => router.push(`/${orgSlug}/viestit`)}>Kaikki ↗</button>
               </div>
               <div className="activity">
@@ -531,7 +535,7 @@ export default function DashboardPage() {
             return (
               <section style={{ marginTop: 32, marginBottom: 16 }}>
                 <div className="sec-h">
-                  <div className="t"><span className="n">05</span>Hetki ehdottaa</div>
+                  <div className="t"><span className="n">06</span>Hetki ehdottaa</div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 0, border: '1px solid var(--rule)' }}>
                   <div onClick={() => askAI(statusPrompt)} style={{ padding: '20px 22px', cursor: 'pointer', background: 'var(--paper-l)', borderRight: isMobile ? 'none' : '1px solid var(--rule)', borderBottom: isMobile ? '1px solid var(--rule)' : 'none' }}>

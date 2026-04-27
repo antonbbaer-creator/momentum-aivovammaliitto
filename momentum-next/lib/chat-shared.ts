@@ -71,9 +71,36 @@ export interface UserChatState {
   muted?: string[];
   // Viimeksi avattu kanava (open-on-mount)
   activeChannelId?: string;
-  // Browser push -lupa kysytty
+  // Browser push -lupa kysytty (selain on jo tarjonnut natiivin lupakehotteen)
   pushAsked?: boolean;
+  // Notifikaatioasetukset (chat + tehtävät). Jos kentta puuttuu, oletukset:
+  //   enabled = false (vaatii kayttajan luvan), chatMessages = 'all', tasks = true.
+  notifPrefs?: NotifPrefs;
 }
+
+// ========== NOTIFIKAATIOT ==========
+
+export type ChatNotifLevel = 'all' | 'mentions' | 'none';
+
+export interface QuietHours {
+  start: string;   // 'HH:mm' (24h, kayttajan paikallinen aika)
+  end: string;     // 'HH:mm'
+  timezone?: string; // IANA-tz, oletus 'Europe/Helsinki'
+}
+
+export interface NotifPrefs {
+  enabled: boolean;                                      // master-toggle
+  chatMessages: ChatNotifLevel;                          // per-user oletus
+  perChannel?: Record<string, ChatNotifLevel>;           // override per kanava
+  tasks: boolean;                                        // tehtavailmoitukset
+  quietHours?: QuietHours;
+}
+
+export const DEFAULT_NOTIF_PREFS: NotifPrefs = {
+  enabled: false,
+  chatMessages: 'all',
+  tasks: true,
+};
 
 // ========== HELPERS ==========
 

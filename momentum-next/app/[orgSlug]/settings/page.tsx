@@ -10,6 +10,7 @@ import { db } from '@/lib/firebase';
 import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, getDefaultModules } from '@/lib/modules';
 import { useToast } from '@/lib/toast';
 import { connectDrive, disconnectDrive, useDriveStatus } from '@/lib/drive';
+import NotificationsSettings from '@/components/NotificationsSettings';
 
 interface Member { uid: string; displayName: string; email: string; photoURL: string; role: string; joinedAt: string; }
 
@@ -329,6 +330,9 @@ Tervetuloa mukaan!${inviter ? '\n\n— ' + inviter : ''}`;
               </div>
             )}
           </div>
+
+          {/* Ilmoitukset (web push) */}
+          <NotificationsSettings />
 
           {/* Teema (vaalea / tumma) */}
           <div style={{ marginTop: '.85rem' }}>

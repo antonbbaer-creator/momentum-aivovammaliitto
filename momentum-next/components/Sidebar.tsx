@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useModules } from '@/lib/modules';
 import { usePathname, useRouter, useParams } from 'next/navigation';
@@ -9,6 +9,13 @@ import { useOrgData } from '@/lib/firestore';
 import { OrgTeamMember, uniqueMembersByName, resolveUserMember } from '@/lib/team-shared';
 import { Assignable, effectiveStatus } from '@/lib/assignments-shared';
 import type { Grant } from '@/lib/grants-shared';
+import { isPersonalPath } from '@/lib/personal-shared';
+
+const PERSONAL_MODULES = [
+  { id: 'p-koti',      label: 'Koti',       path: '/oma/koti' },
+  { id: 'p-viikko',    label: 'Viikko',     path: '/oma/viikko' },
+  { id: 'p-asetukset', label: 'Asetukset',  path: '/oma/asetukset' },
+];
 
 interface MinimalTask extends Assignable { done?: boolean; deletedAt?: number; }
 interface MinimalProject { tasks?: MinimalTask[]; deletedAt?: number; archived?: boolean; }
@@ -24,10 +31,12 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const params = useParams();
+  const personalMode = isPersonalPath(pathname);
   const orgSlug = (params.orgSlug as string) || activeOrg || '';
+  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const currentOrg = orgs.find(o => o.orgId === orgSlug);
-  const banner = getOrgBanner(orgSlug);
+  const banner = personalMode ? null : getOrgBanner(orgSlug);
 
   const [tasksRaw] = useOrgData<MinimalTask[]>('tasks', []);
   const [projectsRaw] = useOrgData<MinimalProject[]>('projects', []);
@@ -72,7 +81,9 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
     .join('')
     .toUpperCase();
 
-  const orgShort = (currentOrg?.name || orgSlug || 'ORG').toUpperCase();
+  const orgShort = personalMode
+    ? 'HENKILÖKOHTAINEN'
+    : (currentOrg?.name || orgSlug || 'ORG').toUpperCase();
   const isAdmin = !!user?.email && ['anton@hetkicompany.com', 'anton.baer@gmail.com'].includes(user.email);
 
   const sidebarContent = (
@@ -81,7 +92,7 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
         <span className="h">Momentum</span>
       </div>
 
-      <div className="side-org" onClick={() => navigate(`/${orgSlug}/settings`)}>
+      <div className="side-org" onClick={() => setSwitcherOpen(v => !v)} style={{ position: 'relative' }}>
         <span className="lbl">Työtila</span>
         {banner ? (
           <img
@@ -96,27 +107,72 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
             <span style={{ fontSize: 10, color: 'var(--ink3)', letterSpacing: '.16em' }}>↕</span>
           </span>
         )}
+        {switcherOpen && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'absolute', left: 12, right: 12, top: '100%',
+              background: 'var(--paper)', border: '1px solid var(--rule)',
+              boxShadow: '0 8px 24px rgba(0,0,0,.08)', zIndex: 20, padding: '6px 0',
+            }}
+          >
+            {orgs.map(o => (
+              <div
+                key={o.orgId}
+                className={`nav-row ${o.orgId === orgSlug && !personalMode ? 'act' : ''}`}
+                onClick={() => { setSwitcherOpen(false); navigate(`/${o.orgId}/dashboard`); }}
+              >
+                <span className="num">·</span>
+                <span style={{ textTransform: 'none', letterSpacing: '.04em' }}>{o.name || o.orgId}</span>
+              </div>
+            ))}
+            <div style={{ height: 1, background: 'var(--rule)', margin: '6px 14px' }} />
+            <div
+              className={`nav-row ${personalMode ? 'act' : ''}`}
+              onClick={() => { setSwitcherOpen(false); navigate('/oma/koti'); }}
+            >
+              <span className="num">◉</span>
+              <span style={{ textTransform: 'none', letterSpacing: '.04em' }}>Henkilökohtainen</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <nav className="side-nav">
-        <div className="side-sec">Työkalut</div>
-        {enabledModules.map((m, i) => {
-          const active = pathname === `/${orgSlug}${m.path}` || pathname.startsWith(`/${orgSlug}${m.path}/`);
-          const showBadge = m.id === 'tyonjako' && tyonjakoBadge > 0;
-          return (
-            <div
-              key={m.id}
-              className={`nav-row ${active ? 'act' : ''}`}
-              onClick={() => navigate(`/${orgSlug}${m.path}`)}
-            >
-              <span className="num">{String(i + 1).padStart(2, '0')}</span>
-              <span>{m.label}</span>
-              {showBadge && <span className="badge">{tyonjakoBadge}</span>}
-            </div>
-          );
-        })}
+        <div className="side-sec">{personalMode ? 'Oma tila' : 'Työkalut'}</div>
+        {personalMode ? (
+          PERSONAL_MODULES.map((m, i) => {
+            const active = pathname === m.path || pathname.startsWith(`${m.path}/`);
+            return (
+              <div
+                key={m.id}
+                className={`nav-row ${active ? 'act' : ''}`}
+                onClick={() => navigate(m.path)}
+              >
+                <span className="num">{String(i + 1).padStart(2, '0')}</span>
+                <span>{m.label}</span>
+              </div>
+            );
+          })
+        ) : (
+          enabledModules.map((m, i) => {
+            const active = pathname === `/${orgSlug}${m.path}` || pathname.startsWith(`/${orgSlug}${m.path}/`);
+            const showBadge = m.id === 'tyonjako' && tyonjakoBadge > 0;
+            return (
+              <div
+                key={m.id}
+                className={`nav-row ${active ? 'act' : ''}`}
+                onClick={() => navigate(`/${orgSlug}${m.path}`)}
+              >
+                <span className="num">{String(i + 1).padStart(2, '0')}</span>
+                <span>{m.label}</span>
+                {showBadge && <span className="badge">{tyonjakoBadge}</span>}
+              </div>
+            );
+          })
+        )}
 
-        {isAdmin && (
+        {isAdmin && !personalMode && (
           <>
             <div className="side-sec" style={{ marginTop: 12 }}>Hallinta</div>
             <div
