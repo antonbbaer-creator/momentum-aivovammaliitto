@@ -301,12 +301,23 @@ export default function DashboardPage() {
   }, [yearPhases]);
   const currentPhaseIdx = yearPhasesView.findIndex(p => p.status === 'cur');
 
-  // Grants summary
+  // Grants summary — myönnetty + haetut tämän vuoden, ja upcoming = vielä
+  // avoinna olevat (status=planning, deadline tulevaisuudessa tai jatkuva).
   const grantsSummary = useMemo(() => {
-    const awarded = grants.filter(g => g.status === 'confirmed').reduce((s, g) => s + (g.amount || 0), 0);
-    const applied = grants.filter(g => ['applied', 'confirmed', 'rejected'].includes(g.status)).reduce((s, g) => s + (g.amount || 0), 0);
+    const currentYear = new Date().getFullYear();
+    const isThisYear = (g: Grant) => {
+      if (!g.deadline) return true; // jatkuva / vuosittainen
+      return new Date(g.deadline).getFullYear() === currentYear;
+    };
+    const awarded = grants
+      .filter(g => g.status === 'confirmed' && isThisYear(g))
+      .reduce((s, g) => s + (g.amount || 0), 0);
+    const applied = grants
+      .filter(g => g.status === 'applied' && isThisYear(g))
+      .reduce((s, g) => s + (g.amount || 0), 0);
+    const todayIso = new Date().toISOString().slice(0, 10);
     const upcoming = grants
-      .filter(g => g.status !== 'confirmed' && g.status !== 'rejected')
+      .filter(g => g.status === 'planning' && (!g.deadline || g.deadline >= todayIso))
       .sort((a, b) => (daysUntilDeadline(a) ?? 999999) - (daysUntilDeadline(b) ?? 999999))
       .slice(0, 3);
     return { awarded, applied, upcoming };
