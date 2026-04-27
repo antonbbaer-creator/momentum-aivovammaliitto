@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
-import { collection, getDocs, doc, deleteDoc, updateDoc, query, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc, updateDoc, query, setDoc, getDoc, where, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import AppShell from '@/components/AppShell';
 import { useToast } from '@/lib/toast';
@@ -69,35 +69,138 @@ export default function AdminPage() {
 
   const submitLink = async () => {
     if (!user || !linkEmail.trim() || !linkOrgId) return;
+    const norm = (s?: string) => (s || '').toLowerCase().trim();
     setLinkBusy(true);
     setLinkResult(null);
+    const steps: string[] = [];
+    const warnings: string[] = [];
+
     try {
-      const token = await user.getIdToken();
-      const r = await fetch('/api/admin/link-user-to-org', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          email: linkEmail.trim(),
-          orgId: linkOrgId,
-          memberName: linkMemberName.trim() || undefined,
-          role: linkRole,
-        }),
-      });
-      const data = await r.json();
-      setLinkResult(data);
-      if (data.ok) {
-        toast(`Liitetty ${linkEmail} → ${linkOrgId}`, 'success');
-        setLinkEmail(''); setLinkMemberName('');
-        // Lataa sivu uudelleen jotta käyttäjälistaus + jäsenet päivittyvät
-        setTimeout(() => window.location.reload(), 800);
+      // 1. UID — etsi users-collectionista (super-adminilla on list-oikeus)
+      const email = linkEmail.trim();
+      const target = norm(email);
+      const q = query(collection(db, 'users'), where('email', '==', email), limit(1));
+      const qSnap = await getDocs(q);
+      let uid: string | null = null;
+      let userData: Record<string, unknown> | null = null;
+      if (!qSnap.empty) {
+        uid = qSnap.docs[0].id;
+        userData = qSnap.docs[0].data();
       } else {
-        toast(data.error || 'Liitos epäonnistui', 'error');
+        // Fallback: case-insensitive scan paikallisesti ladatusta listasta
+        const found = allUsers.find(u => norm(u.email) === target);
+        if (found) { uid = found.uid; userData = found; }
       }
+      if (!uid) {
+        setLinkResult({
+          ok: false,
+          error: 'Käyttäjää ei löydy users-collectionista',
+          hint: 'Käyttäjän pitää olla kirjautunut Momentumiin vähintään kerran (Google-tilillä tai sähköpostilla) jotta UID syntyy.',
+        });
+        toast('Käyttäjää ei löydy', 'error');
+        return;
+      }
+      steps.push(`uid: ${uid}`);
+
+      // 2. Org-doc nimen hakua varten
+      const orgSnap = await getDoc(doc(db, 'organizations', linkOrgId));
+      if (!orgSnap.exists()) {
+        setLinkResult({ ok: false, error: `Organisaatiota "${linkOrgId}" ei löydy` });
+        toast('Org ei löydy', 'error');
+        return;
+      }
+      const orgName = (orgSnap.data() as { name?: string }).name || linkOrgId;
+
+      // 3. userOrgs/{uid}
+      const userOrgsRef = doc(db, 'userOrgs', uid);
+      const userOrgsSnap = await getDoc(userOrgsRef);
+      const cur = userOrgsSnap.exists()
+        ? userOrgsSnap.data() as { orgs?: Array<{ orgId: string; role: string; name: string }>; orgIds?: string[] }
+        : { orgs: [], orgIds: [] };
+      const orgsArr = Array.isArray(cur.orgs) ? cur.orgs.slice() : [];
+      const orgIds = Array.isArray(cur.orgIds) ? cur.orgIds.slice() : [];
+      if (orgIds.includes(linkOrgId)) {
+        steps.push(`userOrgs sisältää jo ${linkOrgId}`);
+      } else {
+        orgsArr.push({ orgId: linkOrgId, role: linkRole, name: orgName });
+        orgIds.push(linkOrgId);
+        await setDoc(userOrgsRef, { orgs: orgsArr, orgIds }, { merge: true });
+        steps.push(`+ userOrgs.orgs ja .orgIds (${linkOrgId})`);
+      }
+
+      // 4. organizations/{orgId}/members/{uid}
+      const memberRef = doc(db, 'organizations', linkOrgId, 'members', uid);
+      const memberSnap = await getDoc(memberRef);
+      if (memberSnap.exists()) {
+        steps.push(`members/${uid} on jo`);
+      } else {
+        await setDoc(memberRef, {
+          role: linkRole,
+          joinedAt: new Date().toISOString(),
+          displayName: (userData as { displayName?: string })?.displayName || null,
+          email: (userData as { email?: string })?.email || email,
+          photoURL: (userData as { photoURL?: string })?.photoURL || null,
+        });
+        steps.push(`+ organizations/${linkOrgId}/members/${uid}`);
+      }
+
+      // 5. orgTeamMembers — lisää linkedUserEmails
+      if (linkMemberName.trim()) {
+        const memberName = linkMemberName.trim();
+        const tmRef = doc(db, 'organizations', linkOrgId, 'data', 'orgTeamMembers');
+        const tmSnap = await getDoc(tmRef);
+        if (!tmSnap.exists()) {
+          warnings.push('orgTeamMembers-dokumentti ei ole vielä olemassa — ohitetaan linkitys');
+        } else {
+          let members: Array<Record<string, unknown>>;
+          try {
+            members = JSON.parse((tmSnap.data() as { v?: string }).v || '[]');
+          } catch {
+            warnings.push('orgTeamMembers v ei ole validia JSONia');
+            members = [];
+          }
+          if (Array.isArray(members)) {
+            const t = norm(memberName);
+            const tFirst = t.split(' ')[0];
+            let idx = members.findIndex(m => norm(m.name as string) === t);
+            if (idx < 0) idx = members.findIndex(m => norm(m.name as string).split(' ')[0] === tFirst);
+            if (idx < 0) {
+              warnings.push(`orgTeamMembersissä ei matchaavaa nimeä "${memberName}". Olemassa: ${members.map(m => m.name).join(', ')}`);
+            } else {
+              const m = members[idx];
+              const linked = Array.isArray(m.linkedUserEmails) ? (m.linkedUserEmails as string[]).slice() : [];
+              if (linked.map(norm).includes(norm(email))) {
+                steps.push(`linkedUserEmails sisältää jo ${email}`);
+              } else {
+                linked.push(email);
+                members[idx] = { ...m, linkedUserEmails: linked, email: m.email || email };
+                await setDoc(tmRef, {
+                  v: JSON.stringify(members),
+                  ts: Date.now(),
+                  updatedBy: user.uid,
+                });
+                steps.push(`+ linkedUserEmails: "${m.name}" → ${email}`);
+              }
+            }
+          }
+        }
+      }
+
+      setLinkResult({ ok: true, steps, warnings });
+      toast(`Liitetty ${email} → ${linkOrgId}`, 'success');
+      setLinkEmail(''); setLinkMemberName('');
+      // Lataa sivu uudelleen jotta käyttäjälistaus + jäsenet päivittyvät
+      setTimeout(() => window.location.reload(), 1200);
     } catch (e) {
-      setLinkResult({ ok: false, error: String(e) });
+      console.error('submitLink failed:', e);
+      setLinkResult({
+        ok: false,
+        error: 'Operaatio epäonnistui',
+        detail: String(e),
+        hint: 'Tarkista että olet super-admin (Firestore-säännöissä) ja että orgId on oikea.',
+        steps,
+        warnings,
+      });
       toast(String(e), 'error');
     } finally {
       setLinkBusy(false);
