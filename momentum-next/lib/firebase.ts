@@ -1,5 +1,5 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, browserSessionPersistence } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getMessaging, isSupported, type Messaging } from 'firebase/messaging';
@@ -15,9 +15,10 @@ export const firebaseConfig = {
 
 const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 export const auth = getAuth(app);
-// Session persistence: auth expires when browser closes
+// Local persistence: sessio säilyy selaimen sulkemisen yli (localStorage).
+// Käyttäjän pitää nimenomaisesti kirjautua ulos sulkeakseen session.
 auth.settings.appVerificationDisabledForTesting = false;
-export const persistenceReady = auth.setPersistence(browserSessionPersistence);
+export const persistenceReady = auth.setPersistence(browserLocalPersistence);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();

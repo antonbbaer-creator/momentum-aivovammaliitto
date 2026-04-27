@@ -32,7 +32,13 @@ interface OrgData {
 }
 
 // Super admin emails — only these can access /admin
-const SUPER_ADMINS = ['anton@hetkicompany.com', 'anton.baer@gmail.com', 'claude-test@hetkicompany.com'];
+const SUPER_ADMINS = [
+  'anton@hetkicompany.com',
+  'anton.baer@gmail.com',
+  'anton.b.baer@gmail.com',
+  'anton.baer@kinolapinlahti.fi',
+  'claude-test@hetkicompany.com',
+];
 
 export default function AdminPage() {
   const { user, loading, orgs: userOrgs } = useAuth();
@@ -52,6 +58,51 @@ export default function AdminPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
   const [inviteOrgId, setInviteOrgId] = useState('');
+
+  // Liitä käyttäjä organisaatioon -lomake (super-admin)
+  const [linkEmail, setLinkEmail] = useState('');
+  const [linkOrgId, setLinkOrgId] = useState('');
+  const [linkRole, setLinkRole] = useState<'owner' | 'admin' | 'member' | 'visitor'>('member');
+  const [linkMemberName, setLinkMemberName] = useState('');
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkResult, setLinkResult] = useState<{ ok: boolean; steps?: string[]; warnings?: string[]; error?: string } | null>(null);
+
+  const submitLink = async () => {
+    if (!user || !linkEmail.trim() || !linkOrgId) return;
+    setLinkBusy(true);
+    setLinkResult(null);
+    try {
+      const token = await user.getIdToken();
+      const r = await fetch('/api/admin/link-user-to-org', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          email: linkEmail.trim(),
+          orgId: linkOrgId,
+          memberName: linkMemberName.trim() || undefined,
+          role: linkRole,
+        }),
+      });
+      const data = await r.json();
+      setLinkResult(data);
+      if (data.ok) {
+        toast(`Liitetty ${linkEmail} → ${linkOrgId}`, 'success');
+        setLinkEmail(''); setLinkMemberName('');
+        // Lataa sivu uudelleen jotta käyttäjälistaus + jäsenet päivittyvät
+        setTimeout(() => window.location.reload(), 800);
+      } else {
+        toast(data.error || 'Liitos epäonnistui', 'error');
+      }
+    } catch (e) {
+      setLinkResult({ ok: false, error: String(e) });
+      toast(String(e), 'error');
+    } finally {
+      setLinkBusy(false);
+    }
+  };
 
   // Ihaa-form
   const [iiroEmail, setIiroEmail] = useState('');
@@ -1299,6 +1350,76 @@ export default function AdminPage() {
           {/* ═══ USERS TAB ═══ */}
           {tab === 'users' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+              {/* Liitä käyttäjä organisaatioon -lomake */}
+              <div style={{
+                padding: '1rem 1.25rem', marginBottom: '.5rem',
+                background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+              }}>
+                <div style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: '.5rem' }}>
+                  Liitä käyttäjä organisaatioon
+                </div>
+                <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginBottom: '.75rem' }}>
+                  Käyttäjän pitää olla kirjautunut Momentumiin vähintään kerran (jotta UID syntyy users-collectioniin). Tämä lisää käyttäjän userOrgs-listaan, organisation members-subcollectioniin sekä linkittää orgTeamMembers-jäseneen jotta tehtävät tunnistuvat.
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1.5fr auto', gap: '.5rem', alignItems: 'center' }}>
+                  <input
+                    className="input"
+                    placeholder="Sähköposti"
+                    value={linkEmail}
+                    onChange={e => setLinkEmail(e.target.value)}
+                    style={{ fontSize: '.82rem' }}
+                  />
+                  <select
+                    className="input"
+                    value={linkOrgId}
+                    onChange={e => setLinkOrgId(e.target.value)}
+                    style={{ fontSize: '.78rem' }}
+                  >
+                    <option value="">— org —</option>
+                    {orgs.map(o => <option key={o.id} value={o.id}>{o.name} ({o.id})</option>)}
+                  </select>
+                  <select
+                    className="input"
+                    value={linkRole}
+                    onChange={e => setLinkRole(e.target.value as 'owner' | 'admin' | 'member' | 'visitor')}
+                    style={{ fontSize: '.78rem' }}
+                  >
+                    <option value="member">Jäsen</option>
+                    <option value="admin">Admin</option>
+                    <option value="owner">Owner</option>
+                    <option value="visitor">Vierailija</option>
+                  </select>
+                  <input
+                    className="input"
+                    placeholder="orgTeamMembers-nimi (esim. Hanna Hovitie)"
+                    value={linkMemberName}
+                    onChange={e => setLinkMemberName(e.target.value)}
+                    style={{ fontSize: '.82rem' }}
+                    title="Jos tyhjä, vain userOrgs ja members lisätään. Anna nimi jos haluat että käyttäjä yhdistetään orgTeamMembers-jäseneen tehtävien linkittymistä varten."
+                  />
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={submitLink}
+                    disabled={!linkEmail.trim() || !linkOrgId || linkBusy}
+                  >
+                    {linkBusy ? 'Liitetään…' : 'Liitä'}
+                  </button>
+                </div>
+                {linkResult && (
+                  <div style={{
+                    marginTop: '.75rem', padding: '.5rem .75rem', fontSize: '.72rem',
+                    background: linkResult.ok ? 'rgba(42,138,134,.08)' : 'rgba(228,92,129,.08)',
+                    border: `1px solid ${linkResult.ok ? '#2a8a86' : '#e45c81'}`,
+                    borderRadius: 'var(--rs)',
+                    fontFamily: 'var(--font-mono, monospace)',
+                  }}>
+                    {linkResult.error && <div>Virhe: {linkResult.error}</div>}
+                    {linkResult.steps?.map((s, i) => <div key={i}>· {s}</div>)}
+                    {linkResult.warnings?.map((w, i) => <div key={i} style={{ color: '#e45c81' }}>! {w}</div>)}
+                  </div>
+                )}
+              </div>
+
               {allUsers.map(u => {
                 const userOrgs = orgs.filter(o => o.members.some(m => m.uid === u.uid));
                 return (
@@ -1334,6 +1455,20 @@ export default function AdminPage() {
                         <span style={{ fontSize: '.68rem', color: 'var(--t3)', fontStyle: 'italic' }}>Ei organisaatioita</span>
                       )}
                     </div>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => {
+                        setLinkEmail(u.email || '');
+                        setLinkMemberName(u.displayName || '');
+                        setLinkResult(null);
+                        // Vieritä lomakkeeseen
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      style={{ fontSize: '.72rem', flexShrink: 0 }}
+                      title="Esitäytä yllä oleva lomake tämän käyttäjän tiedoilla"
+                    >
+                      Liitä orgiin
+                    </button>
                     {u.email && !SUPER_ADMINS.includes(u.email) && (
                       <button className="btn btn-ghost btn-sm" onClick={() => deleteUser(u.uid)}
                         style={{ color: 'var(--red)', fontSize: '.72rem', flexShrink: 0 }}>
