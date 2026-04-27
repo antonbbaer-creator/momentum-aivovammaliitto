@@ -65,7 +65,7 @@ export default function AdminPage() {
   const [linkRole, setLinkRole] = useState<'owner' | 'admin' | 'member' | 'visitor'>('member');
   const [linkMemberName, setLinkMemberName] = useState('');
   const [linkBusy, setLinkBusy] = useState(false);
-  const [linkResult, setLinkResult] = useState<{ ok: boolean; steps?: string[]; warnings?: string[]; error?: string } | null>(null);
+  const [linkResult, setLinkResult] = useState<{ ok: boolean; steps?: string[]; warnings?: string[]; error?: string; hint?: string; detail?: string } | null>(null);
 
   const submitLink = async () => {
     if (!user || !linkEmail.trim() || !linkOrgId) return;
@@ -1361,14 +1361,35 @@ export default function AdminPage() {
                 <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginBottom: '.75rem' }}>
                   Käyttäjän pitää olla kirjautunut Momentumiin vähintään kerran (jotta UID syntyy users-collectioniin). Tämä lisää käyttäjän userOrgs-listaan, organisation members-subcollectioniin sekä linkittää orgTeamMembers-jäseneen jotta tehtävät tunnistuvat.
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1.5fr auto', gap: '.5rem', alignItems: 'center' }}>
-                  <input
+                <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr 1fr 1.5fr auto', gap: '.5rem', alignItems: 'center' }}>
+                  <select
                     className="input"
-                    placeholder="Sähköposti"
                     value={linkEmail}
-                    onChange={e => setLinkEmail(e.target.value)}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setLinkEmail(val);
+                      // Esitäytä memberName valitun käyttäjän displayNamesta
+                      const picked = allUsers.find(u => u.email === val);
+                      if (picked && picked.displayName) {
+                        setLinkMemberName(picked.displayName);
+                      }
+                    }}
                     style={{ fontSize: '.82rem' }}
-                  />
+                  >
+                    <option value="">— valitse käyttäjä —</option>
+                    {allUsers
+                      .slice()
+                      .sort((a, b) => (a.displayName || a.email || '').localeCompare(b.displayName || b.email || ''))
+                      .map(u => {
+                        const userOrgsCount = orgs.filter(o => o.members.some(m => m.uid === u.uid)).length;
+                        const label = `${u.displayName || '(nimetön)'} · ${u.email || u.uid}${userOrgsCount === 0 ? ' · ei orgia' : ` · ${userOrgsCount} org`}`;
+                        return (
+                          <option key={u.uid} value={u.email || ''}>
+                            {label}
+                          </option>
+                        );
+                      })}
+                  </select>
                   <select
                     className="input"
                     value={linkOrgId}
@@ -1391,11 +1412,11 @@ export default function AdminPage() {
                   </select>
                   <input
                     className="input"
-                    placeholder="orgTeamMembers-nimi (esim. Hanna Hovitie)"
+                    placeholder="orgTeamMembers-nimi"
                     value={linkMemberName}
                     onChange={e => setLinkMemberName(e.target.value)}
                     style={{ fontSize: '.82rem' }}
-                    title="Jos tyhjä, vain userOrgs ja members lisätään. Anna nimi jos haluat että käyttäjä yhdistetään orgTeamMembers-jäseneen tehtävien linkittymistä varten."
+                    title="Esitäyttyy automaattisesti valitusta käyttäjästä. Voi muokata jos orgTeamMembersissä jäsenen nimi eroaa (esim. 'Hanna' vs 'Hanna Hovitie')."
                   />
                   <button
                     className="btn btn-primary btn-sm"
@@ -1405,6 +1426,9 @@ export default function AdminPage() {
                     {linkBusy ? 'Liitetään…' : 'Liitä'}
                   </button>
                 </div>
+                <div style={{ marginTop: '.5rem', fontSize: '.7rem', color: 'var(--t3)' }}>
+                  {allUsers.length} rekisteröityä käyttäjää · käyttäjät joissa &quot;ei orgia&quot; ovat ensisijaisia liitettäviä
+                </div>
                 {linkResult && (
                   <div style={{
                     marginTop: '.75rem', padding: '.5rem .75rem', fontSize: '.72rem',
@@ -1413,7 +1437,18 @@ export default function AdminPage() {
                     borderRadius: 'var(--rs)',
                     fontFamily: 'var(--font-mono, monospace)',
                   }}>
-                    {linkResult.error && <div>Virhe: {linkResult.error}</div>}
+                    {linkResult.error && <div><strong>Virhe:</strong> {linkResult.error}</div>}
+                    {linkResult.hint && (
+                      <div style={{ marginTop: '.4rem', fontFamily: 'inherit', fontStyle: 'italic' }}>
+                        💡 {linkResult.hint}
+                      </div>
+                    )}
+                    {linkResult.detail && (
+                      <details style={{ marginTop: '.4rem' }}>
+                        <summary style={{ cursor: 'pointer' }}>Tekninen virhe</summary>
+                        <div style={{ marginTop: '.3rem', wordBreak: 'break-all' }}>{linkResult.detail}</div>
+                      </details>
+                    )}
                     {linkResult.steps?.map((s, i) => <div key={i}>· {s}</div>)}
                     {linkResult.warnings?.map((w, i) => <div key={i} style={{ color: '#e45c81' }}>! {w}</div>)}
                   </div>

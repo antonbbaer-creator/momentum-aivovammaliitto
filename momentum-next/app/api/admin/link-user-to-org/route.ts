@@ -4,7 +4,7 @@
 // linkUserToOrg-logiikkaa.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb, adminMode } from '@/lib/firebase-admin';
 import { getAuth } from 'firebase-admin/auth';
 import { linkUserToOrg, LinkRole } from '@/lib/admin/link-user-to-org';
 
@@ -35,11 +35,25 @@ export async function POST(req: NextRequest) {
   try {
     const decoded = await getAuth().verifyIdToken(match[1]);
     callerEmail = (decoded.email || '').toLowerCase();
-  } catch {
-    return NextResponse.json({ error: 'invalid_token' }, { status: 401 });
+  } catch (e) {
+    console.error('verifyIdToken failed:', e);
+    const mode = adminMode();
+    return NextResponse.json({
+      error: 'invalid_token',
+      detail: String(e),
+      hint: mode === 'project-only'
+        ? 'Server ei tunne service accountia. Aseta FIREBASE_ADMIN_KEY .env.local -tiedostoon (Firebase Console → Project Settings → Service Accounts → Generate new private key, base64-pakattuna).'
+        : 'Token saattaa olla vanhentunut tai eri Firebase-projektista. Kirjaudu ulos ja takaisin.',
+    }, { status: 401 });
   }
   if (!callerEmail || !SUPER_ADMINS.map(s => s.toLowerCase()).includes(callerEmail)) {
-    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    return NextResponse.json({ error: 'forbidden', email: callerEmail }, { status: 403 });
+  }
+  if (adminMode() === 'project-only') {
+    return NextResponse.json({
+      error: 'admin_not_configured',
+      hint: 'Firestore-kirjoitukset vaativat FIREBASE_ADMIN_KEY -env-muuttujan. Aseta se .env.local -tiedostoon ja käynnistä dev-palvelin uudelleen.',
+    }, { status: 500 });
   }
 
   let body: Payload;
