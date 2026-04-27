@@ -16,6 +16,7 @@ import {
   OrgTeamMember,
   resolveUserMember,
 } from '@/lib/team-shared';
+import { includesAssignee, effectiveStatus } from '@/lib/assignments-shared';
 import { getGrantsKey, getOrgGrants, getOrgTeamMembers } from '@/lib/org-defaults';
 import MarkdownText from '@/components/MarkdownText';
 import { mergeAiProfile } from '@/lib/ihaa-defaults';
@@ -47,6 +48,7 @@ export default function DashboardPage() {
   const [aiProfileRaw] = useOrgData<any>('aiProfile', {});
   const aiProfile = (mergeAiProfile(orgSlug, aiProfileRaw) || {}) as Record<string, any>;
   const [projects, setProjects] = useOrgData<any[]>('projects', []);
+  const [standaloneTasks] = useOrgData<any[]>('tasks', []);
   const [teamMessages, setTeamMessages] = useOrgData<any[]>('teamMessages', []);
   const [rawGrants] = useOrgData<Grant[]>(getGrantsKey(orgSlug), getOrgGrants(orgSlug));
   const [orgMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
@@ -104,15 +106,24 @@ export default function DashboardPage() {
     return () => clearTimeout(timer);
   }, [greetingFull]);
 
-  const myTasks = useMemo(() => projects.flatMap((p: any) =>
-    (p.tasks || []).map((t: any, ti: number) => ({ ...t, projectName: p.t, projectId: p.id, taskIndex: ti, projectTone: p.tone }))
-  ).filter((t: any) => {
-    if (t.done) return false;
-    if (!t.assignee) return false;
-    if (t.assignee === user?.displayName) return true;
-    if (myMember && t.assignee === myMember.name) return true;
-    return false;
-  }), [projects, user?.displayName, myMember]);
+  const myTasks = useMemo(() => {
+    const myName = myMember?.name || user?.displayName || '';
+    if (!myName) return [];
+    const fromProjects = projects.flatMap((p: any) =>
+      (p.tasks || []).map((t: any, ti: number) => ({
+        ...t,
+        projectName: p.t, projectId: p.id, taskIndex: ti, projectTone: p.tone,
+      }))
+    );
+    const fromStandalone = (standaloneTasks || [])
+      .filter((t: any) => !t.deletedAt)
+      .map((t: any) => ({ ...t, projectName: 'Tehtävät', projectId: null, taskIndex: -1, projectTone: undefined }));
+    return [...fromProjects, ...fromStandalone].filter((t: any) => {
+      if (t.done) return false;
+      if (effectiveStatus(t) === 'rejected') return false;
+      return includesAssignee(t, myName);
+    });
+  }, [projects, standaloneTasks, myMember, user?.displayName]);
 
   // Project tone map for color-coding
   const projectToneMap = useMemo(() => {
