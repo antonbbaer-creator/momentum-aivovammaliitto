@@ -54,8 +54,8 @@ export interface AssignedTaskMirror {
   compositeId: string;
   orgId: string;
   orgName?: string;
-  sourceType: 'task' | 'projectTask' | 'grantSubtask';
-  sourceId?: string;          // projectId / grantId / undefined kun root-task
+  sourceType: 'task' | 'projectTask' | 'grantSubtask' | 'noteAction';
+  sourceId?: string;          // projectId / grantId / noteId / undefined kun root-task
   taskId: string;
   text: string;
   deadline?: string;

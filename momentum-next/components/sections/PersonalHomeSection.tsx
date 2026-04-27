@@ -86,19 +86,26 @@ export default function PersonalHomeSection() {
                   {list[0]?.orgName || orgId}
                 </div>
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {list.map((t: AssignedTaskMirror) => (
-                    <li key={t.compositeId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--rule)' }}>
-                      <span style={{ width: 12, height: 12, border: '1px solid var(--ink2)', display: 'inline-block', flexShrink: 0 }} />
-                      <a
-                        href={`/${t.orgId}/tyonjako`}
-                        style={{ color: 'var(--ink)', textDecoration: 'none', flex: 1 }}
-                      >
-                        {t.text}
-                      </a>
-                      {t.deadline && <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{t.deadline}</span>}
-                      {t.status === 'rejected' && <span style={{ fontSize: 10, color: '#e45c81', letterSpacing: '.12em', textTransform: 'uppercase' }}>Hylätty</span>}
-                    </li>
-                  ))}
+                  {list.map((t: AssignedTaskMirror) => {
+                    const href = t.sourceType === 'noteAction'
+                      ? `/${t.orgId}/muistiinpanot`
+                      : `/${t.orgId}/tyonjako`;
+                    return (
+                      <li key={t.compositeId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--rule)' }}>
+                        <span style={{ width: 12, height: 12, border: '1px solid var(--ink2)', display: 'inline-block', flexShrink: 0 }} />
+                        <a
+                          href={href}
+                          style={{ color: 'var(--ink)', textDecoration: 'none', flex: 1 }}
+                        >
+                          {t.text}
+                        </a>
+                        {t.deadline && <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{t.deadline}</span>}
+                        {t.status === 'pending' && <span style={{ fontSize: 10, color: '#d97706', letterSpacing: '.12em', textTransform: 'uppercase' }}>Odottaa</span>}
+                        {t.sourceType === 'noteAction' && <span style={{ fontSize: 10, color: 'var(--ink3)', letterSpacing: '.12em', textTransform: 'uppercase' }}>Palaveri</span>}
+                        {t.status === 'rejected' && <span style={{ fontSize: 10, color: '#e45c81', letterSpacing: '.12em', textTransform: 'uppercase' }}>Hylätty</span>}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             ))}

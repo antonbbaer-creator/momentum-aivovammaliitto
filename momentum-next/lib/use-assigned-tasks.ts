@@ -40,12 +40,29 @@ interface MinimalGrant {
   deletedAt?: number;
 }
 
+interface MinimalActionItem {
+  text: string;
+  assignee?: string;
+  assignees?: string[];
+  confirmed?: boolean;
+  linkedTaskId?: string;
+}
+
+interface MinimalNote {
+  id: string;
+  title?: string;
+  date?: string;
+  actionItems?: MinimalActionItem[];
+  deletedAt?: number;
+}
+
 interface OrgState {
   orgId: string;
   orgName?: string;
   tasks: MinimalTask[];
   projects: MinimalProject[];
   grants: MinimalGrant[];
+  notes: MinimalNote[];
   members: OrgTeamMember[];
 }
 
@@ -98,13 +115,14 @@ export function useAssignedTasks(): {
           tasks: [],
           projects: [],
           grants: [],
+          notes: [],
           members: getOrgTeamMembers(o.orgId),
         };
       }
       return init;
     });
 
-    let pendingFirstLoads = orgs.length * 4; // tasks, projects, grants, members per org
+    let pendingFirstLoads = orgs.length * 5; // tasks, projects, grants, notes, members per org
 
     const markLoaded = () => {
       pendingFirstLoads--;
@@ -143,6 +161,17 @@ export function useAssignedTasks(): {
         (snap) => {
           const arr = parseV<MinimalGrant[]>(snap.data() as any, []);
           setPerOrg(prev => ({ ...prev, [orgId]: { ...prev[orgId], grants: arr } }));
+          markLoaded();
+        },
+        () => markLoaded(),
+      ));
+
+      // meeting notes (action items)
+      unsubs.push(onSnapshot(
+        doc(db, 'organizations', orgId, 'data', 'meetingNotes'),
+        (snap) => {
+          const arr = parseV<MinimalNote[]>(snap.data() as any, []);
+          setPerOrg(prev => ({ ...prev, [orgId]: { ...prev[orgId], notes: arr } }));
           markLoaded();
         },
         () => markLoaded(),
@@ -220,6 +249,36 @@ export function useAssignedTasks(): {
       for (const g of state.grants || []) {
         if (g.deletedAt) continue;
         for (const s of g.subtasks || []) visit(s, 'grantSubtask', g.id);
+      }
+
+      // Vahvistamattomat actionItems palaverimuistiinpanoista — näytetään vain
+      // jos linkitettyä tehtävää ei ole vielä luotu (legacy-tapaus). Uudet itemit
+      // tekevät automaattisesti tehtävän muistiinpanot/page.tsx:ssä.
+      for (const note of state.notes || []) {
+        if (note.deletedAt) continue;
+        const items = note.actionItems || [];
+        items.forEach((item, idx) => {
+          if (item.confirmed || item.linkedTaskId) return;
+          const assignees = (item.assignees && item.assignees.length > 0)
+            ? item.assignees
+            : (item.assignee ? [item.assignee] : []);
+          const matches = assignees.includes(myName) || assignees.includes('Kaikki');
+          if (!matches) return;
+          if (!item.text) return;
+          out.push({
+            compositeId: `${state.orgId}__noteAction__${note.id}__${idx}`,
+            orgId: state.orgId,
+            orgName: state.orgName,
+            sourceType: 'noteAction',
+            sourceId: note.id,
+            taskId: `${note.id}__${idx}`,
+            text: item.text,
+            status: 'pending',
+            done: false,
+            assignedBy: undefined,
+            updatedAt: Date.now(),
+          });
+        });
       }
     }
 

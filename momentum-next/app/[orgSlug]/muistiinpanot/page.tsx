@@ -8,7 +8,7 @@ import { useToast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { getOrgTeamMembers } from '@/lib/org-defaults';
 import { OrgTeamMember, uniqueMembersByName, resolveUserMember } from '@/lib/team-shared';
-import { buildAssignment } from '@/lib/assignments-shared';
+import { buildAssignment, setAssigneesAction } from '@/lib/assignments-shared';
 import { useIsMobile } from '@/lib/use-mobile';
 import { softDelete, filterActive } from '@/lib/trash';
 import { workerFetch } from '@/lib/worker-fetch';
@@ -17,9 +17,18 @@ import { useDriveStatus, getFileContent, exportToDoc } from '@/lib/drive';
 
 interface ActionItem {
   text: string;
-  assignee: string;
-  confirmed?: boolean;
+  assignee: string;            // legacy: ensimmäinen assignee tai 'Kaikki'
+  assignees?: string[];        // useampi tekijä (uusi); jos puuttuu, käytetään assignee-kenttää
+  confirmed?: boolean;         // true kun käyttäjä on lisännyt projektiin/luonut projektin (eli "siirretty pois palaverista")
+  linkedTaskId?: string;       // automaattisesti luotu standalone-tehtävä data/tasks-listassa
 }
+
+// Lue actionItemin tekijät joko uudesta tai vanhasta kentästä.
+const getActionAssignees = (item: ActionItem): string[] => {
+  if (Array.isArray(item.assignees) && item.assignees.length > 0) return item.assignees;
+  if (item.assignee) return [item.assignee];
+  return [];
+};
 
 interface MeetingNote {
   id: string;
@@ -61,7 +70,7 @@ export default function MuistiinpanotPage() {
   const [refiningContext, setRefiningContext] = useState(false);
   const [showAddAction, setShowAddAction] = useState(false);
   const [newActionText, setNewActionText] = useState('');
-  const [newActionAssignee, setNewActionAssignee] = useState('');
+  const [newActionAssignees, setNewActionAssignees] = useState<string[]>([]);
 
   // Text-to-speech state
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -362,14 +371,88 @@ Paivitetty yhteenveto:`;
     }));
   };
 
-  const addActionItem = (noteId: string, text: string, assignee: string) => {
+  // Laajenna 'Kaikki' kaikiksi tiimijäsenten nimiksi tehtävän tekijöitä rakennettaessa.
+  // Säilyy actionItem.assignees-listassa 'Kaikki'-merkkijonona luettavuuden vuoksi,
+  // mutta linkitetyssä tehtävässä jokainen jäsen on eksplisiittisesti listattu.
+  const expandAssignees = (names: string[]): string[] => {
+    if (!names.includes('Kaikki')) return names;
+    const memberNames = members.map(m => m.name);
+    const others = names.filter(n => n !== 'Kaikki');
+    return Array.from(new Set([...memberNames, ...others]));
+  };
+
+  const addActionItem = (noteId: string, text: string, assignees: string[]) => {
     if (!text.trim()) return;
-    const item: ActionItem = { text: text.trim(), assignee: assignee || '', confirmed: false };
+    const note = notes.find(n => n.id === noteId);
+    const item: ActionItem = {
+      text: text.trim(),
+      assignee: assignees[0] || '',
+      assignees: assignees.length > 0 ? assignees : undefined,
+      confirmed: false,
+    };
+    // Auto-luo standalone-tehtävä jos tekijöitä on annettu — näin se näkyy heti kotisivulla.
+    if (assignees.length > 0) {
+      const expanded = expandAssignees(assignees);
+      const newId = 't_' + Date.now();
+      const newTask = {
+        id: newId,
+        text: text.trim(),
+        hankkia: false,
+        done: false,
+        priority: 'normal' as const,
+        note: note ? `Palaverista: ${note.title} (${note.date})` : 'Palaverista',
+        ...buildAssignment(expanded, myName),
+      };
+      setTasks(prev => [newTask, ...prev]);
+      item.linkedTaskId = newId;
+    }
     setNotes(prev => prev.map(n => {
       if (n.id !== noteId) return n;
       return { ...n, actionItems: [...(n.actionItems || []), item] };
     }));
-    toast('Toimenpide lisätty', 'success');
+    toast(assignees.length > 0 ? `Tehtävä luotu: ${assignees.join(', ')}` : 'Toimenpide lisätty', 'success');
+  };
+
+  // Synkronoi olemassa olevan actionItemin tekijät: luo tehtävä jos ei vielä ole,
+  // tai päivitä olemassa olevan linkitetyn tehtävän tekijät.
+  const setActionItemAssignees = (noteId: string, idx: number, newAssignees: string[]) => {
+    const note = notes.find(n => n.id === noteId);
+    const item = note?.actionItems?.[idx];
+    if (!note || !item) return;
+    const cleaned = newAssignees.filter(a => a && a.trim());
+
+    // Päivitä actionItem
+    updateActionItem(noteId, idx, {
+      assignee: cleaned[0] || '',
+      assignees: cleaned.length > 0 ? cleaned : undefined,
+    });
+
+    const expanded = expandAssignees(cleaned);
+
+    // Jos linkitetty tehtävä on jo olemassa → päivitä sen tekijät
+    if (item.linkedTaskId) {
+      setTasks(prev => prev.map(t =>
+        t.id === item.linkedTaskId
+          ? { ...(setAssigneesAction(t as any, expanded, myName) as any) }
+          : t
+      ));
+      return;
+    }
+
+    // Muuten luo uusi linkitetty tehtävä jos tekijöitä on
+    if (cleaned.length === 0) return;
+    const newId = 't_' + Date.now();
+    const newTask = {
+      id: newId,
+      text: item.text,
+      hankkia: false,
+      done: false,
+      priority: 'normal' as const,
+      note: `Palaverista: ${note.title} (${note.date})`,
+      ...buildAssignment(expanded, myName),
+    };
+    setTasks(prev => [newTask, ...prev]);
+    updateActionItem(noteId, idx, { linkedTaskId: newId });
   };
 
   const removeActionItem = (noteId: string, idx: number) => {
@@ -379,23 +462,31 @@ Paivitetty yhteenveto:`;
     }));
   };
 
-  // Lisää toimenpide olemassa olevaan projektiin projektin tasks[]-listaan
+  // Lisää toimenpide olemassa olevaan projektiin projektin tasks[]-listaan.
+  // Jos actionItem oli auto-linkattuna standalone-tehtävään, poistetaan se sieltä
+  // siirron yhteydessä ettei sama tehtävä esiinny kahdessa paikassa.
   const addActionToProject = (noteId: string, idx: number, projectId: number) => {
     const note = notes.find(n => n.id === noteId);
     const item = note?.actionItems?.[idx];
     if (!item) return;
+    const itemAssignees = getActionAssignees(item);
     const newTask = {
       id: Date.now(),
       text: item.text,
       done: false,
-      assignee: item.assignee || '',
+      assignee: itemAssignees[0] || '',
+      assignees: itemAssignees.length > 0 ? itemAssignees : undefined,
       deadline: '',
+      ...buildAssignment(itemAssignees.length > 0 ? itemAssignees : undefined, myName),
     };
     setProjects(prev => prev.map(p => p.id === projectId
       ? { ...p, tasks: [...(p.tasks || []), newTask] }
       : p
     ));
-    updateActionItem(noteId, idx, { confirmed: true });
+    if (item.linkedTaskId) {
+      setTasks(prev => prev.filter(t => t.id !== item.linkedTaskId));
+    }
+    updateActionItem(noteId, idx, { confirmed: true, linkedTaskId: undefined });
     const proj = projects.find(p => p.id === projectId);
     toast(`Lisätty projektiin: ${proj?.t || 'projekti'}`, 'success');
     setProjectMenuFor(null);
@@ -419,38 +510,28 @@ Paivitetty yhteenveto:`;
       deadline: '',
       team: [],
       comments: [],
-      tasks: [{
-        id: Date.now() + 1,
-        text: item.text,
-        done: false,
-        assignee: item.assignee || '',
-        deadline: '',
-      }],
+      tasks: [(() => {
+        const itemAssignees = getActionAssignees(item);
+        return {
+          id: Date.now() + 1,
+          text: item.text,
+          done: false,
+          assignee: itemAssignees[0] || '',
+          assignees: itemAssignees.length > 0 ? itemAssignees : undefined,
+          deadline: '',
+          ...buildAssignment(itemAssignees.length > 0 ? itemAssignees : undefined, myName),
+        };
+      })()],
       archived: false,
       createdAt: Date.now(),
     };
     setProjects(prev => [...prev, newProject]);
-    updateActionItem(noteId, idx, { confirmed: true });
+    if (item.linkedTaskId) {
+      setTasks(prev => prev.filter(t => t.id !== item.linkedTaskId));
+    }
+    updateActionItem(noteId, idx, { confirmed: true, linkedTaskId: undefined });
     toast(`Projekti luotu: ${name.trim()}`, 'success');
     setProjectMenuFor(null);
-  };
-
-  const createTaskFromAction = (noteId: string, idx: number) => {
-    const note = notes.find(n => n.id === noteId);
-    const item = note?.actionItems?.[idx];
-    if (!item) return;
-    const newTask = {
-      id: 't_' + Date.now(),
-      text: item.text,
-      hankkia: false,
-      done: false,
-      priority: 'normal' as const,
-      note: `Palaverista: ${note.title} (${note.date})`,
-      ...buildAssignment(item.assignee || undefined, myName),
-    };
-    setTasks(prev => [newTask, ...prev]);
-    updateActionItem(noteId, idx, { confirmed: true });
-    toast(`Tehtävä luotu: ${item.assignee || 'Ei tekijää'}`, 'success');
   };
 
   // ── IndexedDB: save chunks progressively during recording ──
@@ -848,55 +929,64 @@ Paivitetty yhteenveto:`;
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '.82rem', lineHeight: 1.5, color: 'var(--t1)' }}>{item.text}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginTop: '.35rem' }}>
-                    <select
-                      value={item.assignee}
-                      onChange={e => {
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginTop: '.35rem', flexWrap: 'wrap' }}>
+                    {(() => {
+                      const current = getActionAssignees(item);
+                      const toggle = (name: string) => {
                         if (!canEdit) return;
-                        updateActionItem(detail.id, idx, { assignee: e.target.value });
-                        // If already confirmed, also update the task
-                        if (item.confirmed) {
-                          setTasks(prev => prev.map(t =>
-                            t.note?.includes(detail.title) && t.text === item.text
-                              ? { ...t, assignee: e.target.value || undefined }
-                              : t
-                          ));
-                          toast('Tehtavan tekija paivitetty', 'success');
-                        }
-                      }}
-                      disabled={!canEdit}
-                      style={{
-                        fontSize: '.7rem', padding: '.2rem .4rem', borderRadius: 'var(--r)',
-                        background: 'var(--elev)', border: '1px solid var(--border)', color: 'var(--t1)',
+                        const next = current.includes(name)
+                          ? current.filter(n => n !== name)
+                          : [...current, name];
+                        setActionItemAssignees(detail.id, idx, next);
+                      };
+                      const optionStyle = (selected: boolean): React.CSSProperties => ({
+                        fontSize: '.68rem', padding: '.2rem .55rem', borderRadius: 9999,
+                        border: '1px solid ' + (selected ? '#9b7cf6' : 'var(--border)'),
+                        background: selected ? 'rgba(155,124,246,.18)' : 'var(--elev)',
+                        color: selected ? '#9b7cf6' : 'var(--t2)',
                         fontWeight: 600, cursor: canEdit ? 'pointer' : 'default',
-                      }}
-                    >
-                      <option value="">Ei tekijaa</option>
-                      <option value="Kaikki">Kaikki</option>
-                      {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                    </select>
+                      });
+                      const allOpt = ['Kaikki', ...members.map(m => m.name)];
+                      return (
+                        <>
+                          {current.length === 0 && (
+                            <span style={{ fontSize: '.68rem', color: 'var(--t3)', fontStyle: 'italic' }}>Ei tekijää</span>
+                          )}
+                          {allOpt.map(name => {
+                            const selected = current.includes(name);
+                            if (!selected && !canEdit) return null;
+                            return (
+                              <button
+                                key={name}
+                                type="button"
+                                onClick={() => toggle(name)}
+                                disabled={!canEdit}
+                                style={optionStyle(selected)}
+                              >
+                                {selected ? '✓ ' : '+ '}{name}
+                              </button>
+                            );
+                          })}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
-                {canEdit && !item.confirmed && (
+                {canEdit && (
                   <div style={{ display: 'flex', gap: '.3rem', flexShrink: 0, alignItems: 'center', position: 'relative' }}>
-                    <button
-                      className="btn btn-primary btn-sm"
-                      onClick={() => createTaskFromAction(detail.id, idx)}
-                      style={{ fontSize: '.65rem', padding: '.3rem .6rem', whiteSpace: 'nowrap' }}
-                    >
-                      Tehtäväksi
-                    </button>
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => setProjectMenuFor(projectMenuFor === `${detail.id}:${idx}` ? null : `${detail.id}:${idx}`)}
-                      style={{
-                        fontSize: '.65rem', padding: '.3rem .5rem', whiteSpace: 'nowrap',
-                        border: '1px solid var(--border)', background: 'var(--elev)',
-                      }}
-                      title="Lisää projektiin tai luo uusi projekti"
-                    >
-                      Projektiin ▾
-                    </button>
+                    {!item.confirmed && (
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setProjectMenuFor(projectMenuFor === `${detail.id}:${idx}` ? null : `${detail.id}:${idx}`)}
+                        style={{
+                          fontSize: '.65rem', padding: '.3rem .5rem', whiteSpace: 'nowrap',
+                          border: '1px solid var(--border)', background: 'var(--elev)',
+                        }}
+                        title="Lisää projektiin tai luo uusi projekti"
+                      >
+                        Projektiin ▾
+                      </button>
+                    )}
                     {projectMenuFor === `${detail.id}:${idx}` && (
                       <div
                         onClick={e => e.stopPropagation()}
@@ -960,7 +1050,10 @@ Paivitetty yhteenveto:`;
                   </div>
                 )}
                 {item.confirmed && (
-                  <span style={{ fontSize: '.65rem', color: 'var(--green)', fontWeight: 700 }}>Luotu</span>
+                  <span style={{ fontSize: '.65rem', color: 'var(--green)', fontWeight: 700 }}>Projektissa</span>
+                )}
+                {!item.confirmed && item.linkedTaskId && (
+                  <span style={{ fontSize: '.6rem', color: 'var(--t3)', letterSpacing: '.08em', textTransform: 'uppercase' }}>Tehtäväksi</span>
                 )}
               </div>
             ))}
@@ -979,31 +1072,44 @@ Paivitetty yhteenveto:`;
                       style={{ fontSize: '.82rem', marginBottom: '.4rem' }}
                       onKeyDown={e => {
                         if (e.key === 'Enter' && newActionText.trim()) {
-                          addActionItem(detail.id, newActionText, newActionAssignee);
+                          addActionItem(detail.id, newActionText, newActionAssignees);
                           setNewActionText('');
-                          setNewActionAssignee('');
+                          setNewActionAssignees([]);
                         }
                       }}
                     />
-                    <select
-                      className="input"
-                      value={newActionAssignee}
-                      onChange={e => setNewActionAssignee(e.target.value)}
-                      style={{ fontSize: '.72rem', padding: '.25rem .4rem', width: 'auto', minWidth: 140 }}
-                    >
-                      <option value="">Tekijä (valinnainen)</option>
-                      <option value="Kaikki">Kaikki</option>
-                      {members.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                    </select>
+                    <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
+                      {['Kaikki', ...members.map(m => m.name)].map(name => {
+                        const selected = newActionAssignees.includes(name);
+                        return (
+                          <button
+                            key={name}
+                            type="button"
+                            onClick={() => setNewActionAssignees(prev =>
+                              prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+                            )}
+                            style={{
+                              fontSize: '.68rem', padding: '.2rem .55rem', borderRadius: 9999,
+                              border: '1px solid ' + (selected ? '#9b7cf6' : 'var(--border)'),
+                              background: selected ? 'rgba(155,124,246,.18)' : 'var(--elev)',
+                              color: selected ? '#9b7cf6' : 'var(--t2)',
+                              fontWeight: 600, cursor: 'pointer',
+                            }}
+                          >
+                            {selected ? '✓ ' : '+ '}{name}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: '.3rem', flexShrink: 0, paddingTop: '.2rem' }}>
                     <button
                       className="btn btn-primary btn-sm"
                       disabled={!newActionText.trim()}
                       onClick={() => {
-                        addActionItem(detail.id, newActionText, newActionAssignee);
+                        addActionItem(detail.id, newActionText, newActionAssignees);
                         setNewActionText('');
-                        setNewActionAssignee('');
+                        setNewActionAssignees([]);
                       }}
                       style={{ fontSize: '.65rem' }}
                     >
@@ -1011,7 +1117,7 @@ Paivitetty yhteenveto:`;
                     </button>
                     <button
                       className="btn btn-ghost btn-sm"
-                      onClick={() => { setShowAddAction(false); setNewActionText(''); setNewActionAssignee(''); }}
+                      onClick={() => { setShowAddAction(false); setNewActionText(''); setNewActionAssignees([]); }}
                       style={{ fontSize: '.65rem' }}
                     >
                       Valmis

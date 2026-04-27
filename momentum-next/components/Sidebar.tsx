@@ -134,13 +134,24 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
               <span className="num">◉</span>
               <span style={{ textTransform: 'none', letterSpacing: '.04em' }}>Henkilökohtainen</span>
             </div>
-            <div
-              className={`nav-row ${pathname.startsWith('/oma/asetukset') ? 'act' : ''}`}
-              onClick={() => { setSwitcherOpen(false); navigate('/oma/asetukset'); }}
-            >
-              <span className="num">⚙</span>
-              <span style={{ textTransform: 'none', letterSpacing: '.04em' }}>Asetukset</span>
-            </div>
+            {orgSlug && !personalMode && (
+              <div
+                className={`nav-row ${pathname === `/${orgSlug}/settings` ? 'act' : ''}`}
+                onClick={() => { setSwitcherOpen(false); navigate(`/${orgSlug}/settings`); }}
+              >
+                <span className="num">⚙</span>
+                <span style={{ textTransform: 'none', letterSpacing: '.04em' }}>Asetukset</span>
+              </div>
+            )}
+            {personalMode && (
+              <div
+                className={`nav-row ${pathname.startsWith('/oma/asetukset') ? 'act' : ''}`}
+                onClick={() => { setSwitcherOpen(false); navigate('/oma/asetukset'); }}
+              >
+                <span className="num">⚙</span>
+                <span style={{ textTransform: 'none', letterSpacing: '.04em' }}>Asetukset</span>
+              </div>
+            )}
           </div>
         )}
       </div>
