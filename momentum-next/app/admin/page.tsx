@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { collection, getDocs, doc, deleteDoc, updateDoc, query, setDoc, getDoc, where, limit } from 'firebase/firestore';
@@ -663,8 +663,106 @@ export default function AdminPage() {
 
   const selectedOrgData = selectedOrg ? orgs.find(o => o.id === selectedOrg) : null;
 
+  // Saman nimiset käyttäjät — eri uid:llä mutta samalla displayNamella.
+  // Anton Baer pitäisi olla vain yksi uid (anton@hetkicompany.com).
+  const duplicateGroups = useMemo(() => {
+    const groups: Record<string, Array<{ orgId: string; orgName: string; member: OrgMember }>> = {};
+    for (const org of orgs) {
+      for (const m of org.members) {
+        const norm = (m.displayName || '').trim().toLowerCase();
+        if (!norm) continue;
+        if (!groups[norm]) groups[norm] = [];
+        groups[norm].push({ orgId: org.id, orgName: org.name, member: m });
+      }
+    }
+    return Object.values(groups)
+      .filter(list => new Set(list.map(x => x.member.uid)).size > 1)
+      .map(list => ({ name: list[0].member.displayName, entries: list }));
+  }, [orgs]);
+
+  // Nimettömät käyttäjät: registered users joilla displayName puuttuu tai pelkkiä whitespacea.
+  const unnamedUsers = useMemo(() =>
+    allUsers.filter(u => !(u.displayName || '').trim()),
+  [allUsers]);
+
   return (
     <AppShell title="Hallintapaneeli" subtitle="Käyttäjien ja organisaatioiden hallinta">
+      {/* Varoitukset: duplikaatit ja nimettömät */}
+      {duplicateGroups.length > 0 && (
+        <div style={{
+          background: 'rgba(245,158,11,.06)', border: '1px solid rgba(245,158,11,.3)',
+          borderRadius: 'var(--rl)', padding: '1rem 1.25rem', marginBottom: '1rem',
+        }}>
+          <div style={{ fontSize: '.85rem', fontWeight: 700, color: '#d97706', marginBottom: '.5rem' }}>
+            Saman nimisiä käyttäjiä ({duplicateGroups.length})
+          </div>
+          <div style={{ fontSize: '.72rem', color: 'var(--t2)', marginBottom: '.75rem' }}>
+            Sama henkilö esiintyy useammalla Firebase-tilillä. Pidä jokaisesta vain yksi (esim. työsähköposti) ja poista muut.
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
+            {duplicateGroups.map(group => (
+              <div key={group.name} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '.6rem .75rem' }}>
+                <div style={{ fontSize: '.78rem', fontWeight: 700, marginBottom: '.4rem' }}>{group.name}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                  {group.entries.map((e, i) => (
+                    <div key={`${e.orgId}-${e.member.uid}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.72rem' }}>
+                      <span style={{ flex: 1, fontFamily: 'var(--font-mono, monospace)', color: 'var(--t2)' }}>
+                        {e.member.email || '(ei emailia)'} · {e.orgName} · {e.member.role}
+                      </span>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => removeMember(e.orgId, e.member.uid)}
+                        style={{ fontSize: '.65rem', color: 'var(--red)', padding: '.2rem .5rem' }}
+                      >
+                        Poista jäsenyys
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => deleteUser(e.member.uid)}
+                        style={{ fontSize: '.65rem', color: 'var(--red)', padding: '.2rem .5rem' }}
+                        title="Poista käyttäjä kaikista orgeista"
+                      >
+                        Poista käyttäjä
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {unnamedUsers.length > 0 && (
+        <div style={{
+          background: 'rgba(239,68,68,.06)', border: '1px solid rgba(239,68,68,.3)',
+          borderRadius: 'var(--rl)', padding: '1rem 1.25rem', marginBottom: '1rem',
+        }}>
+          <div style={{ fontSize: '.85rem', fontWeight: 700, color: 'var(--red)', marginBottom: '.5rem' }}>
+            Nimettömät käyttäjät ({unnamedUsers.length})
+          </div>
+          <div style={{ fontSize: '.72rem', color: 'var(--t2)', marginBottom: '.75rem' }}>
+            Käyttäjiä joilla ei ole nimeä. Tarkista ja poista tarpeettomat.
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+            {unnamedUsers.map(u => (
+              <div key={u.uid} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.72rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '.4rem .6rem' }}>
+                <span style={{ flex: 1, fontFamily: 'var(--font-mono, monospace)', color: 'var(--t2)' }}>
+                  {u.email || '(ei emailia)'} · uid={u.uid.slice(0, 8)}…
+                </span>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => deleteUser(u.uid)}
+                  style={{ fontSize: '.65rem', color: 'var(--red)', padding: '.2rem .5rem' }}
+                >
+                  Poista
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="stats" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <div className="stat">
