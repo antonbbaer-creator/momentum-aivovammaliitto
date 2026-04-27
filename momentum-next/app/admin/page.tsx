@@ -639,8 +639,11 @@ export default function AdminPage() {
     }
   };
 
-  const deleteUser = async (uid: string) => {
-    if (!confirm('Haluatko poistaa tämän käyttäjän kaikista organisaatioista?')) return;
+  const deleteUser = async (uid: string, displayName?: string, email?: string) => {
+    const label = (displayName || '').trim() || email || `uid ${uid.slice(0, 8)}…`;
+    const detail = email && displayName ? `${displayName} (${email})` : label;
+    const ok = confirm(`Haluatko varmasti poistaa käyttäjän?\n\n${detail}\n\nTämä poistaa käyttäjän kaikista organisaatioista, userOrgs-listalta ja users-kokoelmasta. Toimintoa ei voi peruuttaa.`);
+    if (!ok) return;
     try {
       // Remove from all orgs
       for (const org of orgs) {
@@ -680,11 +683,6 @@ export default function AdminPage() {
       .map(list => ({ name: list[0].member.displayName, entries: list }));
   }, [orgs]);
 
-  // Nimettömät käyttäjät: registered users joilla displayName puuttuu tai pelkkiä whitespacea.
-  const unnamedUsers = useMemo(() =>
-    allUsers.filter(u => !(u.displayName || '').trim()),
-  [allUsers]);
-
   return (
     <AppShell title="Hallintapaneeli" subtitle="Käyttäjien ja organisaatioiden hallinta">
       {/* Varoitukset: duplikaatit ja nimettömät */}
@@ -718,7 +716,7 @@ export default function AdminPage() {
                       </button>
                       <button
                         className="btn btn-ghost btn-sm"
-                        onClick={() => deleteUser(e.member.uid)}
+                        onClick={() => deleteUser(e.member.uid, e.member.displayName, e.member.email)}
                         style={{ fontSize: '.65rem', color: 'var(--red)', padding: '.2rem .5rem' }}
                         title="Poista käyttäjä kaikista orgeista"
                       >
@@ -727,36 +725,6 @@ export default function AdminPage() {
                     </div>
                   ))}
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {unnamedUsers.length > 0 && (
-        <div style={{
-          background: 'rgba(239,68,68,.06)', border: '1px solid rgba(239,68,68,.3)',
-          borderRadius: 'var(--rl)', padding: '1rem 1.25rem', marginBottom: '1rem',
-        }}>
-          <div style={{ fontSize: '.85rem', fontWeight: 700, color: 'var(--red)', marginBottom: '.5rem' }}>
-            Nimettömät käyttäjät ({unnamedUsers.length})
-          </div>
-          <div style={{ fontSize: '.72rem', color: 'var(--t2)', marginBottom: '.75rem' }}>
-            Käyttäjiä joilla ei ole nimeä. Tarkista ja poista tarpeettomat.
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
-            {unnamedUsers.map(u => (
-              <div key={u.uid} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.72rem', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '.4rem .6rem' }}>
-                <span style={{ flex: 1, fontFamily: 'var(--font-mono, monospace)', color: 'var(--t2)' }}>
-                  {u.email || '(ei emailia)'} · uid={u.uid.slice(0, 8)}…
-                </span>
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => deleteUser(u.uid)}
-                  style={{ fontSize: '.65rem', color: 'var(--red)', padding: '.2rem .5rem' }}
-                >
-                  Poista
-                </button>
               </div>
             ))}
           </div>
@@ -1255,8 +1223,8 @@ export default function AdminPage() {
                     >
                       Liitä orgiin
                     </button>
-                    {u.email && !SUPER_ADMINS.includes(u.email) && (
-                      <button className="btn btn-ghost btn-sm" onClick={() => deleteUser(u.uid)}
+                    {u.email !== 'anton@hetkicompany.com' && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => deleteUser(u.uid, u.displayName, u.email)}
                         style={{ color: 'var(--red)', fontSize: '.72rem', flexShrink: 0 }}>
                         Poista
                       </button>
