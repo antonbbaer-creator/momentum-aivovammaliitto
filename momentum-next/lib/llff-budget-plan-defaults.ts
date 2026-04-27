@@ -41,11 +41,4 @@ export const LLFF_BUDGET_PLAN_2026: BudgetPlan = {
     { id: id('exp_seka'),       name: 'Sekalainen (esim. taksit, yrityssoitot, postit yms)', amount: 150 },
     { id: id('exp_now'),        name: 'Now-työpajan kulut',                        amount: 2000 },
   ],
-  // Koneen Säätiö 11.12.2025 — 2026 (1. vuosi). Yht. 34 425 €.
-  // Lähde: Koneen Säätiö LLFF (1).pdf
-  personalGrants: [
-    { id: id('pg_anton_2026'), name: 'Anton Baer — Koneen Säätiö (9kk × 75% × 2 700 €)',   amount: 18225 },
-    { id: id('pg_siiri_2026'), name: 'Siiri Siltala — Koneen Säätiö (4kk × 75% × 2 700 €)', amount: 8100 },
-    { id: id('pg_hanna_2026'), name: 'Hanna Hovitie — Koneen Säätiö (4kk × 75% × 2 700 €)', amount: 8100 },
-  ],
 };

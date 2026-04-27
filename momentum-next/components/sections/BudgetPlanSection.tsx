@@ -27,13 +27,11 @@ export default function BudgetPlanSection() {
 
   const incomeRows = useMemo(() => (plan.income || []).filter(r => !r.deletedAt), [plan.income]);
   const expenseRows = useMemo(() => (plan.expenses || []).filter(r => !r.deletedAt), [plan.expenses]);
-  const personalRows = useMemo(() => (plan.personalGrants || []).filter(r => !r.deletedAt), [plan.personalGrants]);
   const incomeSum = useMemo(() => sumRows(incomeRows), [incomeRows]);
   const expenseSum = useMemo(() => sumRows(expenseRows), [expenseRows]);
-  const personalSum = useMemo(() => sumRows(personalRows), [personalRows]);
   const gap = incomeSum.total - expenseSum.total;
 
-  type Kind = 'income' | 'expenses' | 'personalGrants';
+  type Kind = 'income' | 'expenses';
 
   const updateRow = (kind: Kind, id: string, patch: Partial<BudgetPlanRow>) => {
     setPlan(p => ({
@@ -247,28 +245,6 @@ export default function BudgetPlanSection() {
         )}
       </div>
 
-      {/* Henkilökohtaiset työskentelyapurahat — erillään festivaalibudjetista */}
-      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-        <div style={{ padding: '.6rem .9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(155,124,246,.06)' }}>
-          <div>
-            <div style={{ fontSize: '.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#9b7cf6' }}>
-              Henkilökohtaiset työskentelyapurahat ({personalRows.length})
-            </div>
-            <div style={{ fontSize: '.65rem', color: 'var(--t3)', marginTop: '.1rem' }}>
-              Tämän vuoden työskentelyapurahat tiimille — ei sisälly festivaalin tulot/menot-tasapainoon
-            </div>
-          </div>
-          <span style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--t1)' }}>{fmtEur(personalSum.total)}</span>
-        </div>
-        {personalRows.map(r => renderRow(r, 'personalGrants'))}
-        {canEdit && (
-          <div style={{ padding: '.5rem .75rem', borderTop: '1px solid var(--border)' }}>
-            <button onClick={() => addRow('personalGrants')} className="btn btn-ghost btn-sm" style={{ fontSize: '.75rem', color: '#9b7cf6' }}>
-              + Lisää työskentelyapuraha
-            </button>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
