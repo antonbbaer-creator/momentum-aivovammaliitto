@@ -9,6 +9,8 @@ import AppShell from '@/components/AppShell';
 import { useToast } from '@/lib/toast';
 import { AVL_ORG, AVL_EVENTS, AVL_CHANNEL_STATS, LLFF_ORG, LLFF_EVENTS, LLFF_CHANNEL_STATS, JUHLATOIMIKUNTA_ORG, JUHLATOIMIKUNTA_EVENTS, JUHLATOIMIKUNTA_CHANNEL_STATS } from '@/lib/seed-data';
 import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, JUHLATOIMIKUNTA_MODULES, LUURI_MODULES, IHAA_MODULES, getDefaultModules } from '@/lib/modules';
+import { getOrgTeams } from '@/lib/org-defaults';
+import type { OrgTeam } from '@/lib/team-shared';
 
 interface OrgMember {
   uid: string;
@@ -83,6 +85,56 @@ export default function AdminPage() {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
       .slice(0, 32) || 'member';
+
+  const clearOrgTeamLeads = async (orgId: string) => {
+    if (!user) return;
+    setDiagBusy(true);
+    setDiagResult(null);
+    try {
+      const ref = doc(db, 'organizations', orgId, 'data', 'orgTeams');
+      const snap = await getDoc(ref);
+      let teams: OrgTeam[];
+      if (snap.exists()) {
+        try {
+          teams = JSON.parse((snap.data() as { v?: string }).v || '[]');
+        } catch {
+          setDiagResult({ orgId, error: 'orgTeams v ei ole validia JSONia' });
+          return;
+        }
+      } else {
+        // Käytä org-defaulttia, kirjoita Firestoreen ilman lead-arvoja
+        teams = JSON.parse(JSON.stringify(getOrgTeams(orgId))) as OrgTeam[];
+      }
+      if (!Array.isArray(teams)) {
+        setDiagResult({ orgId, error: 'orgTeams ei ole array' });
+        return;
+      }
+      const cleared: string[] = [];
+      teams = teams.map(t => {
+        if (t.leadId) cleared.push(t.name || t.id);
+        const { leadId: _drop, ...rest } = t as OrgTeam & { leadId?: string };
+        return rest as OrgTeam;
+      });
+      await setDoc(ref, {
+        v: JSON.stringify(teams),
+        ts: Date.now(),
+        updatedBy: user.uid,
+      });
+      setDiagResult({
+        orgId,
+        fixed: cleared.length === 0
+          ? [{ oldId: '-', newId: '-', name: 'Ei lead-merkintöjä — kaikki jo selvät' }]
+          : cleared.map(name => ({ oldId: 'leadId', newId: '∅', name })),
+      });
+      toast(cleared.length === 0 ? 'Ei lead-merkintöjä' : `Lead-merkinnät poistettu (${cleared.length} tiimiä)`, 'success');
+    } catch (e) {
+      console.error('clearOrgTeamLeads failed:', e);
+      setDiagResult({ orgId, error: String(e) });
+      toast(String(e), 'error');
+    } finally {
+      setDiagBusy(false);
+    }
+  };
 
   const checkAndFixOrgTeamMembers = async (orgId: string, autoFix: boolean) => {
     if (!user) return;
@@ -1573,6 +1625,18 @@ export default function AdminPage() {
                     disabled={diagBusy}
                   >
                     {diagBusy ? 'Korjataan…' : 'Korjaa duplikaatit'}
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      if (confirm(`Poistetaanko Lead-merkinnät kaikilta tiimeiltä organisaatiossa "${selectedOrgData.name}"?`)) {
+                        clearOrgTeamLeads(selectedOrgData.id);
+                      }
+                    }}
+                    disabled={diagBusy}
+                    style={{ marginLeft: 'auto' }}
+                  >
+                    {diagBusy ? 'Poistetaan…' : 'Poista Lead-merkinnät'}
                   </button>
                 </div>
                 {diagResult && diagResult.orgId === selectedOrgData.id && (
