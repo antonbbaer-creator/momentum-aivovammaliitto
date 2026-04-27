@@ -189,6 +189,18 @@ export default function BudgetPlanSection() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      {/* Selitys */}
+      <div style={{
+        background: 'var(--elev)', border: '1px solid var(--border)',
+        borderRadius: 'var(--rl)', padding: '.75rem 1rem',
+        fontSize: '.78rem', lineHeight: 1.55, color: 'var(--t2)',
+      }}>
+        Budjetissa listataan <b style={{ color: 'var(--t1)' }}>Kino Lapinlahti ry:lle</b> maksettavat
+        apurahat ja muut tulot sekä festivaalin kulut. Osa apurahoista on
+        myönnetty suoraan työryhmän jäsenille henkilökohtaisina työskentelyapurahoina,
+        eivätkä ne näy Kino Lapinlahti ry:n budjetissa.
+      </div>
+
       {/* Yhteenveto */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '.5rem' }}>
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '.85rem 1rem' }}>
