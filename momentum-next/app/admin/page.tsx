@@ -67,6 +67,108 @@ export default function AdminPage() {
   const [linkBusy, setLinkBusy] = useState(false);
   const [linkResult, setLinkResult] = useState<{ ok: boolean; steps?: string[]; warnings?: string[]; error?: string; hint?: string; detail?: string } | null>(null);
 
+  // orgTeamMembers diagnostiikka — duplikaatti-id:t ja niiden korjaus
+  const [diagBusy, setDiagBusy] = useState(false);
+  const [diagResult, setDiagResult] = useState<{
+    orgId?: string;
+    duplicates?: Array<{ id: string; names: string[] }>;
+    fixed?: Array<{ oldId: string; newId: string; name: string }>;
+    error?: string;
+  } | null>(null);
+
+  const slugify = (s: string): string =>
+    (s || '')
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 32) || 'member';
+
+  const checkAndFixOrgTeamMembers = async (orgId: string, autoFix: boolean) => {
+    if (!user) return;
+    setDiagBusy(true);
+    setDiagResult(null);
+    try {
+      const tmRef = doc(db, 'organizations', orgId, 'data', 'orgTeamMembers');
+      const tmSnap = await getDoc(tmRef);
+      if (!tmSnap.exists()) {
+        setDiagResult({ orgId, error: 'orgTeamMembers-dokumentti ei ole olemassa' });
+        return;
+      }
+      let members: Array<Record<string, unknown>>;
+      try {
+        members = JSON.parse((tmSnap.data() as { v?: string }).v || '[]');
+      } catch {
+        setDiagResult({ orgId, error: 'orgTeamMembers v ei ole validia JSONia' });
+        return;
+      }
+      if (!Array.isArray(members)) {
+        setDiagResult({ orgId, error: 'orgTeamMembers ei ole array' });
+        return;
+      }
+
+      // Etsi duplikaatti-id:t
+      const byId: Record<string, Array<{ idx: number; m: Record<string, unknown> }>> = {};
+      members.forEach((m, idx) => {
+        const id = (m.id as string) || '';
+        if (!byId[id]) byId[id] = [];
+        byId[id].push({ idx, m });
+      });
+      const dupes = Object.entries(byId).filter(([, arr]) => arr.length > 1);
+
+      if (dupes.length === 0) {
+        setDiagResult({ orgId, duplicates: [] });
+        toast('Ei duplikaatti-id:itä', 'success');
+        return;
+      }
+
+      const duplicatesReport = dupes.map(([id, arr]) => ({
+        id,
+        names: arr.map(x => (x.m.name as string) || '(nimetön)'),
+      }));
+
+      if (!autoFix) {
+        setDiagResult({ orgId, duplicates: duplicatesReport });
+        return;
+      }
+
+      // Korjaa: säilytä ENSIMMÄINEN samalla id:llä, anna muille uniikki id nimen perusteella
+      const usedIds = new Set(members.map(m => (m.id as string) || ''));
+      const fixed: Array<{ oldId: string; newId: string; name: string }> = [];
+      for (const [id, arr] of dupes) {
+        // Ensimmäinen säilyttää id:n
+        for (let i = 1; i < arr.length; i++) {
+          const { idx, m } = arr[i];
+          const base = slugify(m.name as string);
+          let candidate = base;
+          let n = 1;
+          while (usedIds.has(candidate)) {
+            n += 1;
+            candidate = `${base}-${n}`;
+          }
+          usedIds.add(candidate);
+          members[idx] = { ...m, id: candidate };
+          fixed.push({ oldId: id, newId: candidate, name: (m.name as string) || '' });
+        }
+      }
+
+      await setDoc(tmRef, {
+        v: JSON.stringify(members),
+        ts: Date.now(),
+        updatedBy: user.uid,
+      });
+
+      setDiagResult({ orgId, duplicates: duplicatesReport, fixed });
+      toast(`Korjattu ${fixed.length} duplikaattia`, 'success');
+    } catch (e) {
+      console.error('checkAndFix failed:', e);
+      setDiagResult({ orgId, error: String(e) });
+      toast(String(e), 'error');
+    } finally {
+      setDiagBusy(false);
+    }
+  };
+
   const submitLink = async () => {
     if (!user || !linkEmail.trim() || !linkOrgId) return;
     const norm = (s?: string) => (s || '').toLowerCase().trim();
@@ -1446,6 +1548,68 @@ export default function AdminPage() {
               </div>
 
               {/* Vaarallinen alue — organisaation poisto useamman varmennuksen takana */}
+              {/* orgTeamMembers diagnostiikka */}
+              <div style={{
+                marginTop: '2rem', padding: '1rem 1.25rem',
+                background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+              }}>
+                <div style={{ fontSize: '.85rem', fontWeight: 600, marginBottom: '.4rem' }}>
+                  Tiimijäsenten diagnostiikka
+                </div>
+                <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginBottom: '.75rem' }}>
+                  Tarkistaa onko orgTeamMembersissä duplikaatti-id:itä — jos on, useampi henkilö näkyy esim. tiimin Lead-merkinnällä. &quot;Korjaa&quot; antaa duplikaateille uniikit id:t nimen perusteella.
+                </div>
+                <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => checkAndFixOrgTeamMembers(selectedOrgData.id, false)}
+                    disabled={diagBusy}
+                  >
+                    {diagBusy ? 'Tarkistetaan…' : 'Tarkista'}
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => checkAndFixOrgTeamMembers(selectedOrgData.id, true)}
+                    disabled={diagBusy}
+                  >
+                    {diagBusy ? 'Korjataan…' : 'Korjaa duplikaatit'}
+                  </button>
+                </div>
+                {diagResult && diagResult.orgId === selectedOrgData.id && (
+                  <div style={{
+                    marginTop: '.75rem', padding: '.5rem .75rem', fontSize: '.72rem',
+                    background: diagResult.error ? 'rgba(228,92,129,.08)'
+                      : (diagResult.fixed && diagResult.fixed.length > 0) ? 'rgba(42,138,134,.08)'
+                      : (diagResult.duplicates && diagResult.duplicates.length > 0) ? 'rgba(241,180,52,.08)'
+                      : 'rgba(42,138,134,.08)',
+                    border: `1px solid ${diagResult.error ? '#e45c81' : (diagResult.duplicates && diagResult.duplicates.length > 0 && (!diagResult.fixed || diagResult.fixed.length === 0)) ? '#f1b434' : '#2a8a86'}`,
+                    borderRadius: 'var(--rs)',
+                    fontFamily: 'var(--font-mono, monospace)',
+                  }}>
+                    {diagResult.error && <div><strong>Virhe:</strong> {diagResult.error}</div>}
+                    {diagResult.duplicates && diagResult.duplicates.length === 0 && !diagResult.error && (
+                      <div>Ei duplikaatti-id:itä — kaikki kunnossa</div>
+                    )}
+                    {diagResult.duplicates && diagResult.duplicates.length > 0 && (
+                      <>
+                        <div style={{ marginBottom: '.3rem' }}><strong>Duplikaatit:</strong></div>
+                        {diagResult.duplicates.map((d, i) => (
+                          <div key={i}>· id=&quot;{d.id}&quot; · {d.names.join(', ')}</div>
+                        ))}
+                      </>
+                    )}
+                    {diagResult.fixed && diagResult.fixed.length > 0 && (
+                      <>
+                        <div style={{ marginTop: '.4rem', marginBottom: '.3rem' }}><strong>Korjattu:</strong></div>
+                        {diagResult.fixed.map((f, i) => (
+                          <div key={i}>+ {f.name}: id &quot;{f.oldId}&quot; → &quot;{f.newId}&quot;</div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <DangerZone org={selectedOrgData} onDelete={() => deleteOrg(selectedOrgData.id)} />
             </div>
           )}
