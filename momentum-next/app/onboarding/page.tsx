@@ -51,7 +51,7 @@ export default function OnboardingPage() {
       let found = false;
       for (const orgDoc of orgsSnap.docs) {
         const data = orgDoc.data();
-        if (data.joinCode === joinCode.trim()) {
+        if (data.joinCode?.toLowerCase() === joinCode.trim().toLowerCase()) {
           setJoinOrgName(data.name);
           setJoinOrgId(orgDoc.id);
           setStep('role');

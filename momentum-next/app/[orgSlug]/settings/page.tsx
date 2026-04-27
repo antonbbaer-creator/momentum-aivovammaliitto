@@ -104,11 +104,11 @@ export default function SettingsPage() {
     if (!user || !joinCode.trim()) return;
     setJoining(true); setJoinError('');
     try {
-      const code = joinCode.trim();
+      const code = joinCode.trim().toLowerCase();
       const orgsSnap = await getDocs(collection(db, 'organizations'));
       let foundId = '', foundName = '';
       for (const d of orgsSnap.docs) {
-        if (d.data().joinCode === code) { foundId = d.id; foundName = d.data().name || d.id; break; }
+        if (d.data().joinCode?.toLowerCase() === code) { foundId = d.id; foundName = d.data().name || d.id; break; }
       }
       if (!foundId) { setJoinError('Salasanaa ei loytynyt.'); setJoining(false); return; }
       if (orgs.some(o => o.orgId === foundId)) {

@@ -128,11 +128,18 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
             ))}
             <div style={{ height: 1, background: 'var(--rule)', margin: '6px 14px' }} />
             <div
-              className={`nav-row ${personalMode ? 'act' : ''}`}
+              className={`nav-row ${personalMode && pathname.startsWith('/oma/koti') ? 'act' : ''}`}
               onClick={() => { setSwitcherOpen(false); navigate('/oma/koti'); }}
             >
               <span className="num">◉</span>
               <span style={{ textTransform: 'none', letterSpacing: '.04em' }}>Henkilökohtainen</span>
+            </div>
+            <div
+              className={`nav-row ${pathname.startsWith('/oma/asetukset') ? 'act' : ''}`}
+              onClick={() => { setSwitcherOpen(false); navigate('/oma/asetukset'); }}
+            >
+              <span className="num">⚙</span>
+              <span style={{ textTransform: 'none', letterSpacing: '.04em' }}>Asetukset</span>
             </div>
           </div>
         )}
