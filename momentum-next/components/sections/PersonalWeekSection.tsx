@@ -652,6 +652,12 @@ export default function PersonalWeekSection() {
         <BlockEditor
           state={editing}
           categories={categories}
+          onCreateCategory={(name, color) => {
+            const id = `cat-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+            const cat: PersonalCategory = { id, name, color };
+            setCategories([...categories, cat]);
+            return id;
+          }}
           onChange={(block) => setEditing({ ...editing, block })}
           onSave={saveBlock}
           onDelete={deleteBlock}
@@ -674,11 +680,18 @@ const navBtnStyle: React.CSSProperties = {
   background: 'transparent', border: '1px solid var(--rule)', padding: '6px 12px', cursor: 'pointer', color: 'var(--ink)',
 };
 
+const NEW_CATEGORY_PALETTE = [
+  '#056b9f', '#e45c81', '#185e5b', '#f1b434',
+  '#9b7cf6', '#f09a52', '#3788b2', '#2a8a86',
+  '#c14545', '#7a5fb0', '#cc7a35', '#5b9b3f',
+];
+
 function BlockEditor({
-  state, categories, onChange, onSave, onDelete, onCancel, onCompleteSourceTask,
+  state, categories, onCreateCategory, onChange, onSave, onDelete, onCancel, onCompleteSourceTask,
 }: {
   state: BlockEditState;
   categories: PersonalCategory[];
+  onCreateCategory: (name: string, color: string) => string;
   onChange: (block: TimeBlock) => void;
   onSave: () => void;
   onDelete: () => void;
@@ -686,6 +699,19 @@ function BlockEditor({
   onCompleteSourceTask?: () => void;
 }) {
   const b = state.block;
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatColor, setNewCatColor] = useState(NEW_CATEGORY_PALETTE[0]);
+
+  const submitNewCategory = () => {
+    const name = newCatName.trim();
+    if (!name) return;
+    const id = onCreateCategory(name, newCatColor);
+    onChange({ ...b, categoryId: id });
+    setCreatingCategory(false);
+    setNewCatName('');
+    setNewCatColor(NEW_CATEGORY_PALETTE[0]);
+  };
   const startD = parseLocalDateTime(b.start);
   const endD = parseLocalDateTime(b.end);
   const dateStr = formatLocalDate(startD);
@@ -722,14 +748,89 @@ function BlockEditor({
           style={{ background: 'transparent', border: '1px solid var(--rule)', padding: '8px 10px', fontFamily: 'var(--font-display)', fontSize: 14, color: 'var(--ink)' }}
         />
 
-        <select
-          value={b.categoryId || ''}
-          onChange={e => onChange({ ...b, categoryId: e.target.value || undefined })}
-          style={{ background: 'transparent', border: '1px solid var(--rule)', padding: '6px 8px', fontFamily: 'var(--font-display)', fontSize: 12, color: 'var(--ink)' }}
-        >
-          <option value="">— elämän alue —</option>
-          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+          <select
+            value={b.categoryId || ''}
+            onChange={e => {
+              if (e.target.value === '__new__') {
+                setCreatingCategory(true);
+                return;
+              }
+              onChange({ ...b, categoryId: e.target.value || undefined });
+            }}
+            style={{ flex: 1, background: 'transparent', border: '1px solid var(--rule)', padding: '6px 8px', fontFamily: 'var(--font-display)', fontSize: 12, color: 'var(--ink)' }}
+          >
+            <option value="">— elämän alue —</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            <option value="__new__">+ Uusi alue…</option>
+          </select>
+          {b.categoryId && (
+            <span
+              style={{
+                width: 24, alignSelf: 'stretch',
+                background: categories.find(c => c.id === b.categoryId)?.color || 'var(--ink3)',
+                border: '1px solid var(--rule)',
+              }}
+              title="Alueen väri"
+            />
+          )}
+        </div>
+
+        {creatingCategory && (
+          <div style={{ border: '1px dashed var(--ink3)', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink3)' }}>
+              Uusi elämän alue
+            </div>
+            <input
+              autoFocus
+              value={newCatName}
+              onChange={e => setNewCatName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') submitNewCategory(); }}
+              placeholder="Esim. Liikunta, Perhe, Aivovammaliitto"
+              style={{ background: 'transparent', border: '1px solid var(--rule)', padding: '6px 8px', fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--ink)' }}
+            />
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {NEW_CATEGORY_PALETTE.map(col => (
+                <button
+                  key={col}
+                  type="button"
+                  onClick={() => setNewCatColor(col)}
+                  aria-label={`Väri ${col}`}
+                  style={{
+                    width: 24, height: 24, padding: 0,
+                    background: col,
+                    border: newCatColor === col ? '2px solid var(--ink)' : '1px solid var(--rule)',
+                    cursor: 'pointer',
+                  }}
+                />
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={submitNewCategory}
+                disabled={!newCatName.trim()}
+                style={{
+                  fontFamily: 'var(--font-display)', fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase',
+                  background: newCatName.trim() ? 'var(--ink)' : 'transparent',
+                  color: newCatName.trim() ? 'var(--paper)' : 'var(--ink3)',
+                  border: newCatName.trim() ? 'none' : '1px solid var(--rule)',
+                  padding: '6px 12px',
+                  cursor: newCatName.trim() ? 'pointer' : 'not-allowed',
+                }}
+              >
+                Luo alue
+              </button>
+              <button
+                type="button"
+                onClick={() => { setCreatingCategory(false); setNewCatName(''); }}
+                style={{ fontFamily: 'var(--font-display)', fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', background: 'transparent', color: 'var(--ink2)', border: '1px solid var(--rule)', padding: '6px 12px', cursor: 'pointer' }}
+              >
+                Peruuta
+              </button>
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
