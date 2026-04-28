@@ -36,8 +36,8 @@ export interface TimeBlock {
   sourceOrgId?: string;       // jos peräisin orgista
   locked?: boolean;           // jos true, ei voi siirtää (esim. tehty/lukittu)
   done?: boolean;
-  // Ulkoinen kalenteri-synkka — kun lohko mapattu Googleen/Microsoftiin
-  externalSource?: 'google' | 'microsoft';
+  // Ulkoinen kalenteri-synkka — kun lohko mapattu Googleen/Microsoftiin/Appleen
+  externalSource?: 'google' | 'microsoft' | 'apple';
   externalCalendarId?: string;
   externalEventId?: string;
 }
@@ -46,6 +46,35 @@ export interface PersonalSettings {
   weekStart?: 'mon' | 'sun';  // oletus 'mon'
   dayStart?: string;          // 'HH:MM' oletus '06:00'
   dayEnd?: string;            // 'HH:MM' oletus '23:00'
+}
+
+// --- Rutiinit ---
+
+export type RoutineIntent = 'start' | 'stop' | 'maintain';
+export type RoutineStatus = 'idea' | 'active' | 'established' | 'archived';
+export type RoutineCadence = 'daily' | 'weekly';
+
+export interface Routine {
+  id: string;
+  title: string;
+  intent: RoutineIntent;
+  status: RoutineStatus;
+  cadence: RoutineCadence;
+  targetMin: number;            // alaraja: kuinka monta onnistumista per viikko
+  targetMax?: number;            // valinnainen yläraja, näyttöä varten
+  note?: string;
+  categoryId?: string;
+  createdAt: number;
+  activatedAt?: number;
+  establishedAt?: number;
+  archivedAt?: number;
+}
+
+// Päiväkohtainen onnistumiskirjaus. Stop-rutiineissa done = "pysyin erossa".
+export interface RoutineLog {
+  routineId: string;
+  date: string;                  // 'YYYY-MM-DD' (paikallinen)
+  done: boolean;
 }
 
 // Aggregaattimirror — Cloud Function kirjoittaa, client lukee.

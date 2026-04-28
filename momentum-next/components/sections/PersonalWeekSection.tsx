@@ -55,7 +55,7 @@ const parseHM = (s: string): number => {
 
 export default function PersonalWeekSection() {
   const [blocks, setBlocks] = useUserData<TimeBlock[]>('calendar', []);
-  const [categories] = useUserData<PersonalCategory[]>('categories', []);
+  const [categories, setCategories] = useUserData<PersonalCategory[]>('categories', []);
   const [settings] = useUserData<PersonalSettings>('settings', {
     weekStart: 'mon', dayStart: '06:00', dayEnd: '23:00',
   });
@@ -73,6 +73,7 @@ export default function PersonalWeekSection() {
   const slotsPerDay = endSlot0 - startSlot0;
 
   const [weekOffset, setWeekOffset] = useState(0);
+  const [showImport, setShowImport] = useState(false);
   const wkStart = useMemo(() => {
     const ws0 = weekStartOf(new Date(), ws);
     return addDays(ws0, weekOffset * 7);
@@ -399,8 +400,35 @@ export default function PersonalWeekSection() {
           <button onClick={() => setWeekOffset(o => o - 1)} style={navBtnStyle}>‹ Edellinen</button>
           <button onClick={() => setWeekOffset(0)} style={navBtnStyle}>Tämä viikko</button>
           <button onClick={() => setWeekOffset(o => o + 1)} style={navBtnStyle}>Seuraava ›</button>
+          <button onClick={() => setShowImport(true)} style={navBtnStyle} title="Tuo Apple-kalenterista (leikepöydän kautta)">
+            Tuo Apple-kalenterista
+          </button>
         </div>
       </div>
+
+      {showImport && (
+        <AppleImportPanel
+          existingCategories={categories}
+          onClose={() => setShowImport(false)}
+          onImport={(incomingEvents, incomingCategories) => {
+            if (incomingCategories && incomingCategories.length > 0) {
+              const existingIds = new Set(categories.map(c => c.id));
+              const newCats = incomingCategories.filter(c => !existingIds.has(c.id));
+              if (newCats.length > 0) {
+                setCategories([...categories, ...newCats]);
+              }
+            }
+            const byKey = (b: TimeBlock) => b.externalEventId || b.id;
+            const incomingKeys = new Set(incomingEvents.map(byKey));
+            const merged = [
+              ...blocks.filter(b => !incomingKeys.has(byKey(b))),
+              ...incomingEvents,
+            ];
+            setBlocks(merged);
+            setShowImport(false);
+          }}
+        />
+      )}
 
       {/* Vetolähde-paneeli */}
       {(draggableTasks.personal.length > 0 || draggableTasks.fromOrgs.length > 0) && (
@@ -782,6 +810,136 @@ const inputStyle: React.CSSProperties = {
   background: 'transparent', border: '1px solid var(--rule)', padding: '6px 8px',
   fontFamily: 'var(--font-display)', fontSize: 12, color: 'var(--ink)',
 };
+
+function AppleImportPanel({
+  existingCategories,
+  onClose,
+  onImport,
+}: {
+  existingCategories: PersonalCategory[];
+  onClose: () => void;
+  onImport: (events: TimeBlock[], categories?: PersonalCategory[]) => void;
+}) {
+  const [text, setText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [parsedEvents, setParsedEvents] = useState<TimeBlock[] | null>(null);
+  const [parsedCategories, setParsedCategories] = useState<PersonalCategory[] | null>(null);
+
+  const tryParse = (raw: string) => {
+    setError(null);
+    setParsedEvents(null);
+    setParsedCategories(null);
+    if (!raw.trim()) return;
+    try {
+      const data = JSON.parse(raw);
+      let eventsArr: any[];
+      let categoriesArr: any[] | undefined;
+      if (Array.isArray(data)) {
+        eventsArr = data;
+      } else if (data && typeof data === 'object' && Array.isArray(data.events)) {
+        eventsArr = data.events;
+        if (Array.isArray(data.categories)) categoriesArr = data.categories;
+      } else {
+        throw new Error('Odotettiin lista tai { events, categories }');
+      }
+      const okEvents: TimeBlock[] = [];
+      for (const e of eventsArr) {
+        if (typeof e?.title !== 'string' || typeof e?.start !== 'string' || typeof e?.end !== 'string') {
+          throw new Error('Tapahtumalta puuttuu title/start/end');
+        }
+        okEvents.push({
+          id: e.id || `apple-${Math.random().toString(36).slice(2, 10)}`,
+          title: e.title,
+          start: e.start,
+          end: e.end,
+          recurrence: e.recurrence || 'none',
+          externalSource: e.externalSource || 'apple',
+          externalCalendarId: e.externalCalendarId,
+          externalEventId: e.externalEventId,
+          categoryId: e.categoryId,
+        });
+      }
+      setParsedEvents(okEvents);
+
+      if (categoriesArr) {
+        const okCats: PersonalCategory[] = [];
+        for (const c of categoriesArr) {
+          if (typeof c?.id !== 'string' || typeof c?.name !== 'string' || typeof c?.color !== 'string') continue;
+          okCats.push({ id: c.id, name: c.name, color: c.color, icon: c.icon });
+        }
+        setParsedCategories(okCats);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Virheellinen JSON');
+    }
+  };
+
+  const newCategoryCount = parsedCategories
+    ? parsedCategories.filter(c => !existingCategories.some(x => x.id === c.id)).length
+    : 0;
+
+  const pasteFromClipboard = async () => {
+    try {
+      const t = await navigator.clipboard.readText();
+      setText(t);
+      tryParse(t);
+    } catch {
+      setError('Leikepöydän luku epäonnistui — liitä käsin tekstialueeseen.');
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 100,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }} onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: 'var(--paper)', border: '1px solid var(--rule)', padding: 20, width: 'min(640px, 92vw)', maxHeight: '88vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}
+      >
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 13, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink2)' }}>
+          Tuo Apple-kalenterista
+        </div>
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--ink3)' }}>
+          Suorita ensin Macilla skripti <code>scripts/sync-apple-calendar.sh</code> — se lukee kalenterisi ja kopioi tapahtumat leikepöydälle JSON-muodossa. Liitä se tähän tai paina Liitä leikepöydältä.
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={pasteFromClipboard} style={{ ...inputStyle, cursor: 'pointer', fontFamily: 'var(--font-display)', letterSpacing: '.14em', textTransform: 'uppercase', fontSize: 11, padding: '6px 12px' }}>
+            Liitä leikepöydältä
+          </button>
+        </div>
+        <textarea
+          value={text}
+          onChange={(e) => { setText(e.target.value); tryParse(e.target.value); }}
+          placeholder='[{"title":"...","start":"2026-04-27T09:00","end":"2026-04-27T10:00",...}]'
+          rows={10}
+          style={{ width: '100%', background: 'transparent', border: '1px solid var(--rule)', padding: 10, fontFamily: 'monospace', fontSize: 12, color: 'var(--ink)', resize: 'vertical' }}
+        />
+        {error && <div style={{ color: '#c14545', fontSize: 12 }}>Virhe: {error}</div>}
+        {parsedEvents && (
+          <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
+            {parsedEvents.length} tapahtumaa valmiina tuotavaksi. Olemassa olevat samalla externalEventId:llä korvataan.
+            {parsedCategories && parsedCategories.length > 0 && (
+              <> Lisätään {newCategoryCount} uutta elämänaluetta ({parsedCategories.length - newCategoryCount} jo olemassa).</>
+            )}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button
+            onClick={() => parsedEvents && onImport(parsedEvents, parsedCategories || undefined)}
+            disabled={!parsedEvents || parsedEvents.length === 0}
+            style={{ fontFamily: 'var(--font-display)', fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', background: parsedEvents && parsedEvents.length > 0 ? 'var(--ink)' : 'transparent', color: parsedEvents && parsedEvents.length > 0 ? 'var(--paper)' : 'var(--ink3)', border: parsedEvents && parsedEvents.length > 0 ? 'none' : '1px solid var(--rule)', padding: '8px 16px', cursor: parsedEvents && parsedEvents.length > 0 ? 'pointer' : 'not-allowed' }}
+          >
+            Tuo {parsedEvents?.length || 0} tapahtumaa
+          </button>
+          <button onClick={onClose} style={{ marginLeft: 'auto', fontFamily: 'var(--font-display)', fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', background: 'transparent', color: 'var(--ink2)', border: '1px solid var(--rule)', padding: '8px 16px', cursor: 'pointer' }}>
+            Sulje
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function hexWithAlpha(hex: string, alpha: number): string {
   if (!hex.startsWith('#') || (hex.length !== 7 && hex.length !== 4)) return hex;

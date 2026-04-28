@@ -14,6 +14,7 @@ import { isPersonalPath } from '@/lib/personal-shared';
 const PERSONAL_MODULES = [
   { id: 'p-koti',      label: 'Koti',       path: '/oma/koti' },
   { id: 'p-viikko',    label: 'Viikko',     path: '/oma/viikko' },
+  { id: 'p-rutiinit',  label: 'Rutiinit',   path: '/oma/rutiinit' },
   { id: 'p-asetukset', label: 'Asetukset',  path: '/oma/asetukset' },
 ];
 

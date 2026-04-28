@@ -5,10 +5,21 @@ import { useUserData } from '@/lib/use-user-data';
 import {
   PersonalTask,
   PersonalCategory,
+  PersonalSettings,
+  Routine,
+  RoutineLog,
   AssignedTaskMirror,
   newId,
 } from '@/lib/personal-shared';
 import { useAssignedTasks } from '@/lib/use-assigned-tasks';
+import {
+  weekProgress,
+  consecutiveMetWeeks,
+  isLoggedDone,
+  upsertLog,
+  intentLabel,
+  REQUIRED_WEEKS_TO_ESTABLISH,
+} from '@/lib/routines-shared';
 
 interface DraftTask {
   text: string;
@@ -21,7 +32,13 @@ const emptyDraft = (): DraftTask => ({ text: '', categoryId: '', deadline: '' })
 export default function PersonalHomeSection() {
   const [tasks, setTasks] = useUserData<PersonalTask[]>('tasks', []);
   const [categories] = useUserData<PersonalCategory[]>('categories', []);
+  const [routines] = useUserData<Routine[]>('routines', []);
+  const [routineLogs, setRoutineLogs] = useUserData<RoutineLog[]>('routineLogs', []);
+  const [personalSettings] = useUserData<PersonalSettings>('settings', { weekStart: 'mon', dayStart: '06:00', dayEnd: '23:00' });
   const { assigned, byOrg, loading: assignedLoading } = useAssignedTasks();
+  const today = useMemo(() => new Date(), []);
+  const weekStartDay = personalSettings?.weekStart || 'mon';
+  const activeRoutines = useMemo(() => routines.filter(r => r.status === 'active'), [routines]);
 
   const [draft, setDraft] = useState<DraftTask>(emptyDraft());
   const [adding, setAdding] = useState(false);
@@ -65,8 +82,85 @@ export default function PersonalHomeSection() {
   const catColor = (id?: string) => categories.find(c => c.id === id)?.color || 'var(--ink3)';
   const catName = (id?: string) => categories.find(c => c.id === id)?.name || '';
 
+  const toggleRoutineToday = (routineId: string) => {
+    const already = isLoggedDone(routineId, today, routineLogs);
+    setRoutineLogs(prev => upsertLog(prev, routineId, today, !already));
+  };
+
   return (
     <div style={{ padding: '0 36px 60px', display: 'flex', flexDirection: 'column', gap: 32 }}>
+      {/* Tämän viikon rutiinit */}
+      <section>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 13, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink2)', margin: 0 }}>
+            Tämän viikon rutiinit
+          </h2>
+          <a href="/oma/rutiinit" style={{ fontFamily: 'var(--font-display)', fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink2)', textDecoration: 'none' }}>
+            Hallitse →
+          </a>
+        </div>
+        {activeRoutines.length === 0 ? (
+          <div style={{ color: 'var(--ink3)', fontSize: 13, fontStyle: 'italic' }}>
+            Ei aktiivisia rutiineja — <a href="/oma/rutiinit" style={{ color: 'var(--ink2)' }}>lisää sivulla Rutiinit</a>.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {activeRoutines.map(r => {
+              const wp = weekProgress(r, routineLogs, today, weekStartDay);
+              const streak = consecutiveMetWeeks(r, routineLogs, today, weekStartDay);
+              const todayDone = isLoggedDone(r.id, today, routineLogs);
+              const intentAccent =
+                r.status === 'established' ? 'var(--green, #185e5b)'
+                : r.intent === 'start' ? 'var(--hetki-yellow, #f1b434)'
+                : r.intent === 'stop' ? 'var(--red, #c14545)'
+                : 'var(--pri, #056b9f)';
+              const accent = r.categoryId ? catColor(r.categoryId) : intentAccent;
+              return (
+                <div
+                  key={r.id}
+                  style={{
+                    flex: '1 1 280px',
+                    minWidth: 240,
+                    border: '1px solid var(--rule)',
+                    borderTop: `3px solid ${accent}`,
+                    padding: 14,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <button
+                      onClick={() => toggleRoutineToday(r.id)}
+                      title={todayDone ? 'Peru tämän päivän kirjaus' : 'Tein tänään'}
+                      style={{
+                        width: 22, height: 22, padding: 0,
+                        border: '1px solid var(--ink2)',
+                        background: todayDone ? 'var(--green, #185e5b)' : 'transparent',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, color: 'var(--ink)' }}>{r.title}</div>
+                      <div style={{ fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink3)' }}>
+                        {intentLabel[r.intent]} · {wp.done}/{wp.target} tällä vk
+                      </div>
+                    </div>
+                  </div>
+                  {/* Vakiintumismittari */}
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {Array.from({ length: REQUIRED_WEEKS_TO_ESTABLISH }).map((_, i) => (
+                      <div key={i} style={{ flex: 1, height: 5, background: i < streak ? accent : 'var(--rule)' }} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
       {/* Aggregoidut tehtävät orgeista */}
       <section>
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 13, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink2)', margin: '0 0 12px' }}>
