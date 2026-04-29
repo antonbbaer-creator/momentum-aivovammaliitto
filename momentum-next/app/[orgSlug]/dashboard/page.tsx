@@ -48,7 +48,7 @@ export default function DashboardPage() {
   const [aiProfileRaw] = useOrgData<any>('aiProfile', {});
   const aiProfile = (mergeAiProfile(orgSlug, aiProfileRaw) || {}) as Record<string, any>;
   const [projects, setProjects] = useOrgData<any[]>('projects', []);
-  const [standaloneTasks] = useOrgData<any[]>('tasks', []);
+  const [standaloneTasks, setStandaloneTasks] = useOrgData<any[]>('tasks', []);
   const [teamMessages, setTeamMessages] = useOrgData<any[]>('teamMessages', []);
   const [rawGrants] = useOrgData<Grant[]>(getGrantsKey(orgSlug), getOrgGrants(orgSlug));
   const [orgMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
@@ -79,6 +79,102 @@ export default function DashboardPage() {
   const [aiResponse, setAiResponse] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+
+  // Quick-add ja tehtävien muokkaus
+  const [quickAddText, setQuickAddText] = useState('');
+  const [quickAddDeadline, setQuickAddDeadline] = useState('');
+  type EditingTask =
+    | { kind: 'standalone'; id: string }
+    | { kind: 'project'; projectId: number; taskIndex: number };
+  const [editingTask, setEditingTask] = useState<EditingTask | null>(null);
+
+  const addQuickTask = () => {
+    const text = quickAddText.trim();
+    if (!text) return;
+    const myName = myMember?.name || user?.displayName || '';
+    const newTask = {
+      id: `tsk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      text,
+      assignee: myName || undefined,
+      deadline: quickAddDeadline || undefined,
+      done: false,
+      createdAt: Date.now(),
+      from: 'Itse',
+    };
+    setStandaloneTasks([...(standaloneTasks || []), newTask]);
+    setQuickAddText('');
+    setQuickAddDeadline('');
+  };
+
+  const updateStandaloneTask = (id: string, updates: Record<string, any>) => {
+    setStandaloneTasks((standaloneTasks || []).map((t: any) => t.id === id ? { ...t, ...updates } : t));
+  };
+
+  const deleteStandaloneTask = (id: string) => {
+    setStandaloneTasks((standaloneTasks || []).map((t: any) => t.id === id ? { ...t, deletedAt: Date.now() } : t));
+  };
+
+  const updateProjectTask = (projectId: number, taskIndex: number, updates: Record<string, any>) => {
+    setProjects(prev => prev.map((p: any) => {
+      if (p.id !== projectId) return p;
+      const tasks = [...(p.tasks || [])];
+      if (!tasks[taskIndex]) return p;
+      tasks[taskIndex] = { ...tasks[taskIndex], ...updates };
+      return { ...p, tasks };
+    }));
+  };
+
+  const deleteProjectTask = (projectId: number, taskIndex: number) => {
+    setProjects(prev => prev.map((p: any) => {
+      if (p.id !== projectId) return p;
+      const tasks = [...(p.tasks || [])];
+      tasks.splice(taskIndex, 1);
+      return { ...p, tasks };
+    }));
+  };
+
+  // Siirrä tehtävä standalone -> projekti
+  const moveStandaloneToProject = (standaloneId: string, targetProjectId: number) => {
+    const t = (standaloneTasks || []).find((x: any) => x.id === standaloneId);
+    if (!t) return;
+    setProjects(prev => prev.map((p: any) => {
+      if (p.id !== targetProjectId) return p;
+      const tasks = [...(p.tasks || []), {
+        text: t.text,
+        assignee: t.assignee,
+        assignees: t.assignees,
+        deadline: t.deadline,
+        done: !!t.done,
+        priority: t.priority || 'normal',
+        note: t.note,
+      }];
+      return { ...p, tasks };
+    }));
+    setStandaloneTasks((standaloneTasks || []).filter((x: any) => x.id !== standaloneId));
+  };
+
+  // Siirrä tehtävä projekti -> standalone
+  const moveProjectTaskToStandalone = (projectId: number, taskIndex: number) => {
+    const p = projects.find((pp: any) => pp.id === projectId);
+    if (!p) return;
+    const t = (p.tasks || [])[taskIndex];
+    if (!t) return;
+    const myName = myMember?.name || user?.displayName || '';
+    const newTask = {
+      id: `tsk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      text: t.text,
+      assignee: t.assignee || myName,
+      assignees: t.assignees,
+      deadline: t.deadline,
+      done: !!t.done,
+      priority: t.priority || 'normal',
+      note: t.note,
+      createdAt: Date.now(),
+      from: 'Itse',
+    };
+    setStandaloneTasks([...(standaloneTasks || []), newTask]);
+    deleteProjectTask(projectId, taskIndex);
+  };
 
   const firstName = user?.displayName?.split(' ')[0] || 'käyttäjä';
 
@@ -147,6 +243,7 @@ export default function DashboardPage() {
     days: number | null;
     onClick: () => void;
     taskRef?: { projectId: number; taskIndex: number };
+    standaloneId?: string;
     kindLabel: string;
   }
 
@@ -154,8 +251,9 @@ export default function DashboardPage() {
     ...myTasks.map((t: any): UnifiedItem => {
       const days = t.deadline ? Math.ceil((new Date(t.deadline).getTime() - Date.now()) / 86400000) : null;
       const tone = projectToneMap.get(t.projectId) || 'blue';
+      const isStandalone = t.projectId === null;
       return {
-        id: `task_${t.projectId}_${t.taskIndex}`,
+        id: isStandalone ? `task_standalone_${t.id}` : `task_${t.projectId}_${t.taskIndex}`,
         kind: 'task',
         title: t.text,
         subtitle: t.from === 'Itse' ? 'Itse asetettu' : (t.assignedBy ? `Lähettäjä · ${t.assignedBy}` : t.projectName),
@@ -164,8 +262,15 @@ export default function DashboardPage() {
         deadline: t.deadline,
         deadlineText: t.deadline ? new Date(t.deadline).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' }) + '.' : '',
         days,
-        onClick: () => router.push(`/${orgSlug}/projects`),
-        taskRef: { projectId: t.projectId, taskIndex: t.taskIndex },
+        onClick: () => {
+          if (isStandalone) {
+            setEditingTask({ kind: 'standalone', id: t.id });
+          } else {
+            setEditingTask({ kind: 'project', projectId: t.projectId, taskIndex: t.taskIndex });
+          }
+        },
+        taskRef: isStandalone ? undefined : { projectId: t.projectId, taskIndex: t.taskIndex },
+        standaloneId: isStandalone ? t.id : undefined,
         kindLabel: 'Tehtävä',
       };
     }),
@@ -367,7 +472,10 @@ export default function DashboardPage() {
 
   // Renderöi yksi tehtävärivi
   const TaskRow = ({ item }: { item: UnifiedItem }) => {
-    const isDone = item.taskRef ? completedTasks.has(`${item.taskRef.projectId}_${item.taskRef.taskIndex}`) : false;
+    const standaloneTask = item.standaloneId ? (standaloneTasks || []).find((t: any) => t.id === item.standaloneId) : null;
+    const isDone = item.taskRef
+      ? completedTasks.has(`${item.taskRef.projectId}_${item.taskRef.taskIndex}`)
+      : (standaloneTask?.done || false);
     const isUrgent = item.days !== null && item.days <= 7;
     const dueLabel = item.days === 0 ? 'Tänään'
       : (item.days !== null && item.days > 0 ? `${item.days} pv` : (item.deadlineText || ''));
@@ -382,6 +490,17 @@ export default function DashboardPage() {
               e.stopPropagation();
               if (isDone) undoTask(item.taskRef!.projectId, item.taskRef!.taskIndex);
               else toggleTask(item.taskRef!.projectId, item.taskRef!.taskIndex);
+            }}
+            style={{ background: isDone ? 'var(--ink)' : 'transparent' }}
+          />
+        ) : item.kind === 'task' && item.standaloneId ? (
+          <button
+            type="button"
+            className="chk"
+            aria-label={isDone ? 'Palauta' : 'Merkitse tehdyksi'}
+            onClick={(e) => {
+              e.stopPropagation();
+              updateStandaloneTask(item.standaloneId!, { done: !isDone, completedAt: !isDone ? Date.now() : undefined });
             }}
             style={{ background: isDone ? 'var(--ink)' : 'transparent' }}
           />
@@ -439,6 +558,40 @@ export default function DashboardPage() {
               <div className="t"><span className="n">01</span>Tehtäväsi</div>
               <div className="meta"><b>{unifiedList.length}</b> Avointa{urgentCount > 0 ? <> · <b>{urgentCount}</b> Kiireellistä</> : null}</div>
             </div>
+
+            {/* Pikalisäys */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+              <input
+                value={quickAddText}
+                onChange={(e) => setQuickAddText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addQuickTask(); }}
+                placeholder="Lisää tehtävä — paina Enter"
+                style={{ flex: '1 1 280px', minWidth: 200, background: 'transparent', border: '1px solid var(--rule, var(--border))', padding: '8px 10px', fontSize: 14, color: 'var(--ink)' }}
+              />
+              <input
+                type="date"
+                value={quickAddDeadline}
+                onChange={(e) => setQuickAddDeadline(e.target.value)}
+                title="Deadline (valinnainen)"
+                style={{ background: 'transparent', border: '1px solid var(--rule, var(--border))', padding: '8px 10px', fontSize: 13, color: 'var(--ink)' }}
+              />
+              <button
+                type="button"
+                onClick={addQuickTask}
+                disabled={!quickAddText.trim()}
+                style={{
+                  fontFamily: 'var(--font-display)', fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase',
+                  background: quickAddText.trim() ? 'var(--ink)' : 'transparent',
+                  color: quickAddText.trim() ? 'var(--paper)' : 'var(--ink3)',
+                  border: quickAddText.trim() ? 'none' : '1px solid var(--rule, var(--border))',
+                  padding: '8px 14px',
+                  cursor: quickAddText.trim() ? 'pointer' : 'not-allowed',
+                }}
+              >
+                Lisää
+              </button>
+            </div>
+
             {unifiedList.length === 0 ? (
               <div style={{ padding: '24px 0', color: 'var(--ink2)', fontSize: 14 }}>
                 Ei avoimia tehtäviä sinulle. Projektitehtäviä voi määritellä Projektit-sivulta, apurahoja Apurahat-sivulta.
@@ -735,6 +888,216 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {editingTask && (
+        <TaskEditDialog
+          task={(() => {
+            if (editingTask.kind === 'standalone') {
+              const t = (standaloneTasks || []).find((x: any) => x.id === editingTask.id);
+              return t ? { text: t.text, deadline: t.deadline, projectId: null, done: !!t.done, note: t.note } : null;
+            }
+            const p = projects.find((pp: any) => pp.id === editingTask.projectId);
+            const t = p?.tasks?.[editingTask.taskIndex];
+            return t ? { text: t.text, deadline: t.deadline, projectId: editingTask.projectId, done: !!t.done, note: t.note } : null;
+          })()}
+          projects={projects}
+          onClose={() => setEditingTask(null)}
+          onSave={(updates, targetProjectId) => {
+            if (editingTask.kind === 'standalone') {
+              if (targetProjectId !== null) {
+                // Siirrä projektiin ja päivitä
+                const t = (standaloneTasks || []).find((x: any) => x.id === editingTask.id);
+                if (t) {
+                  setProjects(prev => prev.map((p: any) => {
+                    if (p.id !== targetProjectId) return p;
+                    return {
+                      ...p,
+                      tasks: [...(p.tasks || []), {
+                        text: updates.text ?? t.text,
+                        assignee: t.assignee,
+                        assignees: t.assignees,
+                        deadline: updates.deadline === '' ? undefined : (updates.deadline ?? t.deadline),
+                        done: !!t.done,
+                        priority: t.priority || 'normal',
+                        note: updates.note ?? t.note,
+                      }],
+                    };
+                  }));
+                  setStandaloneTasks((standaloneTasks || []).filter((x: any) => x.id !== editingTask.id));
+                }
+              } else {
+                updateStandaloneTask(editingTask.id, {
+                  ...updates,
+                  deadline: updates.deadline === '' ? undefined : updates.deadline,
+                });
+              }
+            } else {
+              if (targetProjectId === null) {
+                // Siirrä standaloneksi ja päivitä
+                moveProjectTaskToStandalone(editingTask.projectId, editingTask.taskIndex);
+                // Yllä oleva luo uuden standalonen, mutta päivitykset eivät tartu — käsitellään erikseen:
+                setTimeout(() => {
+                  setStandaloneTasks(prev => {
+                    const last = prev[prev.length - 1];
+                    if (!last) return prev;
+                    return [...prev.slice(0, -1), {
+                      ...last,
+                      text: updates.text ?? last.text,
+                      deadline: updates.deadline === '' ? undefined : (updates.deadline ?? last.deadline),
+                      note: updates.note ?? last.note,
+                    }];
+                  });
+                }, 0);
+              } else if (targetProjectId !== editingTask.projectId) {
+                // Siirrä toiseen projektiin
+                const p = projects.find((pp: any) => pp.id === editingTask.projectId);
+                const t = p?.tasks?.[editingTask.taskIndex];
+                if (t) {
+                  setProjects(prev => prev.map((pp: any) => {
+                    if (pp.id === editingTask.projectId) {
+                      const tasks = [...(pp.tasks || [])];
+                      tasks.splice(editingTask.taskIndex, 1);
+                      return { ...pp, tasks };
+                    }
+                    if (pp.id === targetProjectId) {
+                      return {
+                        ...pp,
+                        tasks: [...(pp.tasks || []), {
+                          ...t,
+                          text: updates.text ?? t.text,
+                          deadline: updates.deadline === '' ? undefined : (updates.deadline ?? t.deadline),
+                          note: updates.note ?? t.note,
+                        }],
+                      };
+                    }
+                    return pp;
+                  }));
+                }
+              } else {
+                updateProjectTask(editingTask.projectId, editingTask.taskIndex, {
+                  ...updates,
+                  deadline: updates.deadline === '' ? undefined : updates.deadline,
+                });
+              }
+            }
+            setEditingTask(null);
+          }}
+          onDelete={() => {
+            if (editingTask.kind === 'standalone') deleteStandaloneTask(editingTask.id);
+            else deleteProjectTask(editingTask.projectId, editingTask.taskIndex);
+            setEditingTask(null);
+          }}
+        />
+      )}
     </AppShell>
+  );
+}
+
+function TaskEditDialog({
+  task,
+  projects,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  task: { text: string; deadline?: string; projectId: number | null; done: boolean; note?: string } | null;
+  projects: any[];
+  onClose: () => void;
+  onSave: (updates: { text?: string; deadline?: string; note?: string }, targetProjectId: number | null) => void;
+  onDelete: () => void;
+}) {
+  const [text, setText] = useState(task?.text || '');
+  const [deadline, setDeadline] = useState(task?.deadline || '');
+  const [projectId, setProjectId] = useState<number | null>(task?.projectId ?? null);
+  const [note, setNote] = useState(task?.note || '');
+
+  if (!task) return null;
+
+  const submit = () => {
+    onSave({ text: text.trim(), deadline: deadline || '', note: note.trim() || undefined }, projectId);
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: 'var(--paper, var(--card))', border: '1px solid var(--rule, var(--border))', padding: 24, width: 'min(480px, 100%)', display: 'flex', flexDirection: 'column', gap: 12 }}
+      >
+        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 12, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink2)', margin: 0 }}>
+          Muokkaa tehtävää
+        </h3>
+
+        <input
+          autoFocus
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Tehtävän teksti"
+          style={{ background: 'transparent', border: '1px solid var(--rule, var(--border))', padding: '8px 10px', fontFamily: 'var(--font-display)', fontSize: 14, color: 'var(--ink)' }}
+        />
+
+        <label style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink3)' }}>Deadline</label>
+        <input
+          type="date"
+          value={deadline}
+          onChange={(e) => setDeadline(e.target.value)}
+          style={{ background: 'transparent', border: '1px solid var(--rule, var(--border))', padding: '6px 8px', fontSize: 13, color: 'var(--ink)' }}
+        />
+
+        <label style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink3)' }}>Projekti</label>
+        <select
+          value={projectId ?? ''}
+          onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : null)}
+          style={{ background: 'transparent', border: '1px solid var(--rule, var(--border))', padding: '6px 8px', fontSize: 13, color: 'var(--ink)' }}
+        >
+          <option value="">— Ei projektia (itsenäinen tehtävä) —</option>
+          {projects.filter((p: any) => !p.archived && !p.deletedAt).map((p: any) => (
+            <option key={p.id} value={p.id}>{p.t || p.name || `Projekti ${p.id}`}</option>
+          ))}
+        </select>
+
+        <label style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink3)' }}>Muistiinpano (valinnainen)</label>
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          style={{ background: 'transparent', border: '1px solid var(--rule, var(--border))', padding: '8px 10px', fontSize: 13, color: 'var(--ink)', resize: 'vertical' }}
+        />
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!text.trim()}
+            style={{
+              fontFamily: 'var(--font-display)', fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase',
+              background: text.trim() ? 'var(--ink)' : 'transparent',
+              color: text.trim() ? 'var(--paper, var(--card))' : 'var(--ink3)',
+              border: text.trim() ? 'none' : '1px solid var(--rule, var(--border))',
+              padding: '8px 16px',
+              cursor: text.trim() ? 'pointer' : 'not-allowed',
+            }}
+          >
+            Tallenna
+          </button>
+          <button
+            type="button"
+            onClick={() => { if (confirm('Poistetaanko tehtävä?')) onDelete(); }}
+            style={{ fontFamily: 'var(--font-display)', fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', background: 'transparent', color: '#c14545', border: '1px solid #c14545', padding: '8px 16px', cursor: 'pointer' }}
+          >
+            Poista
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ marginLeft: 'auto', fontFamily: 'var(--font-display)', fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', background: 'transparent', color: 'var(--ink2)', border: '1px solid var(--rule, var(--border))', padding: '8px 16px', cursor: 'pointer' }}
+          >
+            Peruuta
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
