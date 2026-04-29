@@ -39,7 +39,7 @@ export default function PublicLogoGeneratorPage() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (input.trim() === PASSWORD) {
+    if (input.trim().toLowerCase() === PASSWORD.toLowerCase()) {
       sessionStorage.setItem(STORAGE_KEY, '1');
       setUnlocked(true);
       setError(false);
