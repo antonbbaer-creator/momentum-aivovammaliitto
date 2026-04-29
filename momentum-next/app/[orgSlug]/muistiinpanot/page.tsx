@@ -1351,6 +1351,34 @@ Paivitetty yhteenveto:`;
                 {note.summary && (
                   <span style={{ fontSize: '.58rem', padding: '.1rem .35rem', borderRadius: 9999, background: 'rgba(155,124,246,.1)', color: '#9b7cf6', fontWeight: 700 }}>AI-yhteenveto</span>
                 )}
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm(`Poistetaanko muistiinpano "${note.title}"? Voit palauttaa sen myöhemmin roskakorista.`)) {
+                        remove(note.id);
+                      }
+                    }}
+                    title="Poista muistiinpano"
+                    aria-label="Poista muistiinpano"
+                    style={{
+                      marginLeft: 'auto',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--t3)',
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      lineHeight: 1,
+                      padding: '.2rem .4rem',
+                      borderRadius: 4,
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--red)'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--t3)'; }}
+                  >
+                    ×
+                  </button>
+                )}
               </div>
               <div style={{ fontSize: '.92rem', fontWeight: 700, marginBottom: '.2rem' }}>{note.title}</div>
               <div style={{ fontSize: '.72rem', color: 'var(--t3)', display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
