@@ -368,8 +368,21 @@ export default function TyönjakoPage() {
             margin: '1.5rem 0 .75rem', flexWrap: 'wrap',
           }}>
             <div style={{ fontSize: '.78rem', color: 'var(--t3)' }}>
-              <b style={{ color: 'var(--green)' }}>{freeCount}</b> vapaana · {' '}
-              <b style={{ color: 'var(--red)' }}>{overloadedCount}</b> ylikuormittunut
+              {(() => {
+                const totalActive = capacity.reduce((s, r) => s + r.active, 0);
+                const projectIds = new Set<number>();
+                for (const r of capacity) {
+                  for (const it of r.items) {
+                    if (it.projectId !== undefined) projectIds.add(it.projectId);
+                  }
+                }
+                return (
+                  <>
+                    <b style={{ color: 'var(--ink)' }}>{totalActive}</b> aktiivista tehtävää · {' '}
+                    <b style={{ color: 'var(--ink)' }}>{projectIds.size}</b> projektia
+                  </>
+                );
+              })()}
             </div>
             <span style={{ flex: 1 }} />
             <div style={{ display: 'inline-flex', gap: '.35rem', fontSize: '.72rem' }}>
@@ -619,16 +632,10 @@ interface CapacityCardProps {
 }
 
 function CapacityCard(props: CapacityCardProps) {
-  const { row, expanded, onToggle, onQuickAdd, draggedUnassigned, onDropUnassigned } = props;
+  const { row, expanded, onToggle, draggedUnassigned, onDropUnassigned } = props;
   const [isDropTarget, setIsDropTarget] = useState(false);
   const team = props.orgTeams.find(t => t.id === row.member.teamId);
   const ui = STATUS_UI[row.status];
-  const mine = row.member.name === props.myName;
-  const canShowPlanNudge = row.status === 'free' && (mine || props.iAmManager);
-
-  // Segmenttitolppa: 14 segmenttiä (ACTIVE_WINDOW_DAYS)
-  const segments = Math.min(ACTIVE_WINDOW_DAYS, Math.max(row.active, 0));
-  const maxSegments = Math.max(ACTIVE_WINDOW_DAYS, row.active);
 
   return (
     <div
@@ -669,53 +676,29 @@ function CapacityCard(props: CapacityCardProps) {
             )}
           </div>
 
-          {/* Kuormitustolppa */}
-          <div style={{ display: 'flex', gap: 2, marginTop: 6, height: 6 }}>
-            {Array.from({ length: maxSegments }, (_, i) => (
-              <div key={i} style={{
-                flex: 1,
-                background: i < segments ? ui.bar : 'var(--elev)',
-                borderRadius: 1, minWidth: 3,
-                opacity: i < segments ? 1 : 0.5,
-              }} />
-            ))}
-          </div>
-
-          {/* Statusteksti */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginTop: 6, flexWrap: 'wrap' }}>
-            <span style={{
-              fontSize: '.72rem', fontWeight: 700, color: ui.color,
-              textTransform: row.status === 'overloaded' ? 'uppercase' : 'none',
-              letterSpacing: row.status === 'overloaded' ? '.04em' : 0,
-            }}>
-              {ui.label}
-            </span>
-            <span style={{ fontSize: '.7rem', color: 'var(--t3)' }}>·</span>
-            <span style={{ fontSize: '.7rem', color: 'var(--t2)' }}>
-              {row.active} aktiivista
-              {row.overdue > 0 && <> · <span style={{ color: 'var(--red)', fontWeight: 700 }}>{row.overdue} myöhässä</span></>}
-              {row.pending > 0 && <> · <span style={{ color: 'var(--yellow)', fontWeight: 700 }}>{row.pending} odottaa</span></>}
-              {row.noDeadline > 0 && <> · <span style={{ color: 'var(--red)' }}>{row.noDeadline} ilman DL</span></>}
-            </span>
-          </div>
-
-          {/* Suunnitelma-kehote vapaalle henkilölle */}
-          {canShowPlanNudge && (
-            <div style={{
-              marginTop: '.45rem', padding: '.35rem .55rem',
-              background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.25)',
-              borderRadius: 'var(--r)', fontSize: '.7rem', color: 'var(--t2)',
-              display: 'flex', alignItems: 'center', gap: '.4rem', flexWrap: 'wrap',
-            }}>
-              <span style={{ color: 'var(--green)', fontWeight: 700 }}>Luo työsuunnitelma:</span>
-              <span>{mine ? 'itsellesi' : row.member.name + 'lle'} ei ole aktiivisia tehtäviä.</span>
-              <button onClick={onQuickAdd} className="btn btn-sm" style={{ background: 'var(--green)', color: '#fff', fontSize: '.66rem', padding: '.2rem .5rem' }}>+ Lisää tehtävä</button>
-            </div>
-          )}
+          {/* Neutraalit luvut: aktiiviset tehtävät + projektit */}
+          {(() => {
+            const projectIds = new Set<number>();
+            for (const it of row.items) {
+              if (it.projectId !== undefined) projectIds.add(it.projectId);
+            }
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginTop: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '.72rem', color: 'var(--t2)' }}>
+                  <b style={{ color: 'var(--ink)' }}>{row.active}</b> aktiivista tehtävää
+                  <> · </>
+                  <b style={{ color: 'var(--ink)' }}>{projectIds.size}</b> projektia
+                  {row.overdue > 0 && <> · <span style={{ color: 'var(--red)', fontWeight: 700 }}>{row.overdue} myöhässä</span></>}
+                  {row.pending > 0 && <> · <span style={{ color: 'var(--yellow)', fontWeight: 700 }}>{row.pending} odottaa</span></>}
+                  {row.noDeadline > 0 && <> · <span style={{ color: 'var(--t3)' }}>{row.noDeadline} ilman DL</span></>}
+                </span>
+              </div>
+            );
+          })()}
         </div>
 
         {props.canEdit && (
-          <button onClick={onQuickAdd} title="Lisää tehtävä"
+          <button onClick={props.onQuickAdd} title="Lisää tehtävä"
             style={{ padding: '.3rem .6rem', fontSize: '.85rem', fontWeight: 700, background: 'var(--elev)', border: '1px solid var(--border)', borderRadius: 'var(--r)', cursor: 'pointer', color: 'var(--t1)' }}>
             +
           </button>
@@ -763,14 +746,6 @@ function ExpandedTaskList({
   onAddAssignee: (i: WorkItem, name: string) => void;
   onRemoveAssignee: (i: WorkItem, name: string) => void;
 }) {
-  // Jos ylikuormittunut ja samassa tiimissä on vapaita / keveitä → vihje
-  const hints = row.status === 'overloaded'
-    ? capacity.filter(r =>
-        r.member.teamId === row.member.teamId &&
-        r.member.id !== row.member.id &&
-        (r.status === 'free' || r.status === 'light'))
-    : [];
-
   // Ryhmittele
   const groups = {
     overdue: [] as WorkItem[],
@@ -796,20 +771,6 @@ function ExpandedTaskList({
       {totalShown === 0 && (
         <div style={{ color: 'var(--t3)', fontSize: '.82rem', padding: '.5rem 0' }}>
           Ei aktiivisia tehtäviä.
-        </div>
-      )}
-
-      {hints.length > 0 && (
-        <div style={{
-          padding: '.45rem .6rem', background: 'rgba(86,168,224,.08)',
-          border: '1px solid rgba(86,168,224,.25)', borderRadius: 'var(--r)',
-          fontSize: '.72rem', color: 'var(--t2)', marginBottom: '.6rem',
-          display: 'flex', alignItems: 'center', gap: '.4rem', flexWrap: 'wrap',
-        }}>
-          <span>🔁 Samassa tiimissä vapaana:</span>
-          {hints.map(h => (
-            <span key={h.member.id} style={{ fontWeight: 700, color: 'var(--pri-l)' }}>{h.member.name.split(' ')[0]}</span>
-          ))}
         </div>
       )}
 

@@ -68,6 +68,8 @@ export default function MuistiinpanotPage() {
   const [contextText, setContextText] = useState('');
   const [showContextInput, setShowContextInput] = useState(false);
   const [refiningContext, setRefiningContext] = useState(false);
+  const [preContextText, setPreContextText] = useState('');
+  const [showPreContextInput, setShowPreContextInput] = useState(false);
   const [showAddAction, setShowAddAction] = useState(false);
   const [newActionText, setNewActionText] = useState('');
   const [newActionAssignees, setNewActionAssignees] = useState<string[]>([]);
@@ -227,12 +229,15 @@ export default function MuistiinpanotPage() {
   };
 
   // AI summary request
-  const requestSummary = async (noteId: string) => {
+  const requestSummary = async (noteId: string, extraContext?: string) => {
     const note = notes.find(n => n.id === noteId);
     if (!note) return;
     setSummarizing(true);
     setSummarizingId(noteId);
     try {
+      const contextBlock = extraContext && extraContext.trim()
+        ? `\nLisäkonteksti (mistä on kyse, kuka vastaa, mitä ei pidä päätellä väärin):\n${extraContext.trim()}\n`
+        : '';
       const prompt = `Tee tiivis yhteenveto seuraavasta palaverimuistiinpanosta. Vastaa SELKOTEKSTINA ilman markdown-muotoilua (ei #-otsikoita, ei **-boldausta, ei listamerkkejä). Kayta tavallisia kappaleita ja riveja.
 
 Yhteenvedon jalkeen listaa kaikki toimenpiteet ja paatokset omalla rivillaan muodossa:
@@ -246,7 +251,7 @@ Vastaa suomeksi.
 Otsikko: ${note.title}
 Paivamaara: ${note.date}
 Osallistujat: ${note.attendees.join(', ') || 'Ei merkitty'}
-
+${contextBlock}
 Muistiinpano:
 ${note.content}`;
 
@@ -789,6 +794,55 @@ Paivitetty yhteenveto:`;
                 background: 'rgba(5,107,159,.1)', color: 'var(--pri-l)', fontWeight: 600,
               }}>{a}</span>
             ))}
+          </div>
+        )}
+
+        {/* Anna kontekstia ennen yhteenvedon luontia */}
+        {!detail.summary && canEdit && (
+          <div style={{
+            background: 'rgba(155,124,246,.04)', border: '1px solid rgba(155,124,246,.18)',
+            borderRadius: 'var(--rl)', padding: '.75rem 1rem', marginBottom: '.75rem',
+          }}>
+            {!showPreContextInput ? (
+              <div
+                onClick={() => { setPreContextText(''); setShowPreContextInput(true); }}
+                style={{ fontSize: '.78rem', color: '#9b7cf6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '.4rem' }}
+              >
+                <span style={{ fontSize: '.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}>Anna kontekstia AI:lle (valinnainen)</span>
+                <span style={{ color: 'var(--t3)', fontSize: '.75rem' }}>-- mistä on kyse, kuka osallistuu, mitä ei pidä tulkita väärin</span>
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontSize: '.65rem', fontWeight: 700, color: '#9b7cf6', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.35rem' }}>
+                  Anna kontekstia AI:lle (valinnainen)
+                </div>
+                <div style={{ fontSize: '.68rem', color: 'var(--t3)', marginBottom: '.5rem' }}>
+                  Auttaa parempaan yhteenvetoon. Esim. taustaa, lyhenteet, kuka kuka on.
+                </div>
+                <textarea
+                  className="input textarea"
+                  value={preContextText}
+                  onChange={e => setPreContextText(e.target.value)}
+                  autoFocus
+                  placeholder="Esim: Aivovammaliiton hallituskokous, käsitellään 2027 viestintästrategiaa. Sade = hallituksen pj. AVL = Aivovammaliitto."
+                  style={{
+                    fontSize: '.82rem', lineHeight: 1.5, minHeight: 70, width: '100%',
+                    background: 'rgba(255,255,255,.03)',
+                  }}
+                />
+                <div style={{ display: 'flex', gap: '.35rem', justifyContent: 'flex-end', marginTop: '.5rem' }}>
+                  <button className="btn btn-ghost btn-sm" style={{ fontSize: '.65rem' }} onClick={() => { setShowPreContextInput(false); setPreContextText(''); }}>Sulje</button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    style={{ fontSize: '.65rem', color: '#fff' }}
+                    disabled={summarizing}
+                    onClick={() => { requestSummary(detail.id, preContextText); setShowPreContextInput(false); }}
+                  >
+                    {summarizing ? 'Luodaan...' : 'Luo yhteenveto kontekstilla'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1380,7 +1434,40 @@ Paivitetty yhteenveto:`;
                   </button>
                 )}
               </div>
-              <div style={{ fontSize: '.92rem', fontWeight: 700, marginBottom: '.2rem' }}>{note.title}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginBottom: '.2rem' }}>
+                <div style={{ fontSize: '.92rem', fontWeight: 700, flex: 1, minWidth: 0 }}>{note.title}</div>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const next = window.prompt('Muokkaa otsikkoa:', note.title);
+                      if (next === null) return;
+                      const trimmed = next.trim();
+                      if (!trimmed || trimmed === note.title) return;
+                      setNotes(prev => prev.map(n => n.id === note.id ? { ...n, title: trimmed } : n));
+                      toast('Otsikko päivitetty', 'success');
+                    }}
+                    title="Muokkaa otsikkoa"
+                    aria-label="Muokkaa otsikkoa"
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid var(--border)',
+                      color: 'var(--t3)',
+                      cursor: 'pointer',
+                      fontSize: '.65rem',
+                      letterSpacing: '.04em',
+                      textTransform: 'uppercase',
+                      padding: '.15rem .5rem',
+                      borderRadius: 4,
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--ink)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--pri)'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--t3)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; }}
+                  >
+                    Otsikko
+                  </button>
+                )}
+              </div>
               <div style={{ fontSize: '.72rem', color: 'var(--t3)', display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                 {note.attendees.length > 0 && (
                   <span>Paikalla: {note.attendees.slice(0, 3).join(', ')}{note.attendees.length > 3 ? ` +${note.attendees.length - 3}` : ''}</span>
