@@ -21,7 +21,7 @@ const LogoGeneratorSection = dynamic(() => import('@/components/sections/LogoGen
   ),
 });
 
-const PASSWORD = 'Aivovammaliitto2026';
+const PASSWORD = 'AVL';
 const STORAGE_KEY = 'logogeneraattori_unlocked';
 
 export default function PublicLogoGeneratorPage() {
