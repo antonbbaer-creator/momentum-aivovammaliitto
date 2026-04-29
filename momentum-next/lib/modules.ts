@@ -34,10 +34,11 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   tyonjako:  { id: 'tyonjako',  label: 'Työnjako',   icon: '≈', path: '/tyonjako',  alwaysOn: false },
   palaute:   { id: 'palaute',   label: 'Palaute',    icon: '◆', path: '/palaute',   alwaysOn: false },
   ohjeet:    { id: 'ohjeet',    label: 'Ohjeet',     icon: '?', path: '/ohjeet',    alwaysOn: false },
+  logogeneraattori: { id: 'logogeneraattori', label: 'Logogeneraattori', icon: '✦', path: '/logogeneraattori', alwaysOn: false },
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'ohjeet', 'palaute'];
+export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'logogeneraattori', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'ohjeet', 'palaute'];
 
 // Default modules for new orgs (viestintaorgit)
 export const DEFAULT_MODULES: Record<string, boolean> = {
@@ -64,7 +65,8 @@ export const DEFAULT_MODULES: Record<string, boolean> = {
   palaute: true,
 };
 
-// AVL:n oletusmoduulit — ei ruokaa eika ohjelmistoa (jatkuva viestintatyo, ei tapahtuma)
+// AVL:n oletusmoduulit — ei ruokaa eika ohjelmistoa (jatkuva viestintatyo, ei tapahtuma).
+// Logogeneraattori on AVL-spesifinen tyokalu jasenyhdistysten logojen tuottamiseen.
 export const AVL_MODULES: Record<string, boolean> = {
   dashboard: true,
   strategy: true,
@@ -72,6 +74,7 @@ export const AVL_MODULES: Record<string, boolean> = {
   viestit: true,
   aikataulut: true,
   viestinta: true,
+  logogeneraattori: true,
   ohjelmisto: false,
   budget: true,
   vieraat: false,
