@@ -44,11 +44,9 @@ const GAP = 24;
 const SIDE_MAX_TEXT_WIDTH = 700;
 
 function sanitizeFilenameStem(s: string) {
-  return s
-    .replace(/[åÅäÄ]/g, 'a')
-    .replace(/[öÖ]/g, 'o')
-    .replace(/[^a-zA-Z0-9._\- ]/g, '')
-    .trim();
+  // Säilytetään unicode (ä, ö ym.) — kaikki nykyiset käyttöjärjestelmät tukevat
+  // sitä. Pudotetaan vain tiedostojärjestelmissä kielletyt merkit.
+  return s.replace(/[\\/:*?"<>|]/g, '').trim();
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines = 3): string[] {
@@ -273,9 +271,10 @@ export default function LogoGeneratorSection() {
     drawLogo(canvas, layoutArg, size, transparent, true);
 
     const stem = sanitizeFilenameStem(logoName) || 'yhdistys';
-    const layoutTag = layoutArg === 'side' ? 'Vieressa' : 'Paalla';
-    const sizeTag = size === 'large' ? 'Iso' : size === 'medium' ? 'Keski' : 'Pieni';
-    const filename = `${stem} - ${layoutTag} - ${sizeTag}.png`;
+    // Nimeämismalli vastaa olemassa olevaa: keskikokoinen läpinäkyvä on
+    // tunnistettu nimellä "Läpinäkyvä", iso ja pieni nimensä mukaan.
+    const sizeTag = size === 'large' ? 'Iso' : size === 'medium' ? 'Läpinäkyvä' : 'Pieni';
+    const filename = `${stem} - ${sizeTag}.png`;
 
     const blob: Blob | null = await new Promise(resolve => {
       canvas.toBlob(b => resolve(b), 'image/png');
