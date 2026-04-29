@@ -49,30 +49,44 @@ function sanitizeFilenameStem(s: string) {
   return s.replace(/[\\/:*?"<>|]/g, '').trim();
 }
 
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines = 3): string[] {
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines = 4): string[] {
   if (!text) return [''];
-  if (ctx.measureText(text).width <= maxWidth) return [text];
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let current = '';
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i];
-    const candidate = current ? current + ' ' + word : word;
-    if (ctx.measureText(candidate).width <= maxWidth || !current) {
-      current = candidate;
-    } else {
-      lines.push(current);
-      current = word;
-      if (lines.length >= maxLines - 1) {
-        const rest = [current, ...words.slice(i + 1)].join(' ');
-        lines.push(rest);
-        current = '';
-        break;
+  // Käyttäjän omat rivinvaihdot \n säilytetään. Vain liian pitkät rivit
+  // taitetaan automaattisesti eteenpäin.
+  const userLines = text.split(/\r?\n/);
+  const out: string[] = [];
+  for (const userLine of userLines) {
+    if (out.length >= maxLines) break;
+    if (!userLine.trim()) {
+      out.push('');
+      continue;
+    }
+    if (ctx.measureText(userLine).width <= maxWidth) {
+      out.push(userLine);
+      continue;
+    }
+    const words = userLine.split(/\s+/);
+    let current = '';
+    for (let i = 0; i < words.length; i++) {
+      if (out.length >= maxLines) break;
+      const word = words[i];
+      const candidate = current ? current + ' ' + word : word;
+      if (ctx.measureText(candidate).width <= maxWidth || !current) {
+        current = candidate;
+      } else {
+        out.push(current);
+        current = word;
+        if (out.length >= maxLines - 1) {
+          const rest = [current, ...words.slice(i + 1)].join(' ');
+          out.push(rest);
+          current = '';
+          break;
+        }
       }
     }
+    if (current && out.length < maxLines) out.push(current);
   }
-  if (current) lines.push(current);
-  return lines;
+  return out.length ? out : [text];
 }
 
 export default function LogoGeneratorSection() {
@@ -182,17 +196,19 @@ export default function LogoGeneratorSection() {
     const TRUNK_GAP = 50;
 
     if (layoutArg === 'side') {
-      lines = wrapText(ctx, text, SIDE_MAX_TEXT_WIDTH, 3);
+      lines = wrapText(ctx, text, SIDE_MAX_TEXT_WIDTH, 4);
       textW = Math.max(...lines.map(l => ctx.measureText(l).width));
       textH = lines.length * lineHeight;
 
-      const lastBaseline = sideAscent + (lines.length - 1) * lineHeight;
+      // Ankkuroi puun runko viimeisen tekstirivin todelliseen alareunaan
+      // (sis. alaviipaleen), ei baseline-viivaan — muuten 'y', 'j' ulottuvat
+      // rungon alle ja puu näyttää leijuvalta.
+      const lastLineBottom = lines.length * lineHeight;
       const trunkX = (srcBounds.trunkAnchorX - srcBounds.x) * (treeDrawW / srcBounds.w);
       const trunkY = (srcBounds.trunkAnchorY - srcBounds.y) * (treeDrawH / srcBounds.h);
 
-      // Sijoita rungon tyvi tekstin oikealle puolelle, viimeisen rivin baseline-viivalle.
       const iconX = textW + TRUNK_GAP - trunkX;
-      const iconY = lastBaseline - trunkY;
+      const iconY = lastLineBottom - trunkY;
 
       // Sisällön bounding box (teksti vasen yläkulma 0,0; teksti oikea = textW; teksti ala = textH)
       const minX = Math.min(0, iconX);
@@ -320,13 +336,14 @@ export default function LogoGeneratorSection() {
 
         <div style={{ display: 'flex', gap: '.75rem', alignItems: 'flex-end', marginBottom: '1rem', flexWrap: 'wrap' }}>
           <div className="field" style={{ flex: '1 1 320px', marginBottom: 0 }}>
-            <label>Yhdistyksen nimi</label>
-            <input
+            <label>Yhdistyksen nimi <span style={{ fontWeight: 400, color: 'var(--t3)', fontSize: '.72rem' }}>(Enter rivinvaihtoa varten)</span></label>
+            <textarea
               className="input"
               value={logoName}
               onChange={e => setLogoName(e.target.value)}
-              placeholder="Esim. AVH-yhdistys Pirkanmaa ry"
-              style={{ fontSize: '1rem' }}
+              placeholder={'Esim. AVH-yhdistys\nPirkanmaa ry'}
+              rows={2}
+              style={{ fontSize: '1rem', fontFamily: 'inherit', resize: 'vertical', minHeight: '2.5rem' }}
             />
           </div>
 
