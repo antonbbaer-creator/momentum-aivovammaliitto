@@ -2,7 +2,7 @@
 // Idea: nahda paljonko eri asiakkuudet tuottavat ja seurata laskutuksen tilaa.
 // Linkitys asiakkaaseen tehdaan clientName-stringilla (sama kuin Project.clientName).
 
-export type InvoiceStatus = 'planned' | 'invoiced' | 'paid' | 'cancelled';
+export type InvoiceStatus = 'potential' | 'planned' | 'invoiced' | 'paid' | 'cancelled';
 
 export interface Invoice {
   id: string;            // generoitu uniikki id
@@ -22,14 +22,16 @@ export interface Invoice {
 }
 
 export const INVOICE_STATUS_META: Record<InvoiceStatus, { label: string; color: string; bg: string }> = {
+  potential: { label: 'Potentiaali', color: '#9b7cf6', bg: 'rgba(155,124,246,.14)' },
   planned:   { label: 'Tulossa',     color: '#f1b434', bg: 'rgba(241,180,52,.14)' },
   invoiced:  { label: 'Laskutettu',  color: '#3788b2', bg: 'rgba(55,136,178,.14)' },
   paid:      { label: 'Maksettu',    color: '#2dd4a0', bg: 'rgba(45,212,160,.14)' },
   cancelled: { label: 'Peruutettu',  color: '#7a7a82', bg: 'rgba(120,120,130,.14)' },
 };
 
-// Pipeline-jarjestys: tulossa → laskutettu → maksettu (peruutettu sivuhaara)
-export const INVOICE_STATUS_ORDER: InvoiceStatus[] = ['planned', 'invoiced', 'paid', 'cancelled'];
+// Pipeline: potentiaali (epavarma) → tulossa (sovittu) → laskutettu → maksettu
+// (peruutettu sivuhaara kaikilta tasoilta)
+export const INVOICE_STATUS_ORDER: InvoiceStatus[] = ['potential', 'planned', 'invoiced', 'paid', 'cancelled'];
 
 export const DEFAULT_VAT_RATE = 25.5; // Suomen yleinen ALV 9/2024 alkaen
 

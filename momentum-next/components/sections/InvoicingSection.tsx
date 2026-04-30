@@ -15,6 +15,7 @@ type StatusFilter = 'all' | InvoiceStatus | 'overdue';
 
 const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
   { id: 'all', label: 'Kaikki' },
+  { id: 'potential', label: 'Potentiaali' },
   { id: 'planned', label: 'Tulossa' },
   { id: 'invoiced', label: 'Laskutettu' },
   { id: 'overdue', label: 'Myöhässä' },
@@ -27,6 +28,9 @@ export default function InvoicingSection() {
   const { toast } = useToast();
   const [invoices, setInvoices] = useOrgData<Invoice[]>('invoices', []);
   const [clients] = useOrgData<Client[]>('clients', []);
+  const [targets, setTargets] = useOrgData<Record<string, number>>('hetkiInvoiceTargets', { '2026': 60000 });
+  const [editingTarget, setEditingTarget] = useState(false);
+  const [draftTarget, setDraftTarget] = useState('');
 
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [year, setYear] = useState<number>(new Date().getFullYear());
@@ -72,19 +76,22 @@ export default function InvoicingSection() {
 
   // Yhteenvedot — netto ja brutto (sis. ALV) erikseen
   const totals = useMemo(() => {
+    let potential = 0, potentialGross = 0;
     let planned = 0, plannedGross = 0;
     let invoiced = 0, invoicedGross = 0;
     let paid = 0, paidGross = 0;
     let overdueAmt = 0, overdueGross = 0;
     for (const i of yearInvoices) {
       const gross = grossAmount(i);
-      if (i.status === 'planned') { planned += i.amount; plannedGross += gross; }
+      if (i.status === 'potential') { potential += i.amount; potentialGross += gross; }
+      else if (i.status === 'planned') { planned += i.amount; plannedGross += gross; }
       else if (i.status === 'invoiced') {
         invoiced += i.amount; invoicedGross += gross;
         if (isOverdue(i)) { overdueAmt += i.amount; overdueGross += gross; }
       } else if (i.status === 'paid') { paid += i.amount; paidGross += gross; }
     }
     return {
+      potential, potentialGross,
       planned, plannedGross,
       invoiced, invoicedGross,
       paid, paidGross,
@@ -92,19 +99,26 @@ export default function InvoicingSection() {
     };
   }, [yearInvoices]);
 
-  // Asiakaskohtainen yhteenveto (vuoden sisältä, netto + brutto)
+  // Asiakaskohtainen yhteenveto (vuoden sisältä, netto + brutto).
+  // 'total' jaetaan: realized = paid+invoiced+planned (varma), potential = potential.
   const byClient = useMemo(() => {
-    const map = new Map<string, { name: string; planned: number; invoiced: number; paid: number; total: number; totalGross: number; count: number }>();
+    const map = new Map<string, {
+      name: string;
+      potential: number; planned: number; invoiced: number; paid: number;
+      realized: number; total: number; totalGross: number; count: number;
+    }>();
     for (const i of yearInvoices) {
       const key = (i.clientName || '').trim() || '(Ei asiakasta)';
-      const cur = map.get(key) || { name: key, planned: 0, invoiced: 0, paid: 0, total: 0, totalGross: 0, count: 0 };
-      if (i.status === 'planned') cur.planned += i.amount;
+      const cur = map.get(key) || { name: key, potential: 0, planned: 0, invoiced: 0, paid: 0, realized: 0, total: 0, totalGross: 0, count: 0 };
+      if (i.status === 'potential') cur.potential += i.amount;
+      else if (i.status === 'planned') cur.planned += i.amount;
       else if (i.status === 'invoiced') cur.invoiced += i.amount;
       else if (i.status === 'paid') cur.paid += i.amount;
       if (i.status !== 'cancelled') {
         cur.total += i.amount;
         cur.totalGross += grossAmount(i);
         cur.count += 1;
+        if (i.status !== 'potential') cur.realized += i.amount;
       }
       map.set(key, cur);
     }
@@ -121,7 +135,13 @@ export default function InvoicingSection() {
     } else if (filter !== 'all') {
       list = list.filter(i => i.status === filter);
     }
-    return [...list].sort((a, b) => b.issueDate.localeCompare(a.issueDate));
+    // potential-statuksen laskut listan loppuun, muuten paivamaaran mukaan
+    return [...list].sort((a, b) => {
+      const ap = a.status === 'potential' ? 1 : 0;
+      const bp = b.status === 'potential' ? 1 : 0;
+      if (ap !== bp) return ap - bp;
+      return b.issueDate.localeCompare(a.issueDate);
+    });
   }, [yearInvoices, filter]);
 
   // Potentiaali — tarjouksissa ja mahdollisuuksissa olevien asiakkuuksien
@@ -147,8 +167,9 @@ export default function InvoicingSection() {
     return { offerNet, offerGross, prospectNet, prospectGross, offerClients, prospectClients };
   }, [clients]);
 
-  const counts = useMemo(() => ({
+  const counts = useMemo<Record<StatusFilter, number>>(() => ({
     all: yearInvoices.length,
+    potential: yearInvoices.filter(i => i.status === 'potential').length,
     planned: yearInvoices.filter(i => i.status === 'planned').length,
     invoiced: yearInvoices.filter(i => i.status === 'invoiced').length,
     overdue: yearInvoices.filter(i => i.status === 'invoiced' && isOverdue(i)).length,
@@ -260,6 +281,102 @@ export default function InvoicingSection() {
         <button className="btn btn-primary btn-sm" onClick={openNew}>+ Uusi lasku</button>
       </div>
 
+      {/* Vuositavoite-progressbar */}
+      {(() => {
+        const target = targets[String(year)] ?? 0;
+        const realized = totals.paid + totals.invoiced;
+        const committed = realized + totals.planned;
+        const realizedPct = target > 0 ? Math.min((realized / target) * 100, 100) : 0;
+        const committedPct = target > 0 ? Math.min((committed / target) * 100, 100) : 0;
+        const remaining = Math.max(target - committed, 0);
+        const saveTarget = () => {
+          const n = parseFloat(draftTarget.replace(',', '.').replace(/\s/g, ''));
+          if (isFinite(n) && n >= 0) {
+            setTargets(prev => ({ ...prev, [String(year)]: Math.round(n) }));
+            setEditingTarget(false);
+            toast('Tavoite päivitetty', 'success');
+          }
+        };
+        return (
+          <div style={{
+            background: 'var(--card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--rl)', padding: '1rem 1.25rem', marginBottom: '1.25rem',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '.5rem', flexWrap: 'wrap', gap: '.5rem' }}>
+              <div style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                Vuositavoite {year}
+              </div>
+              {editingTarget ? (
+                <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+                  <input
+                    className="input"
+                    value={draftTarget}
+                    autoFocus
+                    onChange={e => setDraftTarget(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveTarget(); else if (e.key === 'Escape') setEditingTarget(false); }}
+                    placeholder="60000"
+                    inputMode="decimal"
+                    style={{ width: 110, fontSize: '.78rem' }}
+                  />
+                  <button className="btn btn-primary btn-sm" onClick={saveTarget} style={{ fontSize: '.7rem' }}>Tallenna</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setEditingTarget(false)} style={{ fontSize: '.7rem' }}>Peru</button>
+                </div>
+              ) : (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => { setDraftTarget(String(target)); setEditingTarget(true); }}
+                  style={{ fontSize: '.7rem' }}
+                >Muokkaa tavoitetta</button>
+              )}
+            </div>
+            {target > 0 ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '.4rem', fontSize: '.85rem' }}>
+                  <span>
+                    <strong style={{ fontSize: '1.2rem' }}>{formatEur(realized)}</strong>
+                    <span style={{ color: 'var(--t3)', marginLeft: '.4rem' }}>/ {formatEur(target)}</span>
+                  </span>
+                  <span style={{ color: '#2dd4a0', fontWeight: 700 }}>
+                    {realizedPct.toFixed(0)} %
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div style={{ height: 14, background: 'var(--elev)', borderRadius: 7, overflow: 'hidden', position: 'relative' }}>
+                  {/* Sovittu (paid + invoiced + planned) — taustana vaaleampi */}
+                  <div style={{
+                    position: 'absolute', top: 0, left: 0, bottom: 0,
+                    width: `${committedPct}%`,
+                    background: INVOICE_STATUS_META.planned.color,
+                    opacity: 0.4,
+                  }} title={`Sovittu yhteensä: ${formatEur(committed)}`} />
+                  {/* Toteutunut (paid + invoiced) — paalla taysiveri */}
+                  <div style={{
+                    position: 'absolute', top: 0, left: 0, bottom: 0,
+                    width: `${realizedPct}%`,
+                    background: '#2dd4a0',
+                  }} title={`Toteutunut: ${formatEur(realized)}`} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '.4rem', fontSize: '.72rem', color: 'var(--t3)', flexWrap: 'wrap', gap: '.5rem' }}>
+                  <span>
+                    Sovittu yhteensä: <strong style={{ color: 'var(--t2)' }}>{formatEur(committed)}</strong>
+                    {' '}({committedPct.toFixed(0)} %)
+                  </span>
+                  <span>
+                    Tavoitteeseen puuttuu: <strong style={{ color: remaining > 0 ? 'var(--red)' : '#2dd4a0' }}>
+                      {formatEur(remaining)}
+                    </strong>
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: '.82rem', color: 'var(--t3)' }}>
+                Ei tavoitetta vuodelle {year}. Klikkaa "Muokkaa tavoitetta" asettaaksesi.
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Yhteenvetokortit — netto isolla, brutto pienempana */}
       <div className="stats" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: '1.25rem' }}>
         <div className="stat">
@@ -277,6 +394,13 @@ export default function InvoicingSection() {
           <div style={{ fontSize: '.7rem', color: 'var(--t3)', marginTop: '.15rem' }}>{formatEur(totals.plannedGross)} sis. ALV</div>
           <div className="stat-lbl">Tulossa</div>
         </div>
+        {totals.potential > 0 && (
+          <div className="stat" style={{ borderColor: INVOICE_STATUS_META.potential.color }}>
+            <div className="stat-num" style={{ color: INVOICE_STATUS_META.potential.color }}>{formatEur(totals.potential)}</div>
+            <div style={{ fontSize: '.7rem', color: 'var(--t3)', marginTop: '.15rem' }}>{formatEur(totals.potentialGross)} sis. ALV</div>
+            <div className="stat-lbl">Potentiaali</div>
+          </div>
+        )}
         {totals.overdueAmt > 0 && (
           <div className="stat" style={{ borderColor: 'var(--red)' }}>
             <div className="stat-num" style={{ color: 'var(--red)' }}>{formatEur(totals.overdueAmt)}</div>
@@ -379,11 +503,12 @@ export default function InvoicingSection() {
                     <span style={{ color: 'var(--t3)' }}> · {c.count} lasku{c.count === 1 ? '' : 'a'}</span>
                   </span>
                 </div>
-                {/* Stack-bar: maksettu / laskutettu / tulossa */}
+                {/* Stack-bar: maksettu / laskutettu / tulossa / potentiaali */}
                 <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'var(--elev)', width: `${(c.total / maxClientTotal) * 100}%`, minWidth: 12 }}>
                   {c.paid > 0 && <div style={{ width: `${(c.paid / c.total) * 100}%`, background: INVOICE_STATUS_META.paid.color }} title={`Maksettu: ${formatEur(c.paid)}`} />}
                   {c.invoiced > 0 && <div style={{ width: `${(c.invoiced / c.total) * 100}%`, background: INVOICE_STATUS_META.invoiced.color }} title={`Laskutettu: ${formatEur(c.invoiced)}`} />}
                   {c.planned > 0 && <div style={{ width: `${(c.planned / c.total) * 100}%`, background: INVOICE_STATUS_META.planned.color }} title={`Tulossa: ${formatEur(c.planned)}`} />}
+                  {c.potential > 0 && <div style={{ width: `${(c.potential / c.total) * 100}%`, background: INVOICE_STATUS_META.potential.color, opacity: 0.6 }} title={`Potentiaali: ${formatEur(c.potential)}`} />}
                 </div>
               </div>
             ))}
@@ -392,6 +517,7 @@ export default function InvoicingSection() {
             <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: INVOICE_STATUS_META.paid.color, marginRight: 4 }} />Maksettu</span>
             <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: INVOICE_STATUS_META.invoiced.color, marginRight: 4 }} />Laskutettu</span>
             <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: INVOICE_STATUS_META.planned.color, marginRight: 4 }} />Tulossa</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: INVOICE_STATUS_META.potential.color, opacity: 0.6, marginRight: 4 }} />Potentiaali</span>
           </div>
         </div>
       )}
