@@ -15,6 +15,8 @@ type StatusFilter = 'all' | ClientStatus;
 
 const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
   { id: 'all', label: 'Kaikki' },
+  { id: 'prospect', label: 'Mahdolliset' },
+  { id: 'offer', label: 'Tarjoukset' },
   { id: 'active', label: 'Aktiiviset' },
   { id: 'frozen', label: 'Jäissä' },
   { id: 'past', label: 'Päättyneet' },
@@ -68,8 +70,10 @@ export default function ClientsSection() {
     return map;
   }, [projects]);
 
-  const counts = useMemo(() => ({
+  const counts = useMemo<Record<StatusFilter, number>>(() => ({
     all: enriched.length,
+    prospect: enriched.filter(c => c.status === 'prospect').length,
+    offer: enriched.filter(c => c.status === 'offer').length,
     active: enriched.filter(c => c.status === 'active').length,
     frozen: enriched.filter(c => c.status === 'frozen').length,
     past: enriched.filter(c => c.status === 'past').length,

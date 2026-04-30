@@ -2,7 +2,7 @@
 // Synkronoidaan Project.clientName-kentan kanssa: jokainen uusi asiakasnimi
 // projekteissa luo automaattisesti Client-dokumentin (auto-sync).
 
-export type ClientStatus = 'active' | 'frozen' | 'past';
+export type ClientStatus = 'prospect' | 'offer' | 'active' | 'frozen' | 'past';
 
 export interface Client {
   id: string;              // generoitu (slug nimesta)
@@ -20,12 +20,15 @@ export interface Client {
 }
 
 export const CLIENT_STATUS_META: Record<ClientStatus, { label: string; color: string; bg: string }> = {
-  active: { label: 'Aktiivinen', color: '#2a8a86', bg: 'rgba(42,138,134,.12)' },
-  frozen: { label: 'Jäissä',      color: '#f1b434', bg: 'rgba(241,180,52,.14)' },
-  past:   { label: 'Päättynyt',   color: '#7a7a82', bg: 'rgba(120,120,130,.14)' },
+  prospect: { label: 'Mahdollinen', color: '#9b7cf6', bg: 'rgba(155,124,246,.12)' },
+  offer:    { label: 'Tarjous',     color: '#3788b2', bg: 'rgba(55,136,178,.14)' },
+  active:   { label: 'Aktiivinen',  color: '#2a8a86', bg: 'rgba(42,138,134,.12)' },
+  frozen:   { label: 'Jäissä',      color: '#f1b434', bg: 'rgba(241,180,52,.14)' },
+  past:     { label: 'Päättynyt',   color: '#7a7a82', bg: 'rgba(120,120,130,.14)' },
 };
 
-export const CLIENT_STATUS_ORDER: ClientStatus[] = ['active', 'frozen', 'past'];
+// Pipeline-jarjestys: mahdollinen → tarjous → aktiivinen → jaissa → paattynyt
+export const CLIENT_STATUS_ORDER: ClientStatus[] = ['prospect', 'offer', 'active', 'frozen', 'past'];
 
 const COLOR_PALETTE = [
   '#9b7cf6', '#e45c81', '#3788b2', '#f1b434', '#2a8a86',
