@@ -32,6 +32,8 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   palaverit: { id: 'palaverit', label: 'Palaverit', icon: '⊞', path: '/palaverit', alwaysOn: false },
   projects:  { id: 'projects',  label: 'Projektit',  icon: '▣', path: '/projects',  alwaysOn: false },
   asiakkuudet: { id: 'asiakkuudet', label: 'Asiakkuudet', icon: '◆', path: '/asiakkuudet', alwaysOn: false },
+  laskutus:  { id: 'laskutus',  label: 'Laskutus',   icon: '€', path: '/laskutus',  alwaysOn: false },
+  talous:    { id: 'talous',    label: 'Budjetti',   icon: '◇', path: '/talous',    alwaysOn: false },
   tyonjako:  { id: 'tyonjako',  label: 'Työnjako',   icon: '≈', path: '/tyonjako',  alwaysOn: false },
   palaute:   { id: 'palaute',   label: 'Palaute',    icon: '◆', path: '/palaute',   alwaysOn: false },
   ohjeet:    { id: 'ohjeet',    label: 'Ohjeet',     icon: '?', path: '/ohjeet',    alwaysOn: false },
@@ -39,7 +41,7 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'asiakkuudet', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'logogeneraattori', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'ohjeet', 'palaute'];
+export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'asiakkuudet', 'laskutus', 'talous', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'logogeneraattori', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'ohjeet', 'palaute'];
 
 // Default modules for new orgs (viestintaorgit)
 export const DEFAULT_MODULES: Record<string, boolean> = {
@@ -151,7 +153,8 @@ export const HETKI_COMPANY_MODULES: Record<string, boolean> = {
   viestinta: true,
   ohjelmisto: false,
   budget: false,
-  budjetti: true,
+  budjetti: false,        // vanha (Ihaa-tyylinen) pois — Hetki kayttaa 'talous'
+  talous: true,           // Hetki-spesifinen tulot/menot/tulos-budjetti
   vieraat: false,
   ruoka: false,
   tehtavat: true,
@@ -163,6 +166,7 @@ export const HETKI_COMPANY_MODULES: Record<string, boolean> = {
   palaverit: true,
   projects: true,
   asiakkuudet: true,
+  laskutus: true,
   tyonjako: true,
   palaute: true,
   logogeneraattori: false,
