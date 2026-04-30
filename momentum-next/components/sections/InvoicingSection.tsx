@@ -6,7 +6,7 @@ import { useToast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import {
   Invoice, InvoiceStatus, INVOICE_STATUS_META, INVOICE_STATUS_ORDER,
-  makeInvoice, isOverdue, formatEur, DEFAULT_VAT_RATE,
+  makeInvoice, isOverdue, formatEur, grossAmount, DEFAULT_VAT_RATE,
 } from '@/lib/invoices-shared';
 import type { Client } from '@/lib/clients-shared';
 import { softDelete, filterActive } from '@/lib/trash';
@@ -70,34 +70,40 @@ export default function InvoicingSection() {
     [activeInvoices, year]
   );
 
-  // Yhteenvedot (netto €)
+  // Yhteenvedot — netto ja brutto (sis. ALV) erikseen
   const totals = useMemo(() => {
-    let planned = 0, invoiced = 0, paid = 0, overdueAmt = 0;
+    let planned = 0, plannedGross = 0;
+    let invoiced = 0, invoicedGross = 0;
+    let paid = 0, paidGross = 0;
+    let overdueAmt = 0, overdueGross = 0;
     for (const i of yearInvoices) {
-      if (i.status === 'planned') planned += i.amount;
+      const gross = grossAmount(i);
+      if (i.status === 'planned') { planned += i.amount; plannedGross += gross; }
       else if (i.status === 'invoiced') {
-        invoiced += i.amount;
-        if (isOverdue(i)) overdueAmt += i.amount;
-      } else if (i.status === 'paid') paid += i.amount;
+        invoiced += i.amount; invoicedGross += gross;
+        if (isOverdue(i)) { overdueAmt += i.amount; overdueGross += gross; }
+      } else if (i.status === 'paid') { paid += i.amount; paidGross += gross; }
     }
     return {
-      planned, invoiced, paid, overdueAmt,
-      pipeline: planned + invoiced,    // tulossa + laskutettu (odottaa)
-      total: planned + invoiced + paid, // koko vuoden potentiaali
+      planned, plannedGross,
+      invoiced, invoicedGross,
+      paid, paidGross,
+      overdueAmt, overdueGross,
     };
   }, [yearInvoices]);
 
-  // Asiakaskohtainen yhteenveto (vuoden sisältä, netto €)
+  // Asiakaskohtainen yhteenveto (vuoden sisältä, netto + brutto)
   const byClient = useMemo(() => {
-    const map = new Map<string, { name: string; planned: number; invoiced: number; paid: number; total: number; count: number }>();
+    const map = new Map<string, { name: string; planned: number; invoiced: number; paid: number; total: number; totalGross: number; count: number }>();
     for (const i of yearInvoices) {
       const key = (i.clientName || '').trim() || '(Ei asiakasta)';
-      const cur = map.get(key) || { name: key, planned: 0, invoiced: 0, paid: 0, total: 0, count: 0 };
+      const cur = map.get(key) || { name: key, planned: 0, invoiced: 0, paid: 0, total: 0, totalGross: 0, count: 0 };
       if (i.status === 'planned') cur.planned += i.amount;
       else if (i.status === 'invoiced') cur.invoiced += i.amount;
       else if (i.status === 'paid') cur.paid += i.amount;
       if (i.status !== 'cancelled') {
         cur.total += i.amount;
+        cur.totalGross += grossAmount(i);
         cur.count += 1;
       }
       map.set(key, cur);
@@ -231,23 +237,27 @@ export default function InvoicingSection() {
         <button className="btn btn-primary btn-sm" onClick={openNew}>+ Uusi lasku</button>
       </div>
 
-      {/* Yhteenvetokortit */}
-      <div className="stats" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', marginBottom: '1.25rem' }}>
+      {/* Yhteenvetokortit — netto isolla, brutto pienempana */}
+      <div className="stats" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: '1.25rem' }}>
         <div className="stat">
           <div className="stat-num">{formatEur(totals.paid)}</div>
+          <div style={{ fontSize: '.7rem', color: 'var(--t3)', marginTop: '.15rem' }}>{formatEur(totals.paidGross)} sis. ALV</div>
           <div className="stat-lbl">Maksettu {year}</div>
         </div>
         <div className="stat">
           <div className="stat-num">{formatEur(totals.invoiced)}</div>
+          <div style={{ fontSize: '.7rem', color: 'var(--t3)', marginTop: '.15rem' }}>{formatEur(totals.invoicedGross)} sis. ALV</div>
           <div className="stat-lbl">Laskutettu (odottaa)</div>
         </div>
         <div className="stat">
           <div className="stat-num">{formatEur(totals.planned)}</div>
+          <div style={{ fontSize: '.7rem', color: 'var(--t3)', marginTop: '.15rem' }}>{formatEur(totals.plannedGross)} sis. ALV</div>
           <div className="stat-lbl">Tulossa</div>
         </div>
         {totals.overdueAmt > 0 && (
           <div className="stat" style={{ borderColor: 'var(--red)' }}>
             <div className="stat-num" style={{ color: 'var(--red)' }}>{formatEur(totals.overdueAmt)}</div>
+            <div style={{ fontSize: '.7rem', color: 'var(--red)', opacity: 0.7, marginTop: '.15rem' }}>{formatEur(totals.overdueGross)} sis. ALV</div>
             <div className="stat-lbl">Myöhässä</div>
           </div>
         )}
@@ -268,7 +278,9 @@ export default function InvoicingSection() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '.25rem', flexWrap: 'wrap', gap: '.5rem' }}>
                   <span style={{ fontSize: '.85rem', fontWeight: 600 }}>{c.name}</span>
                   <span style={{ fontSize: '.75rem', color: 'var(--t2)' }}>
-                    {formatEur(c.total)} <span style={{ color: 'var(--t3)' }}>· {c.count} lasku{c.count === 1 ? '' : 'a'}</span>
+                    {formatEur(c.total)}
+                    <span style={{ color: 'var(--t3)' }}> ({formatEur(c.totalGross)} sis. ALV)</span>
+                    <span style={{ color: 'var(--t3)' }}> · {c.count} lasku{c.count === 1 ? '' : 'a'}</span>
                   </span>
                 </div>
                 {/* Stack-bar: maksettu / laskutettu / tulossa */}
@@ -383,8 +395,13 @@ export default function InvoicingSection() {
                     <option key={s} value={s}>{INVOICE_STATUS_META[s].label}</option>
                   ))}
                 </select>
-                <div style={{ fontSize: '.92rem', fontWeight: 700, color: 'var(--t1)', whiteSpace: 'nowrap', minWidth: 70, textAlign: 'right' }}>
-                  {formatEur(inv.amount)}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', whiteSpace: 'nowrap', minWidth: 90 }}>
+                  <div style={{ fontSize: '.92rem', fontWeight: 700, color: 'var(--t1)' }}>
+                    {formatEur(inv.amount)}
+                  </div>
+                  <div style={{ fontSize: '.62rem', color: 'var(--t3)' }}>
+                    {formatEur(grossAmount(inv))} sis. ALV
+                  </div>
                 </div>
               </div>
             );
@@ -444,6 +461,32 @@ export default function InvoicingSection() {
                 <input className="input" value={fVat} onChange={e => setFVat(e.target.value)} inputMode="decimal" />
               </div>
             </div>
+
+            {/* Auto-laskenta: brutto + ALV-summa */}
+            {(() => {
+              const amt = parseFloat(fAmount.replace(',', '.'));
+              const vat = parseFloat(fVat.replace(',', '.')) || 0;
+              if (!isFinite(amt) || amt <= 0) return null;
+              const vatAmt = amt * (vat / 100);
+              const gross = amt + vatAmt;
+              return (
+                <div style={{
+                  background: 'var(--elev)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--r)', padding: '.6rem .85rem',
+                  marginTop: '-.4rem', marginBottom: '.6rem',
+                  fontSize: '.78rem',
+                  display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '.5rem',
+                }}>
+                  <span style={{ color: 'var(--t3)' }}>
+                    Netto <strong style={{ color: 'var(--t2)' }}>{formatEur(amt)}</strong>
+                    {' '}+ ALV {vat}% <strong style={{ color: 'var(--t2)' }}>{formatEur(vatAmt)}</strong>
+                  </span>
+                  <span style={{ color: 'var(--t1)' }}>
+                    = <strong>{formatEur(gross)}</strong> sis. ALV
+                  </span>
+                </div>
+              );
+            })()}
 
             <div className="field">
               <label>Tila</label>
