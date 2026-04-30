@@ -54,15 +54,27 @@ service cloud.firestore {
       // (suojaa: koodi tarvitaan kuitenkin, eikä pelkkä luku riitä jäseneksi)
     }
 
-    // Momentumin palaute (bugit, kehityspyynnöt). Kuka tahansa kirjautunut
-    // saa lähettää, lukea omat palautteensa, ja super-admin voi lukea kaikki.
+    // Momentumin palaute (bugit, kehityspyynnöt). Jaettu org-jäsenten
+    // kesken: koko orgin jäsenet näkevät toistensa palautteet ja voivat
+    // merkitä ne tehdyiksi/työn alla. Lähettäjän tai super-adminin voi
+    // myös poistaa.
     match /momentumFeedback/{feedbackId} {
       allow create: if request.auth != null
         && request.resource.data.userUid == request.auth.uid;
       allow get: if request.auth != null
-        && (resource.data.userUid == request.auth.uid || isSuperAdmin());
+        && (resource.data.userUid == request.auth.uid
+            || isOrgMember(resource.data.orgId)
+            || isSuperAdmin());
       allow list: if request.auth != null;
-      allow update, delete: if isSuperAdmin();
+      // Org-jäsenet voivat päivittää statusta. Suojataan: orgId, userUid ja
+      // submittedAt eivät saa muuttua — vain status / muut kuratointikentät.
+      allow update: if request.auth != null
+        && (isOrgMember(resource.data.orgId) || isSuperAdmin())
+        && request.resource.data.orgId == resource.data.orgId
+        && request.resource.data.userUid == resource.data.userUid
+        && request.resource.data.submittedAt == resource.data.submittedAt;
+      allow delete: if request.auth != null
+        && (resource.data.userUid == request.auth.uid || isSuperAdmin());
     }
 
     // Helper: check if user belongs to the organization
