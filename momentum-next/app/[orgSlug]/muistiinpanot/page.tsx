@@ -119,6 +119,10 @@ export default function MuistiinpanotPage() {
   const [nRawTranscription, setNRawTranscription] = useState('');
   const [nCleanTranscription, setNCleanTranscription] = useState('');
 
+  // Detail-naytton nimen pikamuokkaus
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [draftTitle, setDraftTitle] = useState('');
+
   const driveStatus = useDriveStatus();
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
   const [driveBusy, setDriveBusy] = useState(false);
@@ -183,6 +187,18 @@ export default function MuistiinpanotPage() {
     setNRawTranscription('');
     setNCleanTranscription('');
     setShowForm(true);
+  };
+
+  // Pikamuokkaus: vaihda muistioon nimi (detail-naytto)
+  const renameNote = (noteId: string, nextTitle: string): boolean => {
+    const trimmed = nextTitle.trim();
+    if (!trimmed) {
+      toast('Nimi ei voi olla tyhjä', 'error');
+      return false;
+    }
+    setNotes(prev => prev.map(n => n.id === noteId ? { ...n, title: trimmed } : n));
+    toast('Nimi päivitetty', 'success');
+    return true;
   };
 
   const openEdit = (note: MeetingNote) => {
@@ -782,7 +798,52 @@ Paivitetty yhteenveto:`;
   if (detail) {
     return (
       <AppShell title={detail.title} subtitle={formatDate(detail.date)}>
-        <button className="btn btn-ghost" onClick={() => setSelectedNote(null)} style={{ marginBottom: '1rem' }}>{'<-'} Takaisin</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '.5rem', marginBottom: '1rem' }}>
+          <button className="btn btn-ghost" onClick={() => setSelectedNote(null)}>{'<-'} Takaisin</button>
+          {canEdit && !editingTitle && (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => { setDraftTitle(detail.title); setEditingTitle(true); }}
+              style={{ fontSize: '.72rem' }}
+              title="Muokkaa muistion nimeä"
+            >Muokkaa nimeä</button>
+          )}
+        </div>
+
+        {/* Inline-muokkaus muistion nimelle */}
+        {editingTitle && canEdit && (
+          <div style={{
+            background: 'rgba(155,124,246,.04)', border: '1px solid rgba(155,124,246,.25)',
+            borderRadius: 'var(--rl)', padding: '.75rem 1rem', marginBottom: '1rem',
+          }}>
+            <div style={{ fontSize: '.65rem', fontWeight: 700, color: '#9b7cf6', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.4rem' }}>
+              Muokkaa nimeä
+            </div>
+            <input
+              className="input"
+              value={draftTitle}
+              autoFocus
+              onChange={e => setDraftTitle(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  if (renameNote(detail.id, draftTitle)) setEditingTitle(false);
+                } else if (e.key === 'Escape') {
+                  setEditingTitle(false);
+                }
+              }}
+              style={{ fontSize: '.95rem', fontWeight: 600 }}
+            />
+            <div style={{ display: 'flex', gap: '.4rem', justifyContent: 'flex-end', marginTop: '.5rem' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setEditingTitle(false)} style={{ fontSize: '.72rem' }}>Peruuta</button>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => { if (renameNote(detail.id, draftTitle)) setEditingTitle(false); }}
+                disabled={!draftTitle.trim() || draftTitle.trim() === detail.title.trim()}
+                style={{ fontSize: '.72rem' }}
+              >Tallenna</button>
+            </div>
+          </div>
+        )}
 
         {/* Attendees */}
         {detail.attendees.length > 0 && (
