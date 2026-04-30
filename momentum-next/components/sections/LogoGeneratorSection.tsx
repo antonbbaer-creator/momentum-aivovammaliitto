@@ -9,6 +9,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useToast } from '@/lib/toast';
+import JSZip from 'jszip';
 
 type Layout = 'top' | 'side';
 type Size = 'large' | 'medium' | 'small';
@@ -280,25 +281,20 @@ export default function LogoGeneratorSection() {
     }
   }, [treeImg, treeBounds, logoName, logoFontSize]);
 
-  const downloadLogo = useCallback(async (layoutArg: Layout, size: Size) => {
-    if (!logoName.trim()) return;
+  const renderBlob = useCallback(async (layoutArg: Layout, size: Size): Promise<{ blob: Blob; filename: string } | null> => {
     const transparent = TRANSPARENT_BY_SIZE[size];
     const canvas = document.createElement('canvas');
     drawLogo(canvas, layoutArg, size, transparent, true);
-
     const stem = sanitizeFilenameStem(logoName) || 'yhdistys';
-    // Nimeämismalli vastaa olemassa olevaa: keskikokoinen läpinäkyvä on
-    // tunnistettu nimellä "Läpinäkyvä", iso ja pieni nimensä mukaan.
     const sizeTag = size === 'large' ? 'Iso' : size === 'medium' ? 'Läpinäkyvä' : 'Pieni';
     const filename = `${stem} - ${sizeTag}.png`;
-
     const blob: Blob | null = await new Promise(resolve => {
       canvas.toBlob(b => resolve(b), 'image/png');
     });
-    if (!blob) {
-      toast('Logon luominen epäonnistui', 'error');
-      return;
-    }
+    return blob ? { blob, filename } : null;
+  }, [drawLogo, logoName]);
+
+  const triggerDownload = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.download = filename;
@@ -308,20 +304,34 @@ export default function LogoGeneratorSection() {
     link.click();
     document.body.removeChild(link);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
-  }, [drawLogo, logoName, toast]);
+  };
+
+  const downloadLogo = useCallback(async (layoutArg: Layout, size: Size) => {
+    if (!logoName.trim()) return;
+    const result = await renderBlob(layoutArg, size);
+    if (!result) {
+      toast('Logon luominen epäonnistui', 'error');
+      return;
+    }
+    triggerDownload(result.blob, result.filename);
+  }, [renderBlob, logoName, toast]);
 
   const downloadAll = useCallback(async () => {
     if (!logoName.trim()) {
       toast('Kirjoita yhdistyksen nimi', 'error');
       return;
     }
-    toast('Ladataan kolme logoa…', 'success');
+    toast('Pakataan logot…', 'success');
     const sizes: Size[] = ['large', 'medium', 'small'];
+    const zip = new JSZip();
     for (const size of sizes) {
-      await downloadLogo(layout, size);
-      await new Promise(r => setTimeout(r, 350));
+      const result = await renderBlob(layout, size);
+      if (result) zip.file(result.filename, result.blob);
     }
-  }, [logoName, layout, downloadLogo, toast]);
+    const stem = sanitizeFilenameStem(logoName) || 'yhdistys';
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    triggerDownload(zipBlob, `${stem} - logot.zip`);
+  }, [logoName, layout, renderBlob, toast]);
 
   const previewReady = !!treeImg;
   const namePresent = logoName.trim().length > 0;
@@ -382,9 +392,9 @@ export default function LogoGeneratorSection() {
             className="btn btn-primary"
             onClick={downloadAll}
             disabled={!namePresent || !previewReady}
-            title="Lataa iso, keski ja pieni kerralla"
+            title="Lataa kaikki kolme yhdessä ZIP-paketissa"
           >
-            Lataa kaikki kolme
+            Lataa kaikki kolme (ZIP)
           </button>
         </div>
       </div>
