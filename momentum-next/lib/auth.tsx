@@ -6,6 +6,21 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider, persistenceReady } from './firebase';
 import { isOrgEnabled } from './enabled-orgs';
 
+// Super-admin email -> auto-provision -lista. Synkattu firestore.rules:n
+// isSuperAdmin()-funktion kanssa. Nämä käyttäjät saavat kirjautuessaan
+// automaattisesti omistajaroolin tähän listaan kuuluvissa orgeissa, jos eivät
+// vielä ole jäseniä — ei tarvita admin-paneelin nappia.
+const SUPER_ADMIN_AUTO_PROVISION_ORGS: { orgId: string; name: string }[] = [
+  { orgId: 'hetki-company', name: 'Hetki Company' },
+];
+const SUPER_ADMIN_EMAILS = [
+  'anton@hetkicompany.com',
+  'anton.baer@gmail.com',
+  'anton.b.baer@gmail.com',
+  'anton.baer@kinolapinlahti.fi',
+  'claude-test@hetkicompany.com',
+];
+
 export type OrgRole = 'owner' | 'admin' | 'member' | 'visitor';
 
 export interface UserOrg {
@@ -93,6 +108,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             photoURL: u.photoURL,
             lastLoginAt: new Date().toISOString(),
           }, { merge: true });
+
+          // Super-admin auto-provision: jos kayttaja on super-admin, ja
+          // SUPER_ADMIN_AUTO_PROVISION_ORGS-listassa on org jota ei viela
+          // loydy hanen userOrgs-listalta, luodaan org-doc + member + linkitys.
+          if (u.email && SUPER_ADMIN_EMAILS.includes(u.email)) {
+            try {
+              const userOrgsSnap = await getDoc(doc(db, 'userOrgs', u.uid));
+              const cur = userOrgsSnap.exists() ? userOrgsSnap.data() : {};
+              const curOrgs = (cur.orgs || []) as UserOrg[];
+              const curIds = new Set(curOrgs.map(o => o.orgId));
+              let nextOrgs = curOrgs;
+              for (const target of SUPER_ADMIN_AUTO_PROVISION_ORGS) {
+                if (curIds.has(target.orgId)) continue;
+                // Luo org-dokumentti jos ei ole
+                const orgDocRef = doc(db, 'organizations', target.orgId);
+                const orgSnap = await getDoc(orgDocRef);
+                if (!orgSnap.exists()) {
+                  await setDoc(orgDocRef, {
+                    name: target.name,
+                    createdAt: new Date().toISOString(),
+                    createdBy: u.uid,
+                    plan: 'free',
+                  }, { merge: true });
+                }
+                // Linkita kayttaja jaseneksi
+                await setDoc(doc(db, 'organizations', target.orgId, 'members', u.uid), {
+                  role: 'owner',
+                  joinedAt: new Date().toISOString(),
+                  displayName: u.displayName || '',
+                  email: u.email || '',
+                  photoURL: u.photoURL || '',
+                }, { merge: true });
+                nextOrgs = [...nextOrgs, { orgId: target.orgId, role: 'owner', name: target.name }];
+              }
+              if (nextOrgs !== curOrgs) {
+                await setDoc(doc(db, 'userOrgs', u.uid), {
+                  orgs: nextOrgs,
+                  orgIds: nextOrgs.map(o => o.orgId),
+                }, { merge: true });
+              }
+            } catch (err) {
+              console.warn('[auth] super-admin auto-provision epaonnistui', err);
+            }
+          }
 
           const userOrgs = await fetchOrgs(u.uid);
 
