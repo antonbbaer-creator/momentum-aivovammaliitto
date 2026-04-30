@@ -15,6 +15,11 @@ export interface Client {
   contactPhone?: string;
   notes?: string;
   color?: string;          // tagivari (hex)
+  // Tarjouksen / mahdollisuuden arvio — euroarvo netto €. Kayttaja syottaa
+  // kun status on 'prospect' tai 'offer' jotta laskutus-sivu nakee
+  // potentiaalisen liikevaihdon. Default ALV-% jos ei erikseen syotetty.
+  estimatedValue?: number;
+  estimatedVatRate?: number;
   deletedAt?: number;
   createdAt: number;
 }

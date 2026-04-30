@@ -271,6 +271,14 @@ export default function ClientsSection() {
                       · {projs.length - activeProjs.length} valmis/arkistoitu
                     </span>
                   )}
+                  {(c.status === 'prospect' || c.status === 'offer') && c.estimatedValue && c.estimatedValue > 0 && (
+                    <span style={{
+                      fontSize: '.66rem', padding: '.18rem .5rem', borderRadius: 9999,
+                      background: meta.bg, color: meta.color, fontWeight: 700,
+                    }}>
+                      Arvio {new Intl.NumberFormat('fi-FI', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(c.estimatedValue)}
+                    </span>
+                  )}
                 </div>
 
                 {projs.length > 0 && (
@@ -349,6 +357,42 @@ export default function ClientsSection() {
                         style={{ marginTop: '.2rem', fontSize: '.8rem' }}
                       />
                     </div>
+                    {(c.status === 'prospect' || c.status === 'offer') && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '.4rem' }}>
+                        <div>
+                          <label style={{ fontSize: '.66rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                            {c.status === 'offer' ? 'Tarjouksen arvio (€, netto)' : 'Mahdollisuuden arvio (€, netto)'}
+                          </label>
+                          <input
+                            className="input"
+                            type="number"
+                            value={c.estimatedValue ?? ''}
+                            onChange={e => {
+                              const v = e.target.value;
+                              const n = v === '' ? undefined : parseFloat(v);
+                              updateField(c.id, { estimatedValue: isFinite(n as number) ? n : undefined });
+                            }}
+                            placeholder="0"
+                            style={{ marginTop: '.2rem', fontSize: '.8rem' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '.66rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>ALV-%</label>
+                          <input
+                            className="input"
+                            type="number"
+                            value={c.estimatedVatRate ?? ''}
+                            onChange={e => {
+                              const v = e.target.value;
+                              const n = v === '' ? undefined : parseFloat(v);
+                              updateField(c.id, { estimatedVatRate: isFinite(n as number) ? n : undefined });
+                            }}
+                            placeholder="25,5"
+                            style={{ marginTop: '.2rem', fontSize: '.8rem' }}
+                          />
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <label style={{ fontSize: '.66rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Muistiinpanot</label>
                       <textarea

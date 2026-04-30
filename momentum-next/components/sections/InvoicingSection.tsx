@@ -8,7 +8,7 @@ import {
   Invoice, InvoiceStatus, INVOICE_STATUS_META, INVOICE_STATUS_ORDER,
   makeInvoice, isOverdue, formatEur, grossAmount, DEFAULT_VAT_RATE,
 } from '@/lib/invoices-shared';
-import type { Client } from '@/lib/clients-shared';
+import { Client, CLIENT_STATUS_META } from '@/lib/clients-shared';
 import { softDelete, filterActive } from '@/lib/trash';
 
 type StatusFilter = 'all' | InvoiceStatus | 'overdue';
@@ -123,6 +123,29 @@ export default function InvoicingSection() {
     }
     return [...list].sort((a, b) => b.issueDate.localeCompare(a.issueDate));
   }, [yearInvoices, filter]);
+
+  // Potentiaali — tarjouksissa ja mahdollisuuksissa olevien asiakkuuksien
+  // arvioidut summat (ei laskettu mukaan toteumaan eika tulossa-laskuihin).
+  const potential = useMemo(() => {
+    let offerNet = 0, offerGross = 0, prospectNet = 0, prospectGross = 0;
+    const offerClients: { name: string; net: number; gross: number }[] = [];
+    const prospectClients: { name: string; net: number; gross: number }[] = [];
+    for (const c of clients) {
+      if (c.deletedAt) continue;
+      const v = c.estimatedValue;
+      if (!v || v <= 0) continue;
+      const vat = c.estimatedVatRate ?? DEFAULT_VAT_RATE;
+      const gross = v * (1 + vat / 100);
+      if (c.status === 'offer') {
+        offerNet += v; offerGross += gross;
+        offerClients.push({ name: c.name, net: v, gross });
+      } else if (c.status === 'prospect') {
+        prospectNet += v; prospectGross += gross;
+        prospectClients.push({ name: c.name, net: v, gross });
+      }
+    }
+    return { offerNet, offerGross, prospectNet, prospectGross, offerClients, prospectClients };
+  }, [clients]);
 
   const counts = useMemo(() => ({
     all: yearInvoices.length,
@@ -262,6 +285,79 @@ export default function InvoicingSection() {
           </div>
         )}
       </div>
+
+      {/* Potentiaali — tarjoukset + mahdollisuudet (ei mukana toteumassa) */}
+      {(potential.offerNet > 0 || potential.prospectNet > 0) && (
+        <div style={{
+          background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+          padding: '1rem 1.25rem', marginBottom: '1.25rem',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '.5rem', flexWrap: 'wrap', gap: '.5rem' }}>
+            <div style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+              Avoinna oleva potentiaali
+            </div>
+            <div style={{ fontSize: '.66rem', color: 'var(--t3)', fontStyle: 'italic' }}>
+              Ei mukana toteumassa — toteutuu jos tarjous menee läpi
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '.75rem' }}>
+            {potential.offerNet > 0 && (
+              <div style={{
+                background: CLIENT_STATUS_META.offer.bg,
+                border: `1px solid ${CLIENT_STATUS_META.offer.color}33`,
+                borderRadius: 'var(--r)', padding: '.85rem 1rem',
+              }}>
+                <div style={{ fontSize: '.66rem', fontWeight: 700, color: CLIENT_STATUS_META.offer.color, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.3rem' }}>
+                  Tarjouksissa ({potential.offerClients.length})
+                </div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--t1)' }}>
+                  {formatEur(potential.offerNet)}
+                </div>
+                <div style={{ fontSize: '.7rem', color: 'var(--t3)', marginTop: '.15rem' }}>
+                  {formatEur(potential.offerGross)} sis. ALV
+                </div>
+                <ul style={{ listStyle: 'none', margin: '.5rem 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                  {potential.offerClients.sort((a, b) => b.net - a.net).map(c => (
+                    <li key={c.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.74rem', color: 'var(--t2)' }}>
+                      <span>{c.name}</span>
+                      <span style={{ color: 'var(--t3)' }}>{formatEur(c.net)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {potential.prospectNet > 0 && (
+              <div style={{
+                background: CLIENT_STATUS_META.prospect.bg,
+                border: `1px solid ${CLIENT_STATUS_META.prospect.color}33`,
+                borderRadius: 'var(--r)', padding: '.85rem 1rem',
+              }}>
+                <div style={{ fontSize: '.66rem', fontWeight: 700, color: CLIENT_STATUS_META.prospect.color, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.3rem' }}>
+                  Mahdollisuuksissa ({potential.prospectClients.length})
+                </div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--t1)' }}>
+                  {formatEur(potential.prospectNet)}
+                </div>
+                <div style={{ fontSize: '.7rem', color: 'var(--t3)', marginTop: '.15rem' }}>
+                  {formatEur(potential.prospectGross)} sis. ALV
+                </div>
+                <ul style={{ listStyle: 'none', margin: '.5rem 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+                  {potential.prospectClients.sort((a, b) => b.net - a.net).map(c => (
+                    <li key={c.name} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.74rem', color: 'var(--t2)' }}>
+                      <span>{c.name}</span>
+                      <span style={{ color: 'var(--t3)' }}>{formatEur(c.net)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          <div style={{ marginTop: '.6rem', fontSize: '.78rem', color: 'var(--t2)' }}>
+            Yhteensä avoinna: <strong>{formatEur(potential.offerNet + potential.prospectNet)}</strong>
+            <span style={{ color: 'var(--t3)' }}> ({formatEur(potential.offerGross + potential.prospectGross)} sis. ALV)</span>
+          </div>
+        </div>
+      )}
 
       {/* Asiakaskohtainen tuotto */}
       {byClient.length > 0 && (
