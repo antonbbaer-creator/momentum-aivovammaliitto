@@ -47,6 +47,7 @@ export interface Project {
   createdAt: number;
   teamId?: string;   // NEW: organizational team id (executive/elokuva/viestinta/tekninen)
   phaseId?: string;  // NEW: optional link to a yearwheel phase
+  clientName?: string; // Hetki Company: asiakkuuden nimi (vapaa tagi); muilla orgeilla ei käytössä
   deletedAt?: number;
   noteSeedIds?: string[]; // muistiinpanojen id:t joista projekti on syntynyt
   driveAttachments?: DriveAttachment[]; // Google Drive -liitteet
@@ -103,6 +104,20 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
   const [deadline, setDeadline] = useState('');
   const [newTeamId, setNewTeamId] = useState<string>(fixedTeamId || '');
   const [newPhaseId, setNewPhaseId] = useState<string>('');
+  const [newClientName, setNewClientName] = useState<string>('');
+  const [clientFilter, setClientFilter] = useState<string>('all');
+
+  // Asiakas-tagit ovat käytössä vain Hetki Companyssä
+  const showClientField = orgSlug === 'hetki-company';
+  const knownClients = useMemo(() => {
+    if (!showClientField) return [] as string[];
+    const set = new Set<string>();
+    for (const p of projects) {
+      const c = (p.clientName || '').trim();
+      if (c) set.add(c);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'fi'));
+  }, [projects, showClientField]);
 
   const cols = [{ k: 'idea', t: 'Ideat' }, { k: 'active', t: 'Työstössä' }, { k: 'done', t: 'Valmiit' }];
 
@@ -112,21 +127,28 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
   const filteredByTeam = useMemo(() => effectiveFilter === 'all'
     ? activeProjects
     : activeProjects.filter(p => p.teamId === effectiveFilter), [activeProjects, effectiveFilter]);
-  const active = useMemo(() => filteredByTeam.filter(p => !p.archived), [filteredByTeam]);
-  const archived = useMemo(() => filteredByTeam.filter(p => p.archived), [filteredByTeam]);
+  const filteredByClient = useMemo(() => {
+    if (!showClientField || clientFilter === 'all') return filteredByTeam;
+    if (clientFilter === '__none__') return filteredByTeam.filter(p => !(p.clientName || '').trim());
+    return filteredByTeam.filter(p => (p.clientName || '').trim() === clientFilter);
+  }, [filteredByTeam, clientFilter, showClientField]);
+  const active = useMemo(() => filteredByClient.filter(p => !p.archived), [filteredByClient]);
+  const archived = useMemo(() => filteredByClient.filter(p => p.archived), [filteredByClient]);
 
   const createProject = () => {
     if (!title.trim()) return;
     const exists = projects.some(p => p.t.toLowerCase() === title.trim().toLowerCase());
     if (exists) { toast('Samanniminen projekti on jo olemassa', 'error'); return; }
+    const trimmedClient = newClientName.trim();
     const p: Project = {
       id: Date.now(), t: title.trim(), d: desc.trim(), st: 'idea', deadline,
       team: [], comments: [], tasks: [], archived: false, createdAt: Date.now(),
       teamId: newTeamId || fixedTeamId || undefined,
       phaseId: newPhaseId || undefined,
+      clientName: showClientField && trimmedClient ? trimmedClient : undefined,
     };
     setProjects(prev => [...prev, p]);
-    setTitle(''); setDesc(''); setDeadline(''); setNewPhaseId('');
+    setTitle(''); setDesc(''); setDeadline(''); setNewPhaseId(''); setNewClientName('');
     if (!fixedTeamId) setNewTeamId('');
     setMode('kanban');
     toast('Projekti luotu', 'success');
@@ -195,6 +217,24 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
                 {phases.map(ph => <option key={ph.id} value={ph.id}>{ph.name}</option>)}
               </select>
             </div>
+            {showClientField && (
+              <div>
+                <label style={{ fontSize: '.7rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Asiakas</label>
+                <input
+                  className="input"
+                  value={selected.clientName || ''}
+                  onChange={e => updateProject(selected.id, { clientName: e.target.value.trim() || undefined })}
+                  placeholder="Esim. Esimerkki Oy"
+                  list="hetki-known-clients"
+                  style={{ marginTop: '.25rem' }}
+                />
+                {knownClients.length > 0 && (
+                  <datalist id="hetki-known-clients">
+                    {knownClients.map(c => <option key={c} value={c} />)}
+                  </datalist>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -569,6 +609,23 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
         <button className="btn btn-ghost" onClick={() => setMode('kanban')} style={{ marginBottom: '1rem' }}>{'←'} Takaisin</button>
         <div style={{ maxWidth: 560, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '2rem' }}>
           <div className="field"><label>Projektin nimi *</label><input className="input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Esim. Kevään somekampanja" autoFocus /></div>
+          {showClientField && (
+            <div className="field">
+              <label>Asiakas (valinnainen)</label>
+              <input
+                className="input"
+                value={newClientName}
+                onChange={e => setNewClientName(e.target.value)}
+                placeholder="Esim. Esimerkki Oy — jätä tyhjäksi sisäisille töille"
+                list="hetki-known-clients"
+              />
+              {knownClients.length > 0 && (
+                <datalist id="hetki-known-clients">
+                  {knownClients.map(c => <option key={c} value={c} />)}
+                </datalist>
+              )}
+            </div>
+          )}
           <div className="field"><label>Kuvaus</label><textarea className="input textarea" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Kuvaile projektia..." /></div>
           {!fixedTeamId && orgTeams.length > 0 && (
             <div className="field">
@@ -617,6 +674,46 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
         <button className="btn btn-primary" onClick={() => setMode('new')}>+ Uusi projekti{currentTeam ? ` (${currentTeam.name})` : ''}</button>
         {archived.length > 0 && <button className="btn btn-ghost btn-sm" onClick={() => setShowArchive(!showArchive)}>{showArchive ? 'Piilota arkisto' : `Arkisto (${archived.length})`}</button>}
       </div>
+
+      {/* Asiakas-suodatin (vain Hetki Company) */}
+      {showClientField && (
+        <div style={{ display: 'flex', gap: '.4rem', marginBottom: '.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: '.66rem', color: 'var(--t3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginRight: '.25rem' }}>Asiakas</span>
+          <button onClick={() => setClientFilter('all')} style={{
+            fontSize: '.72rem', padding: '.35rem .65rem', borderRadius: 9999,
+            background: clientFilter === 'all' ? 'var(--t1)' : 'var(--elev)',
+            color: clientFilter === 'all' ? 'var(--bg)' : 'var(--t2)',
+            border: '1px solid var(--border)', fontWeight: 600, cursor: 'pointer',
+          }}>Kaikki</button>
+          {knownClients.map(c => {
+            const isActive = clientFilter === c;
+            const count = activeProjects.filter(p => !p.archived && (p.clientName || '').trim() === c).length;
+            return (
+              <button key={c} onClick={() => setClientFilter(c)} style={{
+                fontSize: '.72rem', padding: '.35rem .65rem', borderRadius: 9999,
+                background: isActive ? 'var(--pri)' : 'var(--elev)',
+                color: isActive ? '#fff' : 'var(--t2)',
+                border: `1px solid ${isActive ? 'var(--pri)' : 'var(--border)'}`,
+                fontWeight: 600, cursor: 'pointer',
+              }}>{c} ({count})</button>
+            );
+          })}
+          {(() => {
+            const noneCount = activeProjects.filter(p => !p.archived && !(p.clientName || '').trim()).length;
+            if (noneCount === 0) return null;
+            const isActive = clientFilter === '__none__';
+            return (
+              <button onClick={() => setClientFilter('__none__')} style={{
+                fontSize: '.72rem', padding: '.35rem .65rem', borderRadius: 9999,
+                background: isActive ? 'var(--t2)' : 'var(--elev)',
+                color: isActive ? 'var(--bg)' : 'var(--t3)',
+                border: `1px solid ${isActive ? 'var(--t2)' : 'var(--border)'}`,
+                fontWeight: 600, cursor: 'pointer', fontStyle: 'italic',
+              }}>Sisäinen ({noneCount})</button>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Team filter chips — hidden when parent forces a team */}
       {!fixedTeamId && (
@@ -697,6 +794,13 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', marginBottom: '.35rem', marginRight: '.3rem' }}>
                           <span style={{ fontSize: '.58rem', padding: '.12rem .4rem', borderRadius: 9999, background: `${projectTeam.color}20`, color: projectTeam.color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}>
                             {projectTeam.icon} {projectTeam.name}
+                          </span>
+                        </div>
+                      )}
+                      {showClientField && (p.clientName || '').trim() && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', marginBottom: '.35rem', marginRight: '.3rem' }}>
+                          <span style={{ fontSize: '.58rem', padding: '.12rem .4rem', borderRadius: 9999, background: 'rgba(155,124,246,.12)', color: '#9b7cf6', fontWeight: 700, letterSpacing: '.03em' }}>
+                            ◆ {p.clientName}
                           </span>
                         </div>
                       )}

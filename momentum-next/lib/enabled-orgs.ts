@@ -1,15 +1,9 @@
 /*
- * Väliaikainen rajoitus: vain LLFF on aktiivinen työtila
+ * Aktiiviset työtilat — käyttäjille näkyvät orgit.
  *
- * Keskitymme rakentamaan LLFF-pohjaa. AVL ja Hetki Company ovat edelleen
- * Firestoressa (data ei ole kadonnut) mutta ne on suodatettu pois käyttäjän
- * näkymästä.
- *
- * Kun haluat aktivoida muita työtiloja, lisää ne tähän listaan:
- *   ['llff', 'avl']
- *
+ * Kun haluat aktivoida tai poistaa työtilan käyttäjänäkymästä, muokkaa tätä listaa.
  * Admin-paneeli (/admin) näkee kaikki orgit tietokannasta aina.
  */
-export const ENABLED_ORG_SLUGS = ['llff', 'avl', 'juhlatoimikunta', 'luuri', 'ihaa'];
+export const ENABLED_ORG_SLUGS = ['llff', 'avl', 'juhlatoimikunta', 'luuri', 'ihaa', 'hetki-company'];
 
 export const isOrgEnabled = (orgId: string): boolean => ENABLED_ORG_SLUGS.includes(orgId);

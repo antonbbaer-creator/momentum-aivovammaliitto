@@ -138,6 +138,34 @@ export const LUURI_MODULES: Record<string, boolean> = {
   tyonjako: true,
 };
 
+// Hetki Company — viestintätoimisto.
+// Asiakkuuksien ja yrityksen sisäisten töiden hallinta.
+// Projects-moduuli on keskeinen: kukin asiakkuus on yksi projekti (clientName-tagilla).
+export const HETKI_COMPANY_MODULES: Record<string, boolean> = {
+  dashboard: true,
+  strategy: true,
+  team: true,
+  viestit: true,
+  aikataulut: true,
+  viestinta: true,
+  ohjelmisto: false,
+  budget: false,
+  budjetti: true,
+  vieraat: false,
+  ruoka: false,
+  tehtavat: true,
+  tila: false,
+  ohjelma: false,
+  muistiinpanot: true,
+  muistiinpanotProjekti: true,
+  ohjeet: true,
+  palaverit: true,
+  projects: true,
+  tyonjako: true,
+  palaute: true,
+  logogeneraattori: false,
+};
+
 // Ihaa — venekunnostus, pieni tiimi, harrastusprojekti.
 // HUOM: budjetti (ei apurahat) — jaetut kulut split-laskelmalla.
 // Projects-moduuli pois: koko työtila on yksi projekti, tehtävälista riittää.
@@ -170,6 +198,7 @@ export function getDefaultModules(orgSlug: string): Record<string, boolean> {
   if (orgSlug === 'juhlatoimikunta') return JUHLATOIMIKUNTA_MODULES;
   if (orgSlug === 'luuri') return LUURI_MODULES;
   if (orgSlug === 'ihaa') return IHAA_MODULES;
+  if (orgSlug === 'hetki-company') return HETKI_COMPANY_MODULES;
   return DEFAULT_MODULES;
 }
 

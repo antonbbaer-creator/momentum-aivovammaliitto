@@ -26,6 +26,12 @@ import {
   DEFAULT_JUHLATOIMIKUNTA_COMMS_PLAN,
   DEFAULT_JUHLATOIMIKUNTA_YEARWHEEL,
 } from './juhlatoimikunta-defaults';
+import {
+  DEFAULT_HETKI_COMPANY_TEAMS,
+  DEFAULT_HETKI_COMPANY_TEAM_MEMBERS,
+  DEFAULT_HETKI_COMPANY_COMMS_PLAN,
+  DEFAULT_HETKI_COMPANY_YEARWHEEL,
+} from './hetki-company-defaults';
 
 // ── Stabiilit fallback-vakiot (ei luoda uusia objekteja funktiokutsussa) ──
 
@@ -57,6 +63,7 @@ export function getOrgTeams(orgSlug: string): OrgTeam[] {
   if (orgSlug === 'llff') return DEFAULT_LLFF_TEAMS;
   if (orgSlug === 'avl') return DEFAULT_AVL_TEAMS;
   if (orgSlug === 'juhlatoimikunta') return DEFAULT_JUHLATOIMIKUNTA_TEAMS;
+  if (orgSlug === 'hetki-company') return DEFAULT_HETKI_COMPANY_TEAMS;
   return EMPTY_TEAMS;
 }
 
@@ -64,6 +71,7 @@ export function getOrgTeamMembers(orgSlug: string): OrgTeamMember[] {
   if (orgSlug === 'llff') return DEFAULT_LLFF_TEAM_MEMBERS;
   if (orgSlug === 'avl') return DEFAULT_AVL_TEAM_MEMBERS;
   if (orgSlug === 'juhlatoimikunta') return DEFAULT_JUHLATOIMIKUNTA_TEAM_MEMBERS;
+  if (orgSlug === 'hetki-company') return DEFAULT_HETKI_COMPANY_TEAM_MEMBERS;
   return EMPTY_MEMBERS;
 }
 
@@ -85,6 +93,7 @@ export function getOrgCommsPlan(orgSlug: string): CommsPlan {
   if (orgSlug === 'llff') return DEFAULT_LLFF_2026_PLAN;
   if (orgSlug === 'avl') return DEFAULT_AVL_COMMS_PLAN;
   if (orgSlug === 'juhlatoimikunta') return DEFAULT_JUHLATOIMIKUNTA_COMMS_PLAN;
+  if (orgSlug === 'hetki-company') return DEFAULT_HETKI_COMPANY_COMMS_PLAN;
   return EMPTY_COMMS_PLAN;
 }
 
@@ -94,6 +103,7 @@ export function getOrgYearwheel(orgSlug: string): YearPhase[] {
   if (orgSlug === 'llff') return defaultLlffYearwheel;
   if (orgSlug === 'avl') return DEFAULT_AVL_YEARWHEEL;
   if (orgSlug === 'juhlatoimikunta') return DEFAULT_JUHLATOIMIKUNTA_YEARWHEEL;
+  if (orgSlug === 'hetki-company') return DEFAULT_HETKI_COMPANY_YEARWHEEL;
   return EMPTY_YEARWHEEL;
 }
 
@@ -115,6 +125,7 @@ const ORG_DISPLAY_NAMES: Record<string, string> = {
   juhlatoimikunta: 'Juhlatoimikunta — Sirpan 70v',
   luuri: 'Luuri.net',
   ihaa: 'Ihaa — venekunnostus',
+  'hetki-company': 'Hetki Company',
 };
 
 export function getOrgDisplayName(orgSlug: string): string {
@@ -127,6 +138,7 @@ const ORG_CHANNELS: Record<string, string[]> = {
   llff: ['Instagram', 'Facebook', 'LinkedIn', 'TikTok', 'YouTube', 'Nettisivut', 'Uutiskirje'],
   avl: ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Nettisivut', 'Uutiskirje', 'Jäsenkirje', 'Aivoitus-lehti', 'Lehdistötiedotteet', 'Esitteet'],
   juhlatoimikunta: ['WhatsApp', 'Sähköposti'],
+  'hetki-company': ['LinkedIn', 'Instagram', 'Nettisivut', 'Uutiskirje'],
 };
 
 export function getOrgChannels(orgSlug: string): string[] {
@@ -139,6 +151,7 @@ const ORG_BANNERS: Record<string, string> = {
   llff: '/brand/llff-banner-2026.png',
   luuri: '/brand/luuri-logo.gif',
   ihaa: '/brand/ihaa-logo.png',
+  'hetki-company': '/brand/hetki-company-logo-black.png',
   // avl: '/brand/avl-banner.png',  // lisätään kun banneri on valmis
 };
 
