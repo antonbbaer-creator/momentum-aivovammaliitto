@@ -227,30 +227,34 @@ export default function ClientsSection() {
             return (
               <div key={c.id} style={{
                 background: 'var(--card)', border: '1px solid var(--border)',
-                borderLeft: `4px solid ${c.color || meta.color}`,
+                borderLeft: `4px solid ${meta.color}`,
                 borderRadius: 'var(--rl)', padding: '1.1rem 1.2rem',
                 display: 'flex', flexDirection: 'column', gap: '.65rem',
               }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '.5rem' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '.95rem', fontWeight: 700, marginBottom: '.2rem' }}>{c.name}</div>
-                    <span style={{
-                      fontSize: '.6rem', padding: '.18rem .5rem', borderRadius: 9999,
-                      background: meta.bg, color: meta.color, fontWeight: 700,
-                      textTransform: 'uppercase', letterSpacing: '.05em',
-                    }}>{meta.label}{isGhost ? ' · ei tallennettu' : ''}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.5rem' }}>
+                    <div style={{
+                      fontSize: '.95rem', fontWeight: 700, flex: 1, minWidth: 0,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }} title={c.name}>{c.name}</div>
+                    <select
+                      value={c.status}
+                      onChange={e => setStatus(c, e.target.value as ClientStatus)}
+                      className="input"
+                      style={{ fontSize: '.7rem', padding: '.25rem .35rem', width: 'auto', flexShrink: 0, maxWidth: 130, background: 'var(--elev)' }}
+                      title="Vaihda tila"
+                    >
+                      {CLIENT_STATUS_ORDER.map(s => (
+                        <option key={s} value={s}>{CLIENT_STATUS_META[s].label}</option>
+                      ))}
+                    </select>
                   </div>
-                  <select
-                    value={c.status}
-                    onChange={e => setStatus(c, e.target.value as ClientStatus)}
-                    className="input"
-                    style={{ fontSize: '.72rem', padding: '.3rem .4rem', width: 'auto', background: 'var(--elev)' }}
-                    title="Vaihda tila"
-                  >
-                    {CLIENT_STATUS_ORDER.map(s => (
-                      <option key={s} value={s}>{CLIENT_STATUS_META[s].label}</option>
-                    ))}
-                  </select>
+                  <span style={{
+                    fontSize: '.6rem', padding: '.18rem .5rem', borderRadius: 9999,
+                    background: meta.bg, color: meta.color, fontWeight: 700,
+                    textTransform: 'uppercase', letterSpacing: '.05em',
+                    alignSelf: 'flex-start',
+                  }}>{meta.label}{isGhost ? ' · ei tallennettu' : ''}</span>
                 </div>
 
                 <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>

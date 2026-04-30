@@ -19,10 +19,16 @@ export interface Client {
   createdAt: number;
 }
 
+// Värilogiikka aktiivisuuden mukaan (kylmä → kuuma → tauko → suljettu):
+//   Mahdollinen → violetti (epävarma alkuvaihe)
+//   Tarjous     → sininen  (neuvottelussa, etenemässä)
+//   Aktiivinen  → vihreä   (käynnissä, lupaava)  ← Antonin pyynnön mukaan
+//   Jäissä      → keltainen (paussattu, odottaa)
+//   Päättynyt   → harmaa   (suljettu)
 export const CLIENT_STATUS_META: Record<ClientStatus, { label: string; color: string; bg: string }> = {
   prospect: { label: 'Mahdollinen', color: '#9b7cf6', bg: 'rgba(155,124,246,.12)' },
   offer:    { label: 'Tarjous',     color: '#3788b2', bg: 'rgba(55,136,178,.14)' },
-  active:   { label: 'Aktiivinen',  color: '#2a8a86', bg: 'rgba(42,138,134,.12)' },
+  active:   { label: 'Aktiivinen',  color: '#2dd4a0', bg: 'rgba(45,212,160,.14)' },
   frozen:   { label: 'Jäissä',      color: '#f1b434', bg: 'rgba(241,180,52,.14)' },
   past:     { label: 'Päättynyt',   color: '#7a7a82', bg: 'rgba(120,120,130,.14)' },
 };
