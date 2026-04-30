@@ -480,7 +480,7 @@ export default function DashboardPage() {
     const dueLabel = item.days === 0 ? 'Tänään'
       : (item.days !== null && item.days > 0 ? `${item.days} pv` : (item.deadlineText || ''));
     return (
-      <div className="trow" style={{ '--c': `var(--${item.tone})`, opacity: isDone ? 0.45 : 1, textDecoration: isDone ? 'line-through' : 'none' } as React.CSSProperties}>
+      <div className="trow" style={{ '--c': `var(--${item.tone})`, opacity: isDone ? 0.45 : 1, textDecoration: isDone ? 'line-through' : 'none', userSelect: 'none' } as React.CSSProperties}>
         {item.kind === 'task' && item.taskRef ? (
           <button
             type="button"
@@ -891,6 +891,7 @@ export default function DashboardPage() {
 
       {editingTask && (
         <TaskEditDialog
+          key={editingTask.kind === 'standalone' ? `s_${editingTask.id}` : `p_${editingTask.projectId}_${editingTask.taskIndex}`}
           task={(() => {
             if (editingTask.kind === 'standalone') {
               const t = (standaloneTasks || []).find((x: any) => x.id === editingTask.id);

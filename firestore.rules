@@ -54,6 +54,17 @@ service cloud.firestore {
       // (suojaa: koodi tarvitaan kuitenkin, eikä pelkkä luku riitä jäseneksi)
     }
 
+    // Momentumin palaute (bugit, kehityspyynnöt). Kuka tahansa kirjautunut
+    // saa lähettää, lukea omat palautteensa, ja super-admin voi lukea kaikki.
+    match /momentumFeedback/{feedbackId} {
+      allow create: if request.auth != null
+        && request.resource.data.userUid == request.auth.uid;
+      allow get: if request.auth != null
+        && (resource.data.userUid == request.auth.uid || isSuperAdmin());
+      allow list: if request.auth != null;
+      allow update, delete: if isSuperAdmin();
+    }
+
     // Helper: check if user belongs to the organization
     // Uses the orgIds array field in userOrgs document
     function isOrgMember(orgId) {
