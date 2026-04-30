@@ -73,22 +73,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchOrgs = async (uid: string): Promise<UserOrg[]> => {
     const snap = await getDoc(doc(db, 'userOrgs', uid));
-    if (snap.exists()) {
-      const data = snap.data();
-      const allOrgs = (data.orgs || []) as UserOrg[];
+    if (!snap.exists()) return [];
+    const data = snap.data();
+    const allOrgs = (data.orgs || []) as UserOrg[];
 
-      // Ensure orgIds array is synced for Firestore Security Rules
-      const currentOrgIds = allOrgs.map(o => o.orgId);
-      const storedOrgIds = data.orgIds || [];
-      if (JSON.stringify(currentOrgIds.sort()) !== JSON.stringify([...storedOrgIds].sort())) {
-        await setDoc(doc(db, 'userOrgs', uid), { orgIds: currentOrgIds }, { merge: true });
+    // Tarkista rinnakkain etta org-doc on olemassa Firestoressa.
+    // Jos admin on poistanut orgin /admin-paneelista, /userOrgs-dokumenttiin
+    // jaa zombie-viittaus joka tekisi sivupalkin epajohdonmukaiseksi.
+    const checks = await Promise.all(allOrgs.map(async (o) => {
+      try {
+        const orgSnap = await getDoc(doc(db, 'organizations', o.orgId));
+        return { o, exists: orgSnap.exists() };
+      } catch {
+        // Permission tai verkkovirhe — ei poisteta varmuuden vuoksi
+        return { o, exists: true };
       }
+    }));
+    const existing = checks.filter(c => c.exists).map(c => c.o);
+    const removed = checks.filter(c => !c.exists).map(c => c.o.orgId);
 
-      // Suodata pois ei-aktiiviset orgit (vain LLFF tällä hetkellä)
-      // Data Firestoressa säilyy — rajoitus on pelkästään asiakaspään näkyvyydessä
-      return allOrgs.filter(o => isOrgEnabled(o.orgId));
+    // Paivita userOrgs jos zombie-viittauksia loytyi tai orgIds ei sync
+    const desiredIds = existing.map(o => o.orgId);
+    const storedIds = (data.orgIds || []) as string[];
+    const idsOutOfSync = JSON.stringify([...desiredIds].sort()) !== JSON.stringify([...storedIds].sort());
+    if (removed.length > 0 || idsOutOfSync) {
+      try {
+        await setDoc(doc(db, 'userOrgs', uid), { orgs: existing, orgIds: desiredIds }, { merge: true });
+        if (removed.length > 0) {
+          console.log('[auth] poistettu zombie-orgit userOrgsista:', removed);
+        }
+      } catch (e) {
+        console.warn('[auth] userOrgs-prune epaonnistui', e);
+      }
     }
-    return [];
+
+    // Suodata viela enabled-listalla — disabloitu data sailyy Firestoressa
+    return existing.filter(o => isOrgEnabled(o.orgId));
   };
 
   const refreshOrgs = async () => {
