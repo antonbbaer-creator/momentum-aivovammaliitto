@@ -26,12 +26,13 @@ export default function ClientsSection() {
   const orgSlug = (useParams().orgSlug as string) || '';
   const { toast } = useToast();
   const [clients, setClients] = useOrgData<Client[]>('clients', []);
-  const [projects] = useOrgData<Project[]>('projects', []);
+  const [projects, setProjects] = useOrgData<Project[]>('projects', []);
 
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState('');
 
   const activeClients = useMemo(() => filterActive(clients), [clients]);
 
@@ -118,6 +119,38 @@ export default function ClientsSection() {
 
   const updateField = (id: string, patch: Partial<Client>) => {
     setClients(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
+  };
+
+  // Uudelleennimea asiakas: paivita Client.name ja .id seka kaikki projektit
+  // joilla oli vanha clientName. Estaa nimitormaykset.
+  const renameClient = (current: Client, nextName: string): boolean => {
+    const trimmed = nextName.trim();
+    if (!trimmed) {
+      toast('Nimi ei voi olla tyhjä', 'error');
+      return false;
+    }
+    if (trimmed === current.name.trim()) return true; // ei muutosta
+    const lower = trimmed.toLowerCase();
+    if (clients.some(c => c.id !== current.id && c.name.trim().toLowerCase() === lower)) {
+      toast('Samanniminen asiakas on jo olemassa', 'error');
+      return false;
+    }
+    const newId = clientIdFromName(trimmed);
+    if (newId !== current.id && clients.some(c => c.id === newId)) {
+      toast('Vastaava asiakas on jo listalla', 'error');
+      return false;
+    }
+
+    const oldNameLower = current.name.trim().toLowerCase();
+    setClients(prev => prev.map(c => c.id === current.id ? { ...c, id: newId, name: trimmed } : c));
+    setProjects(prev => prev.map(p => {
+      const pn = (p.clientName || '').trim();
+      if (pn && pn.toLowerCase() === oldNameLower) return { ...p, clientName: trimmed };
+      return p;
+    }));
+    if (editingId === current.id) setEditingId(newId);
+    toast('Asiakkaan nimi päivitetty', 'success');
+    return true;
   };
 
   if (orgSlug !== 'hetki-company') {
@@ -261,6 +294,7 @@ export default function ClientsSection() {
                     <button className="btn btn-ghost btn-sm" onClick={() => {
                       // Jos ghost (ei viela tallennettu), kirjoita ensin
                       if (isGhost) upsertClient(c);
+                      setDraftName(c.name);
                       setEditingId(c.id);
                     }} style={{ fontSize: '.72rem' }}>Muokkaa</button>
                     {!isGhost && (
@@ -269,6 +303,18 @@ export default function ClientsSection() {
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', marginTop: '.25rem' }}>
+                    <div>
+                      <label style={{ fontSize: '.66rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Nimi</label>
+                      <input
+                        className="input"
+                        value={draftName}
+                        onChange={e => setDraftName(e.target.value)}
+                        onBlur={() => { if (draftName.trim() && draftName.trim() !== c.name.trim()) renameClient(c, draftName); }}
+                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                        placeholder="Asiakkaan nimi"
+                        style={{ marginTop: '.2rem', fontSize: '.85rem', fontWeight: 600 }}
+                      />
+                    </div>
                     <div>
                       <label style={{ fontSize: '.66rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Yhteyshenkilö</label>
                       <input

@@ -70,13 +70,79 @@ const deadlineColor = (dl: string) => {
 };
 const taskProgress = (tasks: Task[]) => tasks?.length ? Math.round(tasks.filter(t => t.done).length / tasks.length * 100) : 0;
 
+// Asiakkaan valitsin: pudotusvalikko olemassaolevista + "+ Uusi asiakas..."
+function ProjectClientPicker({
+  value, knownClients, onSelect, onCreate,
+}: {
+  value: string;
+  knownClients: string[];
+  onSelect: (v: string) => void;
+  onCreate: (v: string) => void;
+}) {
+  const [mode, setMode] = useState<'select' | 'new'>('select');
+  const [draft, setDraft] = useState('');
+  if (mode === 'new') {
+    return (
+      <div style={{ display: 'flex', gap: '.4rem', marginTop: '.25rem' }}>
+        <input
+          className="input"
+          value={draft}
+          autoFocus
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              const v = draft.trim();
+              if (v) { onCreate(v); setMode('select'); setDraft(''); }
+            } else if (e.key === 'Escape') {
+              setMode('select'); setDraft('');
+            }
+          }}
+          placeholder="Uuden asiakkaan nimi"
+          style={{ flex: 1 }}
+        />
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={() => {
+            const v = draft.trim();
+            if (v) { onCreate(v); setMode('select'); setDraft(''); }
+          }}
+          style={{ fontSize: '.72rem' }}
+        >Lisää</button>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => { setMode('select'); setDraft(''); }}
+          style={{ fontSize: '.72rem' }}
+        >Peruuta</button>
+      </div>
+    );
+  }
+  return (
+    <select
+      className="input"
+      value={value}
+      onChange={e => {
+        const v = e.target.value;
+        if (v === '__new__') { setMode('new'); setDraft(''); }
+        else onSelect(v);
+      }}
+      style={{ marginTop: '.25rem' }}
+    >
+      <option value="">Ei asiakasta</option>
+      {knownClients.map(c => <option key={c} value={c}>{c}</option>)}
+      <option value="__new__">+ Uusi asiakas…</option>
+    </select>
+  );
+}
+
 export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
   const { user } = useAuth();
   const { toast } = useToast();
   const orgSlug = (useParams().orgSlug as string) || '';
   const isMobile = useIsMobile();
   const [projects, setProjects] = useOrgData<Project[]>('projects', []);
-  const [, setClients] = useOrgData<Client[]>('clients', []);
+  const [clients, setClients] = useOrgData<Client[]>('clients', []);
   const [projectNotes] = useOrgData<ProjectNote[]>('projectNotes', []);
   const [teamDataRaw] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const teamData = useMemo(() => uniqueMembersByName(teamDataRaw), [teamDataRaw]);
@@ -107,19 +173,27 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
   const [newTeamId, setNewTeamId] = useState<string>(fixedTeamId || '');
   const [newPhaseId, setNewPhaseId] = useState<string>('');
   const [newClientName, setNewClientName] = useState<string>('');
+  const [newClientMode, setNewClientMode] = useState<'select' | 'new'>('select');
   const [clientFilter, setClientFilter] = useState<string>('all');
 
   // Asiakas-tagit ovat käytössä vain Hetki Companyssä
   const showClientField = orgSlug === 'hetki-company';
+  // Yhdista Client-listalla olevat ja projekteissa esiintyvat asiakasnimet.
+  // Client-lista on auktoritatiivinen, mutta legacy-projektit (joilla on
+  // clientName mutta ei viela Client-doccia) lisataan loppuun.
   const knownClients = useMemo(() => {
     if (!showClientField) return [] as string[];
     const set = new Set<string>();
+    for (const c of clients) {
+      const n = c.name.trim();
+      if (n && !c.deletedAt) set.add(n);
+    }
     for (const p of projects) {
-      const c = (p.clientName || '').trim();
-      if (c) set.add(c);
+      const n = (p.clientName || '').trim();
+      if (n) set.add(n);
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'fi'));
-  }, [projects, showClientField]);
+  }, [clients, projects, showClientField]);
 
   const cols = [{ k: 'idea', t: 'Ideat' }, { k: 'active', t: 'Työstössä' }, { k: 'done', t: 'Valmiit' }];
 
@@ -236,23 +310,12 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
             {showClientField && (
               <div>
                 <label style={{ fontSize: '.7rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Asiakas</label>
-                <input
-                  className="input"
+                <ProjectClientPicker
                   value={selected.clientName || ''}
-                  onChange={e => {
-                    const v = e.target.value.trim();
-                    updateProject(selected.id, { clientName: v || undefined });
-                    if (v) ensureClient(v);
-                  }}
-                  placeholder="Esim. Esimerkki Oy"
-                  list="hetki-known-clients"
-                  style={{ marginTop: '.25rem' }}
+                  knownClients={knownClients}
+                  onSelect={(v) => updateProject(selected.id, { clientName: v || undefined })}
+                  onCreate={(v) => { updateProject(selected.id, { clientName: v }); ensureClient(v); }}
                 />
-                {knownClients.length > 0 && (
-                  <datalist id="hetki-known-clients">
-                    {knownClients.map(c => <option key={c} value={c} />)}
-                  </datalist>
-                )}
               </div>
             )}
           </div>
@@ -632,17 +695,40 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
           {showClientField && (
             <div className="field">
               <label>Asiakas (valinnainen)</label>
-              <input
-                className="input"
-                value={newClientName}
-                onChange={e => setNewClientName(e.target.value)}
-                placeholder="Esim. Esimerkki Oy — jätä tyhjäksi sisäisille töille"
-                list="hetki-known-clients"
-              />
-              {knownClients.length > 0 && (
-                <datalist id="hetki-known-clients">
-                  {knownClients.map(c => <option key={c} value={c} />)}
-                </datalist>
+              {newClientMode === 'select' ? (
+                <select
+                  className="input"
+                  value={newClientName}
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (v === '__new__') {
+                      setNewClientMode('new');
+                      setNewClientName('');
+                    } else {
+                      setNewClientName(v);
+                    }
+                  }}
+                >
+                  <option value="">Ei asiakasta (sisäinen työ)</option>
+                  {knownClients.map(c => <option key={c} value={c}>{c}</option>)}
+                  <option value="__new__">+ Uusi asiakas…</option>
+                </select>
+              ) : (
+                <div style={{ display: 'flex', gap: '.5rem' }}>
+                  <input
+                    className="input"
+                    value={newClientName}
+                    autoFocus
+                    onChange={e => setNewClientName(e.target.value)}
+                    placeholder="Uuden asiakkaan nimi"
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => { setNewClientMode('select'); setNewClientName(''); }}
+                  >Peruuta</button>
+                </div>
               )}
             </div>
           )}
