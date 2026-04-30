@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { ProjectNote, canViewNote, stageLabel, stageColor } from '@/lib/notes-shared';
 import DrivePicker, { PickedItem } from '@/components/DrivePicker';
 import { useDriveStatus } from '@/lib/drive';
+import { Client, makeClient, clientIdFromName } from '@/lib/clients-shared';
 
 export interface DriveAttachment {
   id: string;          // Drive file id
@@ -75,6 +76,7 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
   const orgSlug = (useParams().orgSlug as string) || '';
   const isMobile = useIsMobile();
   const [projects, setProjects] = useOrgData<Project[]>('projects', []);
+  const [, setClients] = useOrgData<Client[]>('clients', []);
   const [projectNotes] = useOrgData<ProjectNote[]>('projectNotes', []);
   const [teamDataRaw] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const teamData = useMemo(() => uniqueMembersByName(teamDataRaw), [teamDataRaw]);
@@ -148,10 +150,24 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
       clientName: showClientField && trimmedClient ? trimmedClient : undefined,
     };
     setProjects(prev => [...prev, p]);
+    if (showClientField && trimmedClient) ensureClient(trimmedClient);
     setTitle(''); setDesc(''); setDeadline(''); setNewPhaseId(''); setNewClientName('');
     if (!fixedTeamId) setNewTeamId('');
     setMode('kanban');
     toast('Projekti luotu', 'success');
+  };
+
+  // Auto-sync: jos projektin clientName on uusi (ei viela Clients-listalla),
+  // lisaa Client-objekti automaattisesti aktiivisena. Ei ylikirjoita olemassaolevaa.
+  const ensureClient = (clientName: string) => {
+    if (!showClientField) return;
+    const trimmed = clientName.trim();
+    if (!trimmed) return;
+    const id = clientIdFromName(trimmed);
+    setClients(prev => {
+      if (prev.some(c => c.id === id || c.name.trim().toLowerCase() === trimmed.toLowerCase())) return prev;
+      return [...prev, makeClient(trimmed)];
+    });
   };
 
   const moveProject = (id: number, newSt: string) => setProjects(prev => prev.map(p => p.id === id ? { ...p, st: newSt } : p));
@@ -223,7 +239,11 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
                 <input
                   className="input"
                   value={selected.clientName || ''}
-                  onChange={e => updateProject(selected.id, { clientName: e.target.value.trim() || undefined })}
+                  onChange={e => {
+                    const v = e.target.value.trim();
+                    updateProject(selected.id, { clientName: v || undefined });
+                    if (v) ensureClient(v);
+                  }}
                   placeholder="Esim. Esimerkki Oy"
                   list="hetki-known-clients"
                   style={{ marginTop: '.25rem' }}
