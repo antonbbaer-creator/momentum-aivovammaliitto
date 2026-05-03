@@ -13,6 +13,13 @@ export interface PersonalTask {
   createdAt: number;
   completedAt?: number;
   deletedAt?: number;
+  estimateMin?: number;       // arvio kuinka kauan tehtävä vie (minuutteina)
+}
+
+// Vetolähde-paneelissa annetut aika-arviot org-tehtäville.
+// Avaimena AssignedTaskMirror.compositeId.
+export interface TaskEstimatesDoc {
+  byCompositeId: Record<string, number>; // minuutteina
 }
 
 export interface PersonalCategory {

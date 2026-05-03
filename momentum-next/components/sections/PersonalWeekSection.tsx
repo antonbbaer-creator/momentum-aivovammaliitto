@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useUserData } from '@/lib/use-user-data';
 import { useAssignedTasks } from '@/lib/use-assigned-tasks';
+import { useAuth } from '@/lib/auth';
 import {
   DEFAULT_BEDTIME,
   DEFAULT_WAKETIME,
   PersonalCategory,
   PersonalSettings,
   PersonalTask,
+  TaskEstimatesDoc,
   SleepDoc,
   SleepEntry,
   SleepNap,
@@ -67,6 +69,70 @@ const slotToTime = (slot: number): string => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
+/**
+ * Pieni inline-input tehtävän aika-arviolle minuutteina.
+ * Tyhjä arvo poistaa arvion. Arvo tallennetaan onBlurissa ja Enterillä.
+ * Stop propagation näppäimiltä jotta drag-toiminnallisuus ei häiriinny.
+ */
+function EstimateInput({
+  minutes,
+  onChange,
+}: {
+  minutes?: number;
+  onChange: (minutes: number | undefined) => void;
+}) {
+  const [draft, setDraft] = useState<string>(minutes ? String(minutes) : '');
+  useEffect(() => {
+    setDraft(minutes ? String(minutes) : '');
+  }, [minutes]);
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (!trimmed) {
+      if (minutes !== undefined) onChange(undefined);
+      return;
+    }
+    const n = parseInt(trimmed, 10);
+    if (Number.isFinite(n) && n > 0) {
+      if (n !== minutes) onChange(n);
+    } else {
+      setDraft(minutes ? String(minutes) : '');
+    }
+  };
+
+  return (
+    <div
+      style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10, color: 'var(--ink2)' }}
+      onMouseDown={(e) => e.stopPropagation()}
+      draggable
+      onDragStart={(e) => { e.stopPropagation(); e.preventDefault(); }}
+    >
+      <input
+        type="number"
+        min={0}
+        step={15}
+        placeholder="–"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+          }
+          e.stopPropagation();
+        }}
+        title="Arvioitu kesto minuutteina"
+        style={{
+          width: 44, padding: '2px 4px', textAlign: 'right',
+          fontSize: 10, border: '1px solid var(--rule)', background: 'var(--paper)',
+          color: 'var(--ink1)', fontFamily: 'inherit',
+        }}
+      />
+      <span style={{ color: 'var(--ink3)' }}>min</span>
+    </div>
+  );
+}
 
 export default function PersonalWeekSection() {
   const [blocks, setBlocks] = useUserData<TimeBlock[]>('calendar', []);
@@ -75,8 +141,10 @@ export default function PersonalWeekSection() {
     weekStart: 'mon', dayStart: '06:00', dayEnd: '23:00',
   });
   const [tasks, setTasks] = useUserData<PersonalTask[]>('tasks', []);
+  const [orgEstimates, setOrgEstimates] = useUserData<TaskEstimatesDoc>('taskEstimates', { byCompositeId: {} });
   const [sleepDoc, setSleepDoc] = useUserData<SleepDoc>('sleep', { entries: [] });
-  const { assigned } = useAssignedTasks();
+  const { byOrg } = useAssignedTasks();
+  const { orgs } = useAuth();
   const { events: externalEvents, lastFetchedAt, loading: externalLoading } = useExternalEvents();
   const { google, microsoft } = useIntegrations();
   const integrationApi = useIntegrationApi();
@@ -857,10 +925,51 @@ export default function PersonalWeekSection() {
 
   // Todo: yhteenveto tehtävistä joita voi vetää
   const draggableTasks = useMemo(() => {
-    const personal = tasks.filter(t => !t.deletedAt && !t.done).slice(0, 6);
-    const fromOrgs = assigned.slice(0, 6);
-    return { personal, fromOrgs };
-  }, [tasks, assigned]);
+    const personal = tasks.filter(t => !t.deletedAt && !t.done);
+    return { personal };
+  }, [tasks]);
+
+  // Yhteisöryhmät — näytä kaikki orgit joihin käyttäjä kuuluu, myös tyhjät
+  const [expandedOrgs, setExpandedOrgs] = useState<Record<string, boolean>>({});
+  const [expandedPersonal, setExpandedPersonal] = useState(true);
+  const toggleOrg = (orgId: string) =>
+    setExpandedOrgs(prev => ({ ...prev, [orgId]: !prev[orgId] }));
+
+  // Aika-arvioiden päivitys
+  const setPersonalEstimate = (taskId: string, minutes: number | undefined) => {
+    setTasks(tasks.map(t => t.id === taskId ? { ...t, estimateMin: minutes } : t));
+  };
+  const setOrgEstimate = (compositeId: string, minutes: number | undefined) => {
+    const next = { ...(orgEstimates.byCompositeId || {}) };
+    if (minutes && minutes > 0) next[compositeId] = minutes;
+    else delete next[compositeId];
+    setOrgEstimates({ byCompositeId: next });
+  };
+
+  // Deadline päivinä
+  const daysUntilDeadline = (deadline?: string): { label: string; tone: 'overdue' | 'soon' | 'normal' | 'none' } => {
+    if (!deadline) return { label: '', tone: 'none' };
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const target = parseLocalDate(deadline);
+      target.setHours(0, 0, 0, 0);
+      const diff = Math.round((target.getTime() - today.getTime()) / 86400000);
+      if (diff < 0) return { label: `Myöhässä ${Math.abs(diff)} pv`, tone: 'overdue' };
+      if (diff === 0) return { label: 'Tänään', tone: 'soon' };
+      if (diff === 1) return { label: 'Huomenna', tone: 'soon' };
+      if (diff <= 3) return { label: `${diff} pv`, tone: 'soon' };
+      return { label: `${diff} pv`, tone: 'normal' };
+    } catch {
+      return { label: deadline, tone: 'normal' };
+    }
+  };
+
+  const deadlineColor = (tone: 'overdue' | 'soon' | 'normal' | 'none'): string => {
+    if (tone === 'overdue') return '#b03a2e';
+    if (tone === 'soon') return '#c97a1a';
+    return 'var(--ink3)';
+  };
 
   // Apurit
   const wkLabel = `${formatLocalDate(wkStart)} – ${formatLocalDate(addDays(wkStart, 6))}`;
@@ -935,36 +1044,144 @@ export default function PersonalWeekSection() {
       )}
 
       {/* Vetolähde-paneeli */}
-      {(draggableTasks.personal.length > 0 || draggableTasks.fromOrgs.length > 0) && (
+      {(draggableTasks.personal.length > 0 || orgs.length > 0) && (
         <div style={{ border: '1px solid var(--rule)', padding: 12, marginBottom: 14, fontSize: 12 }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: 8 }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: 10 }}>
             Vedä tehtävä viikkoon ajan varaamiseksi
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {draggableTasks.personal.map(t => (
-              <div
-                key={t.id}
-                draggable
-                onDragStart={() => { dragTaskRef.current = { id: t.id, text: t.text }; }}
-                onDragEnd={() => { dragTaskRef.current = null; }}
-                style={{ border: '1px dashed var(--ink2)', padding: '4px 8px', cursor: 'grab', background: 'var(--paper)' }}
+
+          {/* Henkilökohtaiset tehtävät */}
+          {draggableTasks.personal.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <button
+                type="button"
+                onClick={() => setExpandedPersonal(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                  background: 'transparent', border: 'none', padding: '4px 0',
+                  cursor: 'pointer', fontSize: 11, fontFamily: 'var(--font-display)',
+                  letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink2)',
+                }}
               >
-                {t.text}
-              </div>
-            ))}
-            {draggableTasks.fromOrgs.map(t => (
-              <div
-                key={t.compositeId}
-                draggable
-                onDragStart={() => { dragTaskRef.current = { id: t.compositeId, text: t.text, orgId: t.orgId }; }}
-                onDragEnd={() => { dragTaskRef.current = null; }}
-                style={{ border: '1px dashed var(--ink2)', padding: '4px 8px', cursor: 'grab', background: 'var(--paper-l)' }}
-                title={t.orgName || t.orgId}
-              >
-                {t.text} <span style={{ color: 'var(--ink3)', fontSize: 10 }}>· {t.orgName || t.orgId}</span>
-              </div>
-            ))}
-          </div>
+                <span style={{ width: 10, display: 'inline-block', textAlign: 'center' }}>
+                  {expandedPersonal ? '▾' : '▸'}
+                </span>
+                <span>Henkilökohtaiset</span>
+                <span style={{ color: 'var(--ink3)', fontSize: 10, letterSpacing: '.04em' }}>
+                  ({draggableTasks.personal.length})
+                </span>
+              </button>
+              {expandedPersonal && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6, paddingLeft: 18 }}>
+                  {draggableTasks.personal.map(t => {
+                    const dl = daysUntilDeadline(t.deadline);
+                    return (
+                      <div
+                        key={t.id}
+                        draggable
+                        onDragStart={() => { dragTaskRef.current = { id: t.id, text: t.text }; }}
+                        onDragEnd={() => { dragTaskRef.current = null; }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          border: '1px dashed var(--ink2)', padding: '4px 8px',
+                          cursor: 'grab', background: 'var(--paper)',
+                        }}
+                      >
+                        <span style={{ flex: 1, minWidth: 0 }}>{t.text}</span>
+                        {dl.label && (
+                          <span style={{
+                            fontSize: 10, color: deadlineColor(dl.tone), letterSpacing: '.04em',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {dl.label}
+                          </span>
+                        )}
+                        <EstimateInput
+                          minutes={t.estimateMin}
+                          onChange={(m) => setPersonalEstimate(t.id, m)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Yhteisöt — järjestys: eniten avoimia tehtäviä ensin */}
+          {[...orgs]
+            .map(o => ({ org: o, count: (byOrg[o.orgId] || []).length }))
+            .sort((a, b) => {
+              if (b.count !== a.count) return b.count - a.count;
+              return (a.org.name || a.org.orgId).localeCompare(b.org.name || b.org.orgId);
+            })
+            .map(({ org }) => {
+              const orgTasks = byOrg[org.orgId] || [];
+              const isOpen = !!expandedOrgs[org.orgId];
+              return (
+                <div key={org.orgId} style={{ marginTop: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => toggleOrg(org.orgId)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                      background: 'transparent', border: 'none', padding: '4px 0',
+                      cursor: 'pointer', fontSize: 11, fontFamily: 'var(--font-display)',
+                      letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink2)',
+                    }}
+                  >
+                    <span style={{ width: 10, display: 'inline-block', textAlign: 'center' }}>
+                      {isOpen ? '▾' : '▸'}
+                    </span>
+                    <span>{org.name || org.orgId}</span>
+                    <span style={{ color: 'var(--ink3)', fontSize: 10, letterSpacing: '.04em' }}>
+                      ({orgTasks.length})
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6, paddingLeft: 18 }}>
+                      {orgTasks.length === 0 ? (
+                        <span style={{ color: 'var(--ink3)', fontSize: 11, fontStyle: 'italic' }}>
+                          Ei avoimia tehtäviä sinulle
+                        </span>
+                      ) : (
+                        orgTasks.map(t => {
+                          const dl = daysUntilDeadline(t.deadline);
+                          const est = orgEstimates.byCompositeId?.[t.compositeId];
+                          return (
+                            <div
+                              key={t.compositeId}
+                              draggable
+                              onDragStart={() => { dragTaskRef.current = { id: t.compositeId, text: t.text, orgId: t.orgId }; }}
+                              onDragEnd={() => { dragTaskRef.current = null; }}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 10,
+                                border: '1px dashed var(--ink2)', padding: '4px 8px',
+                                cursor: 'grab', background: 'var(--paper-l)',
+                              }}
+                            >
+                              <span style={{ flex: 1, minWidth: 0 }}>{t.text}</span>
+                              {dl.label && (
+                                <span style={{
+                                  fontSize: 10, color: deadlineColor(dl.tone), letterSpacing: '.04em',
+                                  whiteSpace: 'nowrap',
+                                }}>
+                                  {dl.label}
+                                </span>
+                              )}
+                              <EstimateInput
+                                minutes={est}
+                                onChange={(m) => setOrgEstimate(t.compositeId, m)}
+                              />
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
         </div>
       )}
 
