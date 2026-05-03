@@ -137,6 +137,11 @@ export default {
         return handleTranscribe(request, env);
       }
 
+      // ── REFLECTION (Claude coach) ──
+      if (path === '/api/reflect' && request.method === 'POST') {
+        return handleReflect(request, env);
+      }
+
       // ── MEDIA ROUTES ──
       if (path === '/media/upload' && request.method === 'POST') {
         return handleMediaUpload(request, env, orgId);
@@ -1071,5 +1076,169 @@ async function handleTranscribe(request, env) {
     return corsResponse(request, env, { transcription: transcription.trim() });
   } catch (e) {
     return corsResponse(request, env, { error: `Litterointi epäonnistui: ${e.message}` }, 500);
+  }
+}
+
+// ── REFLECTION (Claude elämäncoach) ──
+//
+// Body:
+// {
+//   turns: [{ role: 'user'|'assistant', text: string }],   // koko keskusteluhistoria
+//   currentRoutines: string,                                // tekstiyhteenveto
+//   currentTimeBlocks: string,                              // viikkoyhteenveto
+//   currentCategories: string,                              // kategoriat (id + nimi)
+// }
+//
+// Vastaus (Claude pakotettu palauttamaan tämä JSON-rakenne):
+// {
+//   mode: 'ask' | 'suggest' | 'wrap_up',
+//   assistantText: string,
+//   routineSuggestions: [...],
+//   timeblockSuggestions: [...],
+//   insights: string | null
+// }
+async function handleReflect(request, env) {
+  if (!env.ANTHROPIC_API_KEY) {
+    return corsResponse(request, env, { error: 'ANTHROPIC_API_KEY puuttuu' }, 500);
+  }
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return corsResponse(request, env, { error: 'Virheellinen JSON' }, 400);
+  }
+  const turns = Array.isArray(body?.turns) ? body.turns : [];
+  if (turns.length === 0) {
+    return corsResponse(request, env, { error: 'turns (lista) vaaditaan' }, 400);
+  }
+
+  const currentRoutines = String(body.currentRoutines || '(ei tiedossa)');
+  const currentTimeBlocks = String(body.currentTimeBlocks || '(ei tiedossa)');
+  const currentCategories = String(body.currentCategories || '(ei tiedossa)');
+  const currentTasks = String(body.currentTasks || '(ei tiedossa)');
+
+  const systemPrompt = [
+    'Olet lämmin, kuunteleva elämäntavoitteiden coach. Käyttäjä haluaa löytää enemmän aikaa merkityksellisille asioille elämässään.',
+    'Käyt suomenkielistä keskustelua. Kirjoita ä- ja ö-kirjaimet aina kunnolla, älä koskaan ascii-väännöksinä.',
+    'Sinulla on käytössä käyttäjän nykyinen viikkokalenteri, rutiinit ja avoimet tehtävät. Älä ehdota mitään mikä on jo kalenterissa.',
+    '',
+    'TYÖSKENTELYTAPA:',
+    '1) Aloita kysymällä 2–4 tarkentavaa kysymystä yksitellen. Älä rynnistä ehdotuksiin ennen kuin ymmärrät, mille asialle käyttäjä haluaa enemmän aikaa ja mistä se aika on otettava.',
+    '2) Kun sinulla on tarpeeksi tietoa (n. 3–5 vuoroa), siirry "suggest"-tilaan ja anna konkreettiset ehdotukset.',
+    '3) Lopuksi käyttäjä voi pyytää yhteenvetoa — tällöin "wrap_up".',
+    '',
+    'AIKALOHKOJEN EHDOTTAMINEN:',
+    '- Jos useita pieniä, samankaltaisia tehtäviä voi tehdä samassa istunnossa, niputa ne yhteen aikalohkoon (esim. "Sähköpostit ja kevyet vastaukset" tai "AVL: pikatehtävät"). Mainitse rationaleessa konkreettisesti mitkä tehtävät kuuluvat lohkoon.',
+    '- Jos jokin tehtävä on iso (esim. raportti, valmistelu, laajempi suunnittelu), varaa sille oma keskittymislohko ja kerro rationaleessa että lohko on omistettu juuri sille tehtävälle.',
+    '- Käytä lohkojen titleinä lyhyitä, toiminnallisia kuvauksia (ei "Tehtävä 1") ja tee niistä kalenterissa selkeitä.',
+    '- Suunnittele lohkot realistisiin kohtiin viikkoa: aamu syvätyölle, iltapäivä kevyemmille, vältä päällekkäisyyksiä jo varattujen tuntien kanssa.',
+    '',
+    'KÄYTTÄJÄN NYKYINEN AJANKÄYTTÖ:',
+    currentTimeBlocks,
+    '',
+    'KÄYTTÄJÄN NYKYISET RUTIINIT:',
+    currentRoutines,
+    '',
+    'KÄYTTÄJÄN AVOIMET TEHTÄVÄT:',
+    currentTasks,
+    '',
+    'KATEGORIAT (käytä id-arvoa ehdotuksissa kun mahdollista):',
+    currentCategories,
+    '',
+    'VASTAUSMUOTO — palauta AINA tarkalleen tämä JSON-rakenne, ei mitään muuta tekstiä JSONin ympärillä:',
+    '{',
+    '  "mode": "ask" | "suggest" | "wrap_up",',
+    '  "assistantText": "...",                       // lämmin, lyhyt vastaus tai jatkokysymys',
+    '  "routineSuggestions": [',
+    '    { "tempId": "r1", "title": "...", "intent": "start"|"stop"|"maintain",',
+    '      "cadence": "daily"|"weekly", "targetMin": 1, "targetMax": null,',
+    '      "rationale": "miksi tämä auttaa" }',
+    '  ],',
+    '  "timeblockSuggestions": [',
+    '    { "tempId": "b1", "title": "...", "categoryId": "<id tai null>",',
+    '      "suggestedCategoryName": "<jos uusi alue>",',
+    '      "dayOfWeek": 0..6,                       // 0 = sunnuntai, 1 = maanantai',
+    '      "startTime": "HH:MM", "endTime": "HH:MM",',
+    '      "rationale": "miksi tähän aikaan" }',
+    '  ],',
+    '  "insights": "lyhyt loppuyhteenveto jos wrap_up, muuten null"',
+    '}',
+    '',
+    'TÄRKEÄÄ:',
+    '- "ask"-tilassa routineSuggestions ja timeblockSuggestions ovat tyhjiä taulukoita.',
+    '- "suggest"-tilassa anna 1–3 rutiinia ja 1–4 aikalohkoa.',
+    '- Älä koskaan kirjoita JSON-rakenteen ulkopuolelle. Ei ```json-mergintöjä, ei selityksiä etukäteen.',
+  ].join('\n');
+
+  const messages = turns.map(t => ({
+    role: t.role === 'assistant' ? 'assistant' : 'user',
+    content: String(t.text || ''),
+  }));
+
+  let raw = '';
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 2048,
+        system: systemPrompt,
+        messages,
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      return corsResponse(request, env, { error: `Anthropic ${res.status}: ${errText.slice(0, 300)}` }, 502);
+    }
+    const data = await res.json();
+    const blocks = Array.isArray(data.content) ? data.content : [];
+    raw = blocks.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+  } catch (e) {
+    return corsResponse(request, env, { error: `Reflektiokutsu epäonnistui: ${e.message}` }, 500);
+  }
+
+  // Yritä parseroida JSON. Jos epäonnistuu, palauta raakateksti "ask"-tilassa.
+  const parsed = tryParseReflectJson(raw);
+  if (parsed) {
+    return corsResponse(request, env, parsed);
+  }
+  return corsResponse(request, env, {
+    mode: 'ask',
+    assistantText: raw || 'Pahoittelut, jokin meni vikaan. Kerro hieman lisää tilanteestasi.',
+    routineSuggestions: [],
+    timeblockSuggestions: [],
+    insights: null,
+    parseError: true,
+  });
+}
+
+function tryParseReflectJson(raw) {
+  if (!raw) return null;
+  // Poista ```json-fence jos Claude sellaisen lisäsi
+  let s = raw.trim();
+  if (s.startsWith('```')) {
+    s = s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+  }
+  // Etsi ensimmäinen { ja viimeinen }
+  const first = s.indexOf('{');
+  const last = s.lastIndexOf('}');
+  if (first === -1 || last === -1 || last <= first) return null;
+  const candidate = s.slice(first, last + 1);
+  try {
+    const obj = JSON.parse(candidate);
+    return {
+      mode: obj.mode === 'suggest' || obj.mode === 'wrap_up' ? obj.mode : 'ask',
+      assistantText: typeof obj.assistantText === 'string' ? obj.assistantText : '',
+      routineSuggestions: Array.isArray(obj.routineSuggestions) ? obj.routineSuggestions : [],
+      timeblockSuggestions: Array.isArray(obj.timeblockSuggestions) ? obj.timeblockSuggestions : [],
+      insights: typeof obj.insights === 'string' ? obj.insights : null,
+    };
+  } catch {
+    return null;
   }
 }

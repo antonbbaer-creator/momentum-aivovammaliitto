@@ -12,15 +12,28 @@ interface PatchPayload {
   calendars: CalendarMeta[];
 }
 
+/**
+ * Siivoa undefined-kentät pois — Firestore ei hyväksy niitä.
+ * Säilytä vain ne avaimet joilla on määritelty arvo.
+ */
+function pruneCalendar(c: CalendarMeta): CalendarMeta {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(c)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out as unknown as CalendarMeta;
+}
+
 export async function PATCH(req: NextRequest) {
   const uid = await getUidFromRequest(req);
   if (!uid) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const body = await req.json() as PatchPayload;
+  const calendars = (body.calendars || []).map(pruneCalendar);
   const ref = adminDb().doc(`users/${uid}/integrations/${body.provider}`);
   const snap = await ref.get();
   if (!snap.exists) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  await ref.update({ calendars: body.calendars });
+  await ref.update({ calendars });
   return NextResponse.json({ ok: true });
 }
 

@@ -11,9 +11,30 @@ export interface CalendarMeta {
   name: string;
   isPrimary?: boolean;
   syncEnabled: boolean;          // näkyy viikkonäkymässä
-  mappedCategoryId?: string;     // jos asetettu, tunnit lasketaan kategoriaan + write menee tähän kalenteriin
-  writeEnabled?: boolean;        // sallitaanko kirjoitus tähän kalenteriin (oletus: true jos mappedCategoryId)
+  /** @deprecated käytä mappedCategoryIds */
+  mappedCategoryId?: string;
+  /** Kategoriat joille tämä kalenteri syöttää tapahtumia. */
+  mappedCategoryIds?: string[];
+  /** @deprecated käytä writeForCategoryIds */
+  writeEnabled?: boolean;
+  /** Kategoriat joille tämä kalenteri toimii kirjoituskohteena (subset of mappedCategoryIds). */
+  writeForCategoryIds?: string[];
   color?: string;                // UI-väri (kalenterin oma jos saatavilla)
+}
+
+/** Palauta kategoriat joihin kalenteri on liitetty — yhdistää uudet + legacy-kentät. */
+export function getCalendarCategoryIds(c: CalendarMeta): string[] {
+  const set = new Set<string>(c.mappedCategoryIds ?? []);
+  if (c.mappedCategoryId) set.add(c.mappedCategoryId);
+  return Array.from(set);
+}
+
+/** Onko kalenteri kirjoituskohde annetulle kategorialle? */
+export function isCalendarWriteFor(c: CalendarMeta, categoryId: string): boolean {
+  if (c.writeForCategoryIds && c.writeForCategoryIds.includes(categoryId)) return true;
+  // Legacy: jos mappedCategoryId === categoryId ja writeEnabled (oletus true), kirjoita
+  if (c.mappedCategoryId === categoryId && (c.writeEnabled ?? true)) return true;
+  return false;
 }
 
 export interface IntegrationDoc {

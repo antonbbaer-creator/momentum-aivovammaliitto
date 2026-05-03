@@ -38,10 +38,11 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   palaute:   { id: 'palaute',   label: 'Palaute',    icon: '◆', path: '/palaute',   alwaysOn: false },
   ohjeet:    { id: 'ohjeet',    label: 'Ohjeet',     icon: '?', path: '/ohjeet',    alwaysOn: false },
   logogeneraattori: { id: 'logogeneraattori', label: 'Logogeneraattori', icon: '✦', path: '/logogeneraattori', alwaysOn: false },
+  graafinen: { id: 'graafinen', label: 'Graafinen ohjeisto', icon: '◐', path: '/graafinen', alwaysOn: false },
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'asiakkuudet', 'laskutus', 'talous', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'logogeneraattori', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'ohjeet', 'palaute'];
+export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'asiakkuudet', 'laskutus', 'talous', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'graafinen', 'logogeneraattori', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'ohjeet', 'palaute'];
 
 // Default modules for new orgs (viestintaorgit)
 export const DEFAULT_MODULES: Record<string, boolean> = {
@@ -66,6 +67,7 @@ export const DEFAULT_MODULES: Record<string, boolean> = {
   projects: true,
   tyonjako: true,
   palaute: true,
+  graafinen: false,
 };
 
 // AVL:n oletusmoduulit — ei ruokaa eika ohjelmistoa (jatkuva viestintatyo, ei tapahtuma).
@@ -92,6 +94,7 @@ export const AVL_MODULES: Record<string, boolean> = {
   projects: true,
   tyonjako: true,
   palaute: true,
+  graafinen: true,
 };
 
 // Juhlatoimikunnan oletusmoduulit
@@ -116,6 +119,7 @@ export const JUHLATOIMIKUNTA_MODULES: Record<string, boolean> = {
   projects: true,
   tyonjako: true,
   palaute: true,
+  graafinen: false,
 };
 
 // Luuri — puhdas tyhja tyotila kaikilla moduuleilla, irti muista orgeista
@@ -139,6 +143,7 @@ export const LUURI_MODULES: Record<string, boolean> = {
   palaverit: true,
   projects: true,
   tyonjako: true,
+  graafinen: true,
 };
 
 // Hetki Company — viestintätoimisto.
@@ -170,6 +175,7 @@ export const HETKI_COMPANY_MODULES: Record<string, boolean> = {
   tyonjako: true,
   palaute: true,
   logogeneraattori: false,
+  graafinen: true,
 };
 
 // Ihaa — venekunnostus, pieni tiimi, harrastusprojekti.
@@ -197,6 +203,7 @@ export const IHAA_MODULES: Record<string, boolean> = {
   projects: false,
   tyonjako: true,
   palaute: true,
+  graafinen: false,
 };
 
 export function getDefaultModules(orgSlug: string): Record<string, boolean> {

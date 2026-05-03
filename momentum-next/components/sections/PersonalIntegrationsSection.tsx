@@ -8,6 +8,8 @@ import {
   CalendarMeta,
   CalendarProvider,
   IntegrationDoc,
+  getCalendarCategoryIds,
+  isCalendarWriteFor,
 } from '@/lib/integrations-shared';
 import { PersonalCategory } from '@/lib/personal-shared';
 
@@ -130,6 +132,33 @@ function ProviderBlock({
     setDraft((cals).map(c => c.id === id ? { ...c, ...patch } : c));
   };
 
+  const toggleCategory = (id: string, categoryId: string) => {
+    const cur = cals.find(c => c.id === id);
+    if (!cur) return;
+    const linked = new Set(getCalendarCategoryIds(cur));
+    const writeFor = new Set(cur.writeForCategoryIds ?? []);
+    if (linked.has(categoryId)) {
+      linked.delete(categoryId);
+      writeFor.delete(categoryId);
+    } else {
+      linked.add(categoryId);
+    }
+    updateCal(id, {
+      mappedCategoryIds: Array.from(linked),
+      mappedCategoryId: undefined, // siirry uuteen kenttään
+      writeForCategoryIds: Array.from(writeFor),
+    });
+  };
+
+  const toggleWriteFor = (id: string, categoryId: string) => {
+    const cur = cals.find(c => c.id === id);
+    if (!cur) return;
+    const writeFor = new Set(cur.writeForCategoryIds ?? []);
+    if (writeFor.has(categoryId)) writeFor.delete(categoryId);
+    else writeFor.add(categoryId);
+    updateCal(id, { writeForCategoryIds: Array.from(writeFor) });
+  };
+
   const dirty = draft !== null;
 
   return (
@@ -167,42 +196,76 @@ function ProviderBlock({
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: 8 }}>
             Kalenterit
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {cals.map(c => (
-              <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '24px 1fr auto auto', gap: 10, alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--rule)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {cals.map(c => {
+              const linkedCatIds = getCalendarCategoryIds(c);
+              return (
+              <div key={c.id} style={{ borderTop: '1px solid var(--rule)', paddingTop: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                 <input
                   type="checkbox"
                   checked={c.syncEnabled}
                   onChange={e => updateCal(c.id, { syncEnabled: e.target.checked })}
                   aria-label="N\u00e4yt\u00e4 viikossa"
                 />
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13 }}>
                     {c.color && <span style={{ display: 'inline-block', width: 10, height: 10, background: c.color, marginRight: 6 }} />}
                     {c.name}
                     {c.isPrimary && <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 6 }}>(oletus)</span>}
                   </div>
+                  {linkedCatIds.length > 0 && (
+                    <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 2 }}>
+                      {linkedCatIds.length} liitettyä aluetta
+                    </div>
+                  )}
                 </div>
-                <select
-                  value={c.mappedCategoryId || ''}
-                  onChange={e => updateCal(c.id, { mappedCategoryId: e.target.value || undefined })}
-                  style={{ ...inputBase, fontSize: 11 }}
-                  title="Kategoria johon synkronoidaan"
-                >
-                  <option value="">— ei mappausta —</option>
-                  {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                </select>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--ink2)' }}>
-                  <input
-                    type="checkbox"
-                    checked={c.writeEnabled ?? !!c.mappedCategoryId}
-                    onChange={e => updateCal(c.id, { writeEnabled: e.target.checked })}
-                    disabled={!c.mappedCategoryId}
-                  />
-                  Kirjoitus
-                </label>
+                </div>
+
+                {categories.length === 0 ? (
+                  <div style={{ fontSize: 11, color: 'var(--ink3)', paddingLeft: 24 }}>
+                    Lisää ensin elämän alueita /oma/viikko-näkymässä.
+                  </div>
+                ) : (
+                  <div style={{ paddingLeft: 24, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink3)', display: 'grid', gridTemplateColumns: '20px 20px 1fr', gap: 8, alignItems: 'center', paddingBottom: 4 }}>
+                      <span title="Liitä tämä alue tähän kalenteriin">Liitä</span>
+                      <span title="Tämä kalenteri toimii alueen kirjoituskohteena">Kirj.</span>
+                      <span>Alue</span>
+                    </div>
+                    {categories.map(cat => {
+                      const linked = linkedCatIds.includes(cat.id);
+                      const writeOn = isCalendarWriteFor(c, cat.id);
+                      return (
+                        <label
+                          key={cat.id}
+                          style={{ display: 'grid', gridTemplateColumns: '20px 20px 1fr', gap: 8, alignItems: 'center', fontSize: 12, cursor: 'pointer' }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={linked}
+                            onChange={() => toggleCategory(c.id, cat.id)}
+                            aria-label={`Liitä alue ${cat.name}`}
+                          />
+                          <input
+                            type="checkbox"
+                            checked={writeOn}
+                            disabled={!linked}
+                            onChange={() => toggleWriteFor(c.id, cat.id)}
+                            aria-label={`Kirjoita kalenteriin alueelle ${cat.name}`}
+                          />
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ display: 'inline-block', width: 10, height: 10, background: cat.color }} />
+                            {cat.name}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            ))}
+              );
+            })}
           </div>
           {dirty && (
             <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
