@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { googleOAuthConfig } from '@/lib/oauth-config';
 import { saveIntegrationServer } from '@/lib/integration-server';
+import { verifyOAuthState } from '@/lib/oauth-state';
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code');
-  const state = req.nextUrl.searchParams.get('state'); // = uid
+  const state = req.nextUrl.searchParams.get('state');
   const error = req.nextUrl.searchParams.get('error');
 
   if (error) {
@@ -13,6 +14,14 @@ export async function GET(req: NextRequest) {
   if (!code || !state) {
     return NextResponse.redirect(new URL('/oma/asetukset?oauth_error=missing_code', req.url));
   }
+
+  // Verifioi state HMAC:n perusteella — varmistaa että flowin aloitti
+  // todennettu käyttäjä ja että uid ei ole spoofattu.
+  const verified = verifyOAuthState(state);
+  if (!verified) {
+    return NextResponse.redirect(new URL('/oma/asetukset?oauth_error=invalid_state', req.url));
+  }
+  const uid = verified.uid;
 
   const cfg = googleOAuthConfig();
 
@@ -73,7 +82,7 @@ export async function GET(req: NextRequest) {
       console.warn('Calendar list fetch failed:', e);
     }
 
-    await saveIntegrationServer(state, 'google', {
+    await saveIntegrationServer(uid, 'google', {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token || '',
       expiresAt: Date.now() + tokens.expires_in * 1000,

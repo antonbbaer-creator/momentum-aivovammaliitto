@@ -7,14 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, adminMode } from '@/lib/firebase-admin';
 import { getAuth } from 'firebase-admin/auth';
 import { linkUserToOrg, LinkRole } from '@/lib/admin/link-user-to-org';
-
-const SUPER_ADMINS = [
-  'anton@hetkicompany.com',
-  'anton.baer@gmail.com',
-  'anton.b.baer@gmail.com',
-  'anton.baer@kinolapinlahti.fi',
-  'claude-test@hetkicompany.com',
-];
+import { isSuperAdminEmail } from '@/lib/super-admins';
 
 interface Payload {
   email: string;
@@ -46,7 +39,7 @@ export async function POST(req: NextRequest) {
         : 'Token saattaa olla vanhentunut tai eri Firebase-projektista. Kirjaudu ulos ja takaisin.',
     }, { status: 401 });
   }
-  if (!callerEmail || !SUPER_ADMINS.map(s => s.toLowerCase()).includes(callerEmail)) {
+  if (!isSuperAdminEmail(callerEmail)) {
     return NextResponse.json({ error: 'forbidden', email: callerEmail }, { status: 403 });
   }
   if (adminMode() === 'project-only') {

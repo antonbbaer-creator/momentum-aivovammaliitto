@@ -7,8 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useParams, useRouter } from 'next/navigation';
 import { filterTrashed, restoreItem, purgeItem, purgeExpired, daysUntilPurge, formatDeletedDate } from '@/lib/trash';
-
-const SUPER_ADMINS = ['anton@hetkicompany.com', 'anton.baer@gmail.com', 'claude-test@hetkicompany.com'];
+import { isSuperAdminEmail } from '@/lib/super-admins';
 
 // Kaikki data-avaimet joissa voi olla roskakorissa olevia itemeja
 interface TrashableItem { id: string | number; deletedAt?: number; [key: string]: any; }
@@ -102,7 +101,7 @@ export default function RoskakoriPage() {
   const router = useRouter();
   const params = useParams();
   const orgSlug = (params?.orgSlug as string) || '';
-  const isSuperAdmin = !!user?.email && SUPER_ADMINS.includes(user.email);
+  const isSuperAdmin = isSuperAdminEmail(user?.email);
 
   // Ladataan kaikki data-avaimet
   const [films, setFilms] = useOrgData<TrashableItem[]>('films', []);

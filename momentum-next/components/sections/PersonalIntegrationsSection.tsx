@@ -38,9 +38,26 @@ export default function PersonalIntegrationsSection() {
     }
   }, []);
 
-  const startOAuth = (provider: CalendarProvider) => {
+  const startOAuth = async (provider: CalendarProvider) => {
     if (!user) return;
-    window.location.href = `/api/oauth/${provider}/start?uid=${encodeURIComponent(user.uid)}`;
+    setBusy(`${provider}:connect`);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/oauth/${provider}/start`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'unknown' }));
+        setOauthMsg({ kind: 'error', text: `OAuth-aloitus epäonnistui: ${err.error || res.status}` });
+        return;
+      }
+      const { url } = await res.json() as { url: string };
+      window.location.href = url;
+    } catch (e) {
+      setOauthMsg({ kind: 'error', text: `OAuth-aloitus epäonnistui: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setBusy(null);
+    }
   };
 
   const updateCalendars = async (provider: CalendarProvider, calendars: CalendarMeta[]) => {

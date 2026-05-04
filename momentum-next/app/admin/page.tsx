@@ -11,6 +11,7 @@ import { AVL_ORG, AVL_EVENTS, AVL_CHANNEL_STATS, LLFF_ORG, LLFF_EVENTS, LLFF_CHA
 import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, JUHLATOIMIKUNTA_MODULES, LUURI_MODULES, IHAA_MODULES, getDefaultModules } from '@/lib/modules';
 import { getOrgTeams } from '@/lib/org-defaults';
 import type { OrgTeam } from '@/lib/team-shared';
+import { isSuperAdminEmail } from '@/lib/super-admins';
 
 interface OrgMember {
   uid: string;
@@ -33,14 +34,7 @@ interface OrgData {
   members: OrgMember[];
 }
 
-// Super admin emails — only these can access /admin
-const SUPER_ADMINS = [
-  'anton@hetkicompany.com',
-  'anton.baer@gmail.com',
-  'anton.b.baer@gmail.com',
-  'anton.baer@kinolapinlahti.fi',
-  'claude-test@hetkicompany.com',
-];
+// Super admin emails: ks. lib/super-admins.ts
 
 export default function AdminPage() {
   const { user, loading, orgs: userOrgs } = useAuth();
@@ -362,7 +356,7 @@ export default function AdminPage() {
 
   const { toast } = useToast();
   const [seeding, setSeeding] = useState(false);
-  const isSuperAdmin = user?.email && SUPER_ADMINS.includes(user.email);
+  const isSuperAdmin = isSuperAdminEmail(user?.email);
 
   // Seed AVL + LLFF demo communities
   const seedCommunities = async () => {

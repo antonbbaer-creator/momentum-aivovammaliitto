@@ -69,6 +69,43 @@ const slotToTime = (slot: number): string => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
+// Sweep-line-asettelu päällekkäisille tapahtumille: oikeasti ajallisesti risteytyvät lohkot
+// jaetaan vierekkäisiin sarakkeisiin, ei-risteytyvät säilyvät täysleveinä.
+type ColumnLayout = { col: number; cols: number };
+function layoutColumns<T extends { startMin: number; endMin: number }>(items: T[]): Array<T & ColumnLayout> {
+  const sorted = items.slice().sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
+  const out: Array<T & ColumnLayout> = [];
+  let cluster: Array<T & ColumnLayout> = [];
+  let clusterEnd = -Infinity;
+
+  const flush = () => {
+    if (cluster.length === 0) return;
+    const cols = Math.max(...cluster.map(e => e.col)) + 1;
+    for (const e of cluster) e.cols = cols;
+    cluster = [];
+  };
+
+  for (const e of sorted) {
+    if (e.startMin >= clusterEnd) {
+      flush();
+      clusterEnd = e.endMin;
+    } else {
+      clusterEnd = Math.max(clusterEnd, e.endMin);
+    }
+    const used = new Set<number>();
+    for (const c of cluster) {
+      if (c.endMin > e.startMin && c.startMin < e.endMin) used.add(c.col);
+    }
+    let col = 0;
+    while (used.has(col)) col++;
+    const laid = { ...e, col, cols: 0 } as T & ColumnLayout;
+    cluster.push(laid);
+    out.push(laid);
+  }
+  flush();
+  return out;
+}
+
 /**
  * Pieni inline-input tehtävän aika-arviolle minuutteina.
  * Tyhjä arvo poistaa arvion. Arvo tallennetaan onBlurissa ja Enterillä.
@@ -130,6 +167,108 @@ function EstimateInput({
         }}
       />
       <span style={{ color: 'var(--ink3)' }}>min</span>
+    </div>
+  );
+}
+
+/** Yksi tehtävärivi vetolähde-paneelissa. */
+function TaskRow({
+  text,
+  deadline,
+  scheduled,
+  background,
+  estimateMin,
+  onEstimateChange,
+  onDragStart,
+  onDragEnd,
+  onAddFree,
+  onAddPick,
+  deadlineLabel,
+  deadlineColor,
+  errorMessage,
+}: {
+  text: string;
+  deadline?: string;
+  scheduled: boolean;
+  background: string;
+  estimateMin?: number;
+  onEstimateChange: (minutes: number | undefined) => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onAddFree: () => void;
+  onAddPick: () => void;
+  deadlineLabel: { label: string; tone: 'overdue' | 'soon' | 'normal' | 'none' };
+  deadlineColor: (tone: 'overdue' | 'soon' | 'normal' | 'none') => string;
+  errorMessage?: string;
+}) {
+  void deadline;
+  const btnStyle: React.CSSProperties = {
+    fontSize: 10, padding: '2px 6px',
+    border: '1px solid var(--rule)', background: 'var(--paper)',
+    color: 'var(--ink2)', cursor: 'pointer', fontFamily: 'inherit',
+    letterSpacing: '.04em', whiteSpace: 'nowrap',
+  };
+  return (
+    <div
+      draggable={!scheduled}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+        border: scheduled ? '1px solid var(--rule)' : '1px dashed var(--ink2)',
+        padding: '4px 8px',
+        cursor: scheduled ? 'default' : 'grab',
+        background,
+        opacity: scheduled ? 0.45 : 1,
+      }}
+    >
+      <span style={{ flex: 1, minWidth: 0 }}>{text}</span>
+      {deadlineLabel.label && (
+        <span style={{
+          fontSize: 10, color: deadlineColor(deadlineLabel.tone), letterSpacing: '.04em',
+          whiteSpace: 'nowrap',
+        }}>
+          {deadlineLabel.label}
+        </span>
+      )}
+      <EstimateInput minutes={estimateMin} onChange={onEstimateChange} />
+      {scheduled ? (
+        <span style={{
+          fontSize: 10, color: 'var(--ink3)', letterSpacing: '.04em',
+          whiteSpace: 'nowrap', fontStyle: 'italic',
+        }}>
+          Kalenterissa
+        </span>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onAddFree(); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            style={btnStyle}
+            title="Lisää ensimmäiseen vapaaseen aikaan kuluvalla viikolla"
+          >
+            + vapaa
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onAddPick(); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            style={btnStyle}
+            title="Avaa muokkausikkuna ja valitse aika"
+          >
+            + aika
+          </button>
+        </>
+      )}
+      {errorMessage && (
+        <div style={{
+          flexBasis: '100%', fontSize: 10, color: '#b03a2e',
+          letterSpacing: '.04em', marginTop: 2,
+        }}>
+          {errorMessage}
+        </div>
+      )}
     </div>
   );
 }
@@ -580,7 +719,7 @@ export default function PersonalWeekSection() {
   const [editing, setEditing] = useState<BlockEditState | null>(null);
 
   // Tehtävän drag-drop
-  const dragTaskRef = useRef<{ id: string; text: string; orgId?: string } | null>(null);
+  const dragTaskRef = useRef<{ id: string; text: string; orgId?: string; estimateMin?: number } | null>(null);
 
   const onSlotMouseDown = (dayIdx: number, slotInDay: number) => {
     draftStartRef.current = { day: dayIdx, slot: slotInDay };
@@ -872,11 +1011,12 @@ export default function PersonalWeekSection() {
     if (!t) return;
     dragTaskRef.current = null;
 
-    // Pudota klo 09:00 1h kestolla, käyttäjä voi muokata
+    // Pudota klo 09:00 — kesto arvion mukaan, oletus 60 min
+    const duration = t.estimateMin && t.estimateMin > 0 ? t.estimateMin : 60;
     const day = dayDates[dayIdx];
     const start = new Date(day);
     start.setHours(9, 0, 0, 0);
-    const end = new Date(start.getTime() + 60 * 60_000);
+    const end = new Date(start.getTime() + duration * 60_000);
     const newBlock: TimeBlock = {
       id: newId(),
       title: t.text,
@@ -971,6 +1111,161 @@ export default function PersonalWeekSection() {
     return 'var(--ink3)';
   };
 
+  // Tehtävät jotka jo lisätty kalenteriin (kuluvalla viikolla)
+  const scheduledTaskIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of expanded) {
+      if (b.sourceTaskId) set.add(b.sourceTaskId);
+    }
+    return set;
+  }, [expanded]);
+
+  // Etsi ensimmäinen vapaa N-minuutin slotti tarkasteltavalta viikolta.
+  // Hakee viikolta vapaata aikaa joka huomioi kaikki varatut välit
+  // (omat lohkot, ulkoiset eventit, yöunet, päiväunet) sekä 15 min
+  // taukopuskurin ennen ja jälkeen jokaista varausta.
+  const BUFFER_MIN = 15;
+  const findFirstFreeSlot = (durationMin: number): { start: Date; end: Date } | null => {
+    const now = new Date();
+    const granularityMs = 30 * 60_000;
+    const bufMs = BUFFER_MIN * 60_000;
+
+    // Työaika asetuksista
+    const dayStartHM = parseHM(settings.dayStart || '06:00');
+    const dayEndHM = parseHM(settings.dayEnd || '23:00');
+
+    // Kerää konflikti-välit kuluvalle viikolle
+    const intervals: Array<{ s: Date; e: Date }> = [];
+    for (const b of expanded) {
+      intervals.push({ s: parseLocalDateTime(b.start), e: parseLocalDateTime(b.end) });
+    }
+    for (const ev of externalEvents) {
+      intervals.push({ s: parseLocalDateTime(ev.start), e: parseLocalDateTime(ev.end) });
+    }
+    // Yöunet — jokainen merkintä kattaa edellisen illan bedtime → aamun waketime
+    const wkEnd = addDays(wkStart, 7);
+    for (const entry of sleepEntries) {
+      try {
+        const morning = parseLocalDate(entry.date);
+        const w = getSleepWindow(entry);
+        const bedMin = parseHM(w.bedtime);
+        const wakeMin = parseHM(w.waketime);
+        // Bedtime kuuluu edelliseen päivään jos > waketime (yli puolenyön)
+        const eveningDate = bedMin > wakeMin
+          ? new Date(morning.getFullYear(), morning.getMonth(), morning.getDate() - 1)
+          : new Date(morning);
+        const bedStart = new Date(eveningDate);
+        bedStart.setHours(Math.floor(bedMin / 60), bedMin % 60, 0, 0);
+        const wakeEnd = new Date(morning);
+        wakeEnd.setHours(Math.floor(wakeMin / 60), wakeMin % 60, 0, 0);
+        // Sisällytä vain jos osuu viikkoon
+        if (wakeEnd > wkStart && bedStart < wkEnd) {
+          intervals.push({ s: bedStart, e: wakeEnd });
+        }
+      } catch { /* ignore parse errors */ }
+    }
+    // Päiväunet
+    for (const n of naps) {
+      try {
+        const d = parseLocalDate(n.date);
+        if (d < wkStart || d >= wkEnd) continue;
+        const sMin = parseHM(n.start);
+        const eMin = parseHM(n.end);
+        if (eMin <= sMin) continue;
+        const ns = new Date(d);
+        ns.setHours(Math.floor(sMin / 60), sMin % 60, 0, 0);
+        const ne = new Date(d);
+        ne.setHours(Math.floor(eMin / 60), eMin % 60, 0, 0);
+        intervals.push({ s: ns, e: ne });
+      } catch { /* ignore */ }
+    }
+
+    for (let dIdx = 0; dIdx < 7; dIdx++) {
+      const day = dayDates[dIdx];
+      const dayWorkStart = new Date(day);
+      dayWorkStart.setHours(Math.floor(dayStartHM / 60), dayStartHM % 60, 0, 0);
+      const dayWorkEnd = new Date(day);
+      dayWorkEnd.setHours(Math.floor(dayEndHM / 60), dayEndHM % 60, 0, 0);
+
+      let slotStart = new Date(dayWorkStart);
+      // Älä aseta menneeseen aikaan
+      if (slotStart.getTime() < now.getTime()) {
+        const rounded = new Date(Math.ceil(now.getTime() / granularityMs) * granularityMs);
+        if (rounded >= dayWorkEnd) continue;
+        slotStart = rounded;
+      }
+
+      while (slotStart.getTime() + durationMin * 60_000 <= dayWorkEnd.getTime()) {
+        const slotEnd = new Date(slotStart.getTime() + durationMin * 60_000);
+        const overlaps = intervals.some(iv => {
+          // Laajenna varattua väliä puskurilla — ehdokkaalle jää tilaa siirtymälle
+          const bs = iv.s.getTime() - bufMs;
+          const be = iv.e.getTime() + bufMs;
+          return bs < slotEnd.getTime() && be > slotStart.getTime();
+        });
+        if (!overlaps) return { start: new Date(slotStart), end: slotEnd };
+        slotStart = new Date(slotStart.getTime() + granularityMs);
+      }
+    }
+    return null;
+  };
+
+  type AddSource = { id: string; text: string; orgId?: string; estimateMin?: number };
+
+  // Tehtäväriville näytettävä virhe jos vapaata slottia ei löydy
+  const [slotErrors, setSlotErrors] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const ids = Object.keys(slotErrors);
+    if (ids.length === 0) return;
+    const timer = window.setTimeout(() => {
+      const now = Date.now();
+      setSlotErrors(prev => {
+        const next: Record<string, number> = {};
+        for (const k of Object.keys(prev)) {
+          if (now - prev[k] < 5000) next[k] = prev[k];
+        }
+        return next;
+      });
+    }, 5200);
+    return () => window.clearTimeout(timer);
+  }, [slotErrors]);
+
+  const addTaskToCalendar = (src: AddSource, mode: 'free' | 'pick') => {
+    const duration = src.estimateMin && src.estimateMin > 0 ? src.estimateMin : 60;
+    const slot = findFirstFreeSlot(duration);
+    if (!slot) {
+      if (mode === 'free') {
+        // Ei lisätä mitään — näytä rivillä viesti
+        setSlotErrors(prev => ({ ...prev, [src.id]: Date.now() }));
+        return;
+      }
+      // pick-tila: avaa modal silti, käyttäjä voi valita käsin (klo 09:00 fallback)
+    }
+    const start = slot ? slot.start : (() => {
+      const day = new Date(dayDates[0]);
+      day.setHours(9, 0, 0, 0);
+      return day;
+    })();
+    const end = slot ? slot.end : new Date(start.getTime() + duration * 60_000);
+    const newBlock: TimeBlock = {
+      id: newId(),
+      title: src.text,
+      categoryId: categories[0]?.id,
+      start: formatLocalDateTime(start),
+      end: formatLocalDateTime(end),
+      recurrence: 'none',
+      sourceTaskId: src.id,
+      sourceOrgId: src.orgId,
+    };
+    if (mode === 'pick') {
+      // Avaa modalin, käyttäjä voi siirtää aikaa
+      setEditing({ block: newBlock, isNew: true });
+    } else {
+      // Suora lisäys ilman modalia
+      setBlocks([...blocks, newBlock]);
+    }
+  };
+
   // Apurit
   const wkLabel = `${formatLocalDate(wkStart)} – ${formatLocalDate(addDays(wkStart, 6))}`;
 
@@ -1043,147 +1338,147 @@ export default function PersonalWeekSection() {
         />
       )}
 
-      {/* Vetolähde-paneeli */}
-      {(draggableTasks.personal.length > 0 || orgs.length > 0) && (
-        <div style={{ border: '1px solid var(--rule)', padding: 12, marginBottom: 14, fontSize: 12 }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: 10 }}>
-            Vedä tehtävä viikkoon ajan varaamiseksi
-          </div>
-
-          {/* Henkilökohtaiset tehtävät */}
-          {draggableTasks.personal.length > 0 && (
-            <div style={{ marginBottom: 10 }}>
-              <button
-                type="button"
-                onClick={() => setExpandedPersonal(v => !v)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                  background: 'transparent', border: 'none', padding: '4px 0',
-                  cursor: 'pointer', fontSize: 11, fontFamily: 'var(--font-display)',
-                  letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink2)',
-                }}
-              >
-                <span style={{ width: 10, display: 'inline-block', textAlign: 'center' }}>
-                  {expandedPersonal ? '▾' : '▸'}
-                </span>
-                <span>Henkilökohtaiset</span>
-                <span style={{ color: 'var(--ink3)', fontSize: 10, letterSpacing: '.04em' }}>
-                  ({draggableTasks.personal.length})
-                </span>
-              </button>
-              {expandedPersonal && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6, paddingLeft: 18 }}>
-                  {draggableTasks.personal.map(t => {
-                    const dl = daysUntilDeadline(t.deadline);
-                    return (
-                      <div
-                        key={t.id}
-                        draggable
-                        onDragStart={() => { dragTaskRef.current = { id: t.id, text: t.text }; }}
-                        onDragEnd={() => { dragTaskRef.current = null; }}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 10,
-                          border: '1px dashed var(--ink2)', padding: '4px 8px',
-                          cursor: 'grab', background: 'var(--paper)',
-                        }}
-                      >
-                        <span style={{ flex: 1, minWidth: 0 }}>{t.text}</span>
-                        {dl.label && (
-                          <span style={{
-                            fontSize: 10, color: deadlineColor(dl.tone), letterSpacing: '.04em',
-                            whiteSpace: 'nowrap',
-                          }}>
-                            {dl.label}
-                          </span>
-                        )}
-                        <EstimateInput
-                          minutes={t.estimateMin}
-                          onChange={(m) => setPersonalEstimate(t.id, m)}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+      {/* Vetolähde-paneeli — sticky jotta tehtävät ovat aina ulottuvilla */}
+      {(draggableTasks.personal.length > 0 || orgs.length > 0) && (() => {
+        // Järjestä tehtävät: ei-aikataulutetut ensin, aikataulutetut viimeiseksi
+        const sortByScheduled = <T extends { _id: string; _deadline?: string }>(items: T[]): T[] =>
+          [...items].sort((a, b) => {
+            const aS = scheduledTaskIds.has(a._id) ? 1 : 0;
+            const bS = scheduledTaskIds.has(b._id) ? 1 : 0;
+            if (aS !== bS) return aS - bS;
+            const ad = a._deadline || '9999';
+            const bd = b._deadline || '9999';
+            return ad.localeCompare(bd);
+          });
+        const personalRows = sortByScheduled(
+          draggableTasks.personal.map(t => ({ ...t, _id: t.id, _deadline: t.deadline })),
+        );
+        return (
+          <div style={{
+            position: 'sticky', top: 0, zIndex: 5, background: 'var(--paper)',
+            border: '1px solid var(--rule)', padding: 12, marginBottom: 14, fontSize: 12,
+            maxHeight: '60vh', overflowY: 'auto',
+          }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: 10 }}>
+              Vedä tai lisää tehtävä viikkoon
             </div>
-          )}
 
-          {/* Yhteisöt — järjestys: eniten avoimia tehtäviä ensin */}
-          {[...orgs]
-            .map(o => ({ org: o, count: (byOrg[o.orgId] || []).length }))
-            .sort((a, b) => {
-              if (b.count !== a.count) return b.count - a.count;
-              return (a.org.name || a.org.orgId).localeCompare(b.org.name || b.org.orgId);
-            })
-            .map(({ org }) => {
-              const orgTasks = byOrg[org.orgId] || [];
-              const isOpen = !!expandedOrgs[org.orgId];
-              return (
-                <div key={org.orgId} style={{ marginTop: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => toggleOrg(org.orgId)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                      background: 'transparent', border: 'none', padding: '4px 0',
-                      cursor: 'pointer', fontSize: 11, fontFamily: 'var(--font-display)',
-                      letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink2)',
-                    }}
-                  >
-                    <span style={{ width: 10, display: 'inline-block', textAlign: 'center' }}>
-                      {isOpen ? '▾' : '▸'}
-                    </span>
-                    <span>{org.name || org.orgId}</span>
-                    <span style={{ color: 'var(--ink3)', fontSize: 10, letterSpacing: '.04em' }}>
-                      ({orgTasks.length})
-                    </span>
-                  </button>
-                  {isOpen && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6, paddingLeft: 18 }}>
-                      {orgTasks.length === 0 ? (
-                        <span style={{ color: 'var(--ink3)', fontSize: 11, fontStyle: 'italic' }}>
-                          Ei avoimia tehtäviä sinulle
-                        </span>
-                      ) : (
-                        orgTasks.map(t => {
-                          const dl = daysUntilDeadline(t.deadline);
-                          const est = orgEstimates.byCompositeId?.[t.compositeId];
-                          return (
-                            <div
-                              key={t.compositeId}
-                              draggable
-                              onDragStart={() => { dragTaskRef.current = { id: t.compositeId, text: t.text, orgId: t.orgId }; }}
-                              onDragEnd={() => { dragTaskRef.current = null; }}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: 10,
-                                border: '1px dashed var(--ink2)', padding: '4px 8px',
-                                cursor: 'grab', background: 'var(--paper-l)',
-                              }}
-                            >
-                              <span style={{ flex: 1, minWidth: 0 }}>{t.text}</span>
-                              {dl.label && (
-                                <span style={{
-                                  fontSize: 10, color: deadlineColor(dl.tone), letterSpacing: '.04em',
-                                  whiteSpace: 'nowrap',
-                                }}>
-                                  {dl.label}
-                                </span>
-                              )}
-                              <EstimateInput
-                                minutes={est}
-                                onChange={(m) => setOrgEstimate(t.compositeId, m)}
+            {/* Henkilökohtaiset tehtävät */}
+            {personalRows.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setExpandedPersonal(v => !v)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                    background: 'transparent', border: 'none', padding: '4px 0',
+                    cursor: 'pointer', fontSize: 11, fontFamily: 'var(--font-display)',
+                    letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink2)',
+                  }}
+                >
+                  <span style={{ width: 10, display: 'inline-block', textAlign: 'center' }}>
+                    {expandedPersonal ? '▾' : '▸'}
+                  </span>
+                  <span>Henkilökohtaiset</span>
+                  <span style={{ color: 'var(--ink3)', fontSize: 10, letterSpacing: '.04em' }}>
+                    ({personalRows.length})
+                  </span>
+                </button>
+                {expandedPersonal && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6, paddingLeft: 18 }}>
+                    {personalRows.map(t => (
+                      <TaskRow
+                        key={t.id}
+                        text={t.text}
+                        deadline={t.deadline}
+                        scheduled={scheduledTaskIds.has(t.id)}
+                        background="var(--paper)"
+                        estimateMin={t.estimateMin}
+                        onEstimateChange={(m) => setPersonalEstimate(t.id, m)}
+                        onDragStart={() => { dragTaskRef.current = { id: t.id, text: t.text, estimateMin: t.estimateMin }; }}
+                        onDragEnd={() => { dragTaskRef.current = null; }}
+                        onAddFree={() => addTaskToCalendar({ id: t.id, text: t.text, estimateMin: t.estimateMin }, 'free')}
+                        onAddPick={() => addTaskToCalendar({ id: t.id, text: t.text, estimateMin: t.estimateMin }, 'pick')}
+                        deadlineLabel={daysUntilDeadline(t.deadline)}
+                        deadlineColor={deadlineColor}
+                        errorMessage={slotErrors[t.id] ? 'Vapaata aikaa ei löytynyt — kokeile + aika ja valitse käsin' : undefined}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Yhteisöt — järjestys: eniten avoimia tehtäviä ensin */}
+            {[...orgs]
+              .map(o => ({ org: o, count: (byOrg[o.orgId] || []).length }))
+              .sort((a, b) => {
+                if (b.count !== a.count) return b.count - a.count;
+                return (a.org.name || a.org.orgId).localeCompare(b.org.name || b.org.orgId);
+              })
+              .map(({ org }) => {
+                const rawOrgTasks = byOrg[org.orgId] || [];
+                const orgRows = sortByScheduled(
+                  rawOrgTasks.map(t => ({ ...t, _id: t.compositeId, _deadline: t.deadline })),
+                );
+                const isOpen = !!expandedOrgs[org.orgId];
+                return (
+                  <div key={org.orgId} style={{ marginTop: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => toggleOrg(org.orgId)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                        background: 'transparent', border: 'none', padding: '4px 0',
+                        cursor: 'pointer', fontSize: 11, fontFamily: 'var(--font-display)',
+                        letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink2)',
+                      }}
+                    >
+                      <span style={{ width: 10, display: 'inline-block', textAlign: 'center' }}>
+                        {isOpen ? '▾' : '▸'}
+                      </span>
+                      <span>{org.name || org.orgId}</span>
+                      <span style={{ color: 'var(--ink3)', fontSize: 10, letterSpacing: '.04em' }}>
+                        ({orgRows.length})
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6, paddingLeft: 18 }}>
+                        {orgRows.length === 0 ? (
+                          <span style={{ color: 'var(--ink3)', fontSize: 11, fontStyle: 'italic' }}>
+                            Ei avoimia tehtäviä sinulle
+                          </span>
+                        ) : (
+                          orgRows.map(t => {
+                            const est = orgEstimates.byCompositeId?.[t.compositeId];
+                            return (
+                              <TaskRow
+                                key={t.compositeId}
+                                text={t.text}
+                                deadline={t.deadline}
+                                scheduled={scheduledTaskIds.has(t.compositeId)}
+                                background="var(--paper-l)"
+                                estimateMin={est}
+                                onEstimateChange={(m) => setOrgEstimate(t.compositeId, m)}
+                                onDragStart={() => { dragTaskRef.current = { id: t.compositeId, text: t.text, orgId: t.orgId, estimateMin: est }; }}
+                                onDragEnd={() => { dragTaskRef.current = null; }}
+                                onAddFree={() => addTaskToCalendar({ id: t.compositeId, text: t.text, orgId: t.orgId, estimateMin: est }, 'free')}
+                                onAddPick={() => addTaskToCalendar({ id: t.compositeId, text: t.text, orgId: t.orgId, estimateMin: est }, 'pick')}
+                                deadlineLabel={daysUntilDeadline(t.deadline)}
+                                deadlineColor={deadlineColor}
+                                errorMessage={slotErrors[t.compositeId] ? 'Vapaata aikaa ei löytynyt — kokeile + aika ja valitse käsin' : undefined}
                               />
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-        </div>
-      )}
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        );
+      })()}
 
       {/* Viikkogridi */}
       <div style={{ display: 'grid', gridTemplateColumns: '50px repeat(7, 1fr)', border: '1px solid var(--rule)', userSelect: 'none' }}>
@@ -1341,104 +1636,153 @@ export default function PersonalWeekSection() {
               );
             })}
 
-            {/* Ulkoiset kalenteritapahtumat (haalea raidallinen tausta) */}
-            {externalByDay[dIdx].map(e => {
-              const startD = parseLocalDateTime(e.start);
-              const endD = parseLocalDateTime(e.end);
-              const startSlotAbs = (startD.getHours() * 60 + startD.getMinutes()) / SLOT_MIN;
-              const endSlotAbs = (endD.getHours() * 60 + endD.getMinutes()) / SLOT_MIN;
-              const top = (startSlotAbs - startSlot0) * SLOT_PX;
-              const height = Math.max(SLOT_PX - 2, (endSlotAbs - startSlotAbs) * SLOT_PX - 2);
-              const catId = externalCategoryFor(e);
-              const baseColor = catId ? catColor(catId) : (e.source === 'google' ? '#4285f4' : '#0078d4');
+            {/* Ulkoiset kalenteritapahtumat — sarakkeisiin jaettuna */}
+            {(() => {
+              const items = externalByDay[dIdx].map(e => {
+                const startD = parseLocalDateTime(e.start);
+                const endD = parseLocalDateTime(e.end);
+                return {
+                  ev: e,
+                  startMin: startD.getHours() * 60 + startD.getMinutes(),
+                  endMin: endD.getHours() * 60 + endD.getMinutes(),
+                };
+              });
+              const laid = layoutColumns(items);
               return (
-                <div
-                  key={e.id}
-                  title={`${fixMojibake(e.title)}\n${e.source === 'google' ? 'Google' : 'Microsoft'}`}
-                  style={{
-                    position: 'absolute',
-                    top, left: 'calc(50% + 1px)', right: 2, height,
-                    background: `repeating-linear-gradient(45deg, ${hexWithAlpha(baseColor, 0.12)} 0 6px, ${hexWithAlpha(baseColor, 0.05)} 6px 12px)`,
-                    borderLeft: `2px dashed ${baseColor}`,
-                    padding: '2px 4px', fontSize: 10, color: 'var(--ink2)',
-                    overflow: 'hidden', pointerEvents: 'auto', cursor: 'default',
-                  }}
-                >
-                  <div style={{ lineHeight: 1.1, fontStyle: 'italic' }}>{fixMojibake(e.title)}</div>
-                  <div style={{ fontSize: 9, color: 'var(--ink3)' }}>
-                    {e.source === 'google' ? 'G' : 'MS'} · {slotToTime(startSlotAbs)}
-                  </div>
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: 'calc(50% + 1px)', right: 2, pointerEvents: 'none' }}>
+                  {laid.map(({ ev: e, startMin, endMin, col, cols }) => {
+                    const startSlotAbs = startMin / SLOT_MIN;
+                    const endSlotAbs = endMin / SLOT_MIN;
+                    const top = (startSlotAbs - startSlot0) * SLOT_PX;
+                    const height = Math.max(2, (endSlotAbs - startSlotAbs) * SLOT_PX - 2);
+                    const catId = externalCategoryFor(e);
+                    const baseColor = catId ? catColor(catId) : (e.source === 'google' ? '#4285f4' : '#0078d4');
+                    const widthPct = 100 / cols;
+                    const showText = height >= 18;
+                    const showSecondLine = height >= 32;
+                    return (
+                      <div
+                        key={e.id}
+                        title={`${fixMojibake(e.title)}\n${e.source === 'google' ? 'Google' : 'Microsoft'}`}
+                        style={{
+                          position: 'absolute',
+                          top,
+                          left: `${col * widthPct}%`,
+                          width: `calc(${widthPct}% - 1px)`,
+                          height,
+                          background: `repeating-linear-gradient(45deg, ${hexWithAlpha(baseColor, 0.12)} 0 6px, ${hexWithAlpha(baseColor, 0.05)} 6px 12px)`,
+                          borderLeft: `2px dashed ${baseColor}`,
+                          padding: showText ? '2px 4px' : 0,
+                          fontSize: 10,
+                          color: 'var(--ink2)',
+                          overflow: 'hidden',
+                          pointerEvents: 'auto',
+                          cursor: 'default',
+                        }}
+                      >
+                        {showText && (
+                          <div style={{ lineHeight: 1.1, fontStyle: 'italic' }}>{fixMojibake(e.title)}</div>
+                        )}
+                        {showSecondLine && (
+                          <div style={{ fontSize: 9, color: 'var(--ink3)' }}>
+                            {e.source === 'google' ? 'G' : 'MS'} · {slotToTime(startSlotAbs)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               );
-            })}
+            })()}
 
-            {/* Olemassaolevat lohkot */}
-            {visibleByDay[dIdx].map(b => {
-              const isDragging = moveDrag && moveDragActiveRef.current && moveDrag.block.id === b.id;
-              let startSlotAbs: number;
-              let endSlotAbs: number;
-              if (isDragging && moveDrag) {
-                startSlotAbs = moveDrag.curStartMin / SLOT_MIN;
-                endSlotAbs = (moveDrag.curStartMin + moveDrag.durationMin) / SLOT_MIN;
-              } else {
-                const startD = parseLocalDateTime(b.start);
-                const endD = parseLocalDateTime(b.end);
-                startSlotAbs = (startD.getHours() * 60 + startD.getMinutes()) / SLOT_MIN;
-                endSlotAbs = (endD.getHours() * 60 + endD.getMinutes()) / SLOT_MIN;
-              }
-              const top = (startSlotAbs - startSlot0) * SLOT_PX;
-              const height = Math.max(SLOT_PX - 2, (endSlotAbs - startSlotAbs) * SLOT_PX - 2);
-              const color = catColor(b.categoryId);
-              const conflict = !isDragging && overlapsExternal(b);
+            {/* Olemassaolevat lohkot \u2014 sarakkeisiin jaettuna */}
+            {(() => {
+              const items = visibleByDay[dIdx].map(b => {
+                const isDragging = moveDrag && moveDragActiveRef.current && moveDrag.block.id === b.id;
+                let startMin: number;
+                let endMin: number;
+                if (isDragging && moveDrag) {
+                  startMin = moveDrag.curStartMin;
+                  endMin = moveDrag.curStartMin + moveDrag.durationMin;
+                } else {
+                  const startD = parseLocalDateTime(b.start);
+                  const endD = parseLocalDateTime(b.end);
+                  startMin = startD.getHours() * 60 + startD.getMinutes();
+                  endMin = endD.getHours() * 60 + endD.getMinutes();
+                }
+                return { block: b, isDragging: !!isDragging, startMin, endMin };
+              });
+              const laid = layoutColumns(items);
+              const laneRight = externalByDay[dIdx].length > 0 ? 'calc(50% + 1px)' : '2px';
               return (
-                <div
-                  key={b.id}
-                  onMouseDown={(e) => startBlockMove(e, b, dIdx)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (blockClickSuppressRef.current) {
-                      blockClickSuppressRef.current = false;
-                      return;
-                    }
-                    setEditing({ block: b, isNew: false });
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top,
-                    left: 2,
-                    right: externalByDay[dIdx].length > 0 ? 'calc(50% + 1px)' : 2,
-                    height,
-                    background: hexWithAlpha(color, b.done ? 0.3 : 0.18),
-                    borderLeft: `3px solid ${color}`,
-                    boxShadow: conflict ? 'inset 0 0 0 1px #e45c81' : (isDragging ? '0 4px 12px rgba(0,0,0,.2)' : undefined),
-                    padding: '3px 6px',
-                    fontSize: 11,
-                    color: 'var(--ink)',
-                    cursor: isDragging ? 'grabbing' : 'grab',
-                    overflow: 'hidden',
-                    textDecoration: b.done ? 'line-through' : 'none',
-                    opacity: isDragging ? 0.85 : 1,
-                    zIndex: isDragging ? 5 : undefined,
-                    userSelect: 'none',
-                  }}
-                >
-                  <div style={{ fontWeight: 500, lineHeight: 1.2 }}>
-                    {fixMojibake(b.title) || catName(b.categoryId)}
-                    {conflict && <span title="P\u00e4\u00e4llekk\u00e4in ulkoisen tapahtuman kanssa" style={{ color: '#e45c81', marginLeft: 4 }}>!</span>}
-                  </div>
-                  <div style={{ fontSize: 9, color: 'var(--ink3)', letterSpacing: '.06em' }}>
-                    {slotToTime(startSlotAbs)}–{slotToTime(endSlotAbs)}
-                    {b.recurrence && b.recurrence !== 'none' && ' ↻'}
-                    {(() => {
-                      const syncs = getExternalSyncs(b);
-                      if (syncs.length === 0) return null;
-                      const labels = syncs.map(s => s.provider === 'google' ? 'Google' : s.provider === 'microsoft' ? 'Microsoft' : 'Apple');
-                      return <span title={`Synkronoitu: ${labels.join(', ')}`}> ⇆{syncs.length > 1 ? `×${syncs.length}` : ''}</span>;
-                    })()}
-                  </div>
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: 2, right: laneRight, pointerEvents: 'none' }}>
+                  {laid.map(({ block: b, isDragging, startMin, endMin, col, cols }) => {
+                    const startSlotAbs = startMin / SLOT_MIN;
+                    const endSlotAbs = endMin / SLOT_MIN;
+                    const top = (startSlotAbs - startSlot0) * SLOT_PX;
+                    const height = Math.max(2, (endSlotAbs - startSlotAbs) * SLOT_PX - 2);
+                    const color = catColor(b.categoryId);
+                    const conflict = !isDragging && overlapsExternal(b);
+                    const widthPct = 100 / cols;
+                    const showTitle = height >= 18;
+                    const showTimeRow = height >= 32;
+                    return (
+                      <div
+                        key={b.id}
+                        onMouseDown={(e) => startBlockMove(e, b, dIdx)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (blockClickSuppressRef.current) {
+                            blockClickSuppressRef.current = false;
+                            return;
+                          }
+                          setEditing({ block: b, isNew: false });
+                        }}
+                        style={{
+                          position: 'absolute',
+                          top,
+                          left: `${col * widthPct}%`,
+                          width: `calc(${widthPct}% - 1px)`,
+                          height,
+                          background: hexWithAlpha(color, b.done ? 0.3 : 0.18),
+                          borderLeft: `3px solid ${color}`,
+                          boxShadow: conflict ? 'inset 0 0 0 1px #e45c81' : (isDragging ? '0 4px 12px rgba(0,0,0,.2)' : undefined),
+                          padding: showTitle ? '3px 6px' : 0,
+                          fontSize: 11,
+                          color: 'var(--ink)',
+                          cursor: isDragging ? 'grabbing' : 'grab',
+                          overflow: 'hidden',
+                          textDecoration: b.done ? 'line-through' : 'none',
+                          opacity: isDragging ? 0.85 : 1,
+                          zIndex: isDragging ? 5 : undefined,
+                          userSelect: 'none',
+                          pointerEvents: 'auto',
+                        }}
+                      >
+                        {showTitle && (
+                          <div style={{ fontWeight: 500, lineHeight: 1.2 }}>
+                            {fixMojibake(b.title) || catName(b.categoryId)}
+                            {conflict && <span title="P\u00e4\u00e4llekk\u00e4in ulkoisen tapahtuman kanssa" style={{ color: '#e45c81', marginLeft: 4 }}>!</span>}
+                          </div>
+                        )}
+                        {showTimeRow && (
+                          <div style={{ fontSize: 9, color: 'var(--ink3)', letterSpacing: '.06em' }}>
+                            {slotToTime(startSlotAbs)}–{slotToTime(endSlotAbs)}
+                            {b.recurrence && b.recurrence !== 'none' && ' ↻'}
+                            {(() => {
+                              const syncs = getExternalSyncs(b);
+                              if (syncs.length === 0) return null;
+                              const labels = syncs.map(s => s.provider === 'google' ? 'Google' : s.provider === 'microsoft' ? 'Microsoft' : 'Apple');
+                              return <span title={`Synkronoitu: ${labels.join(', ')}`}> ⇆{syncs.length > 1 ? `×${syncs.length}` : ''}</span>;
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               );
-            })}
+            })()}
 
             {/* Drag-luontiluonnos */}
             {draft && draft.dayIdx === dIdx && (

@@ -2,7 +2,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Super-admin emaillit (synkkaan koodissa SUPER_ADMINS-arrayn kanssa).
+    // ⚠ SUPER-ADMIN-LISTA: synkkaa manuaalisesti tiedoston
+    // momentum-next/lib/super-admins.ts kanssa. Säännöt eivät voi importata.
     // Nämä saavat lukuoikeuden kaikkiin orgeihin / käyttäjiin admin-paneelia varten.
     function isSuperAdmin() {
       return request.auth != null && request.auth.token.email in [

@@ -10,6 +10,7 @@ import { db } from '@/lib/firebase';
 import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, getDefaultModules } from '@/lib/modules';
 import { useToast } from '@/lib/toast';
 import { connectDrive, disconnectDrive, useDriveStatus } from '@/lib/drive';
+import { isSuperAdminEmail } from '@/lib/super-admins';
 import NotificationsSettings from '@/components/NotificationsSettings';
 
 interface Member { uid: string; displayName: string; email: string; photoURL: string; role: string; joinedAt: string; }
@@ -45,8 +46,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
 
   const isAdmin = activeOrgRole === 'owner' || activeOrgRole === 'admin';
-  const SUPER_ADMINS = ['anton@hetkicompany.com', 'anton.baer@gmail.com', 'claude-test@hetkicompany.com'];
-  const isSuperAdmin = !!user?.email && SUPER_ADMINS.includes(user.email);
+  const isSuperAdmin = isSuperAdminEmail(user?.email);
 
   // Load personal preferences
   useEffect(() => {

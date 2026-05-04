@@ -52,20 +52,96 @@ function isPublicRoute(path) {
   return false;
 }
 
+// ── ORG-MEMBERSHIP CHECK ──
+// Reitit jotka käyttävät X-Momentum-Org-headeria operaatioon, eli tarvitsevat
+// että kirjautunut käyttäjä on tämän orgin jäsen.
+const ORG_BOUND_PATHS = [
+  '/auth/facebook/init',
+  '/auth/status',
+  '/auth/disconnect',
+  '/api/insights',
+  '/api/publish',
+  '/api/chat',
+  '/api/ai/assist',
+  '/media/upload',
+  '/media/list',
+];
+function isOrgBoundRoute(path) {
+  if (ORG_BOUND_PATHS.includes(path)) return true;
+  if (path.startsWith('/media/delete/')) return true;
+  return false;
+}
+
+// Cache org-jäsenyyksille — yksi worker-instanssi muistaa per uid
+// 60 sekunnin ajan, jotta jokaista pyyntöä ei pommiteta Firestoreen.
+const ORG_MEMBERSHIP_CACHE = new Map(); // uid → { orgIds, expiresAt }
+async function getUserOrgIds(uid, idToken, env) {
+  const cached = ORG_MEMBERSHIP_CACHE.get(uid);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.orgIds;
+  }
+  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/userOrgs/${uid}`;
+  let orgIds = [];
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      orgIds = (data.fields?.orgIds?.arrayValue?.values || [])
+        .map(v => v.stringValue)
+        .filter(Boolean);
+    } else if (res.status !== 404) {
+      console.warn('Firestore userOrgs read failed:', res.status);
+    }
+  } catch (e) {
+    console.warn('getUserOrgIds error:', e.message);
+  }
+  ORG_MEMBERSHIP_CACHE.set(uid, { orgIds, expiresAt: Date.now() + 60_000 });
+  return orgIds;
+}
+
+async function verifyOrgMembership(uid, idToken, orgId, env) {
+  if (!orgId) return false;
+  const orgIds = await getUserOrgIds(uid, idToken, env);
+  return orgIds.includes(orgId);
+}
+
 // ── CORS ──
+// Sallitut originit luetaan env.ALLOWED_ORIGINS:sta (pilkulla erotettuna).
+// Tuotannossa wildcard '*' on tietoturvariski — varoitetaan logissa.
 function corsHeaders(request, env) {
   const origin = request.headers.get('Origin') || '';
   const allowed = (env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
-  // Only allow localhost in non-production environments
-  const isLocalhost = env.ENVIRONMENT !== 'production' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-  const isAllowed = isLocalhost || allowed.some(a => a === '*' || origin === a || origin.startsWith(a));
-  return {
-    'Access-Control-Allow-Origin': isAllowed && origin ? origin : (allowed[0] || '*'),
+
+  // Tuotannon hardening: jos lista sisältää '*', loggaa varoitus mutta jatka.
+  // (Älä lisää uutta wildcard-vaihtoehtoa tuotantoon — käytä eksplisiittistä listaa.)
+  if (env.ENVIRONMENT === 'production' && allowed.includes('*')) {
+    console.error('SECURITY: ALLOWED_ORIGINS sisältää wildcardin (*) tuotannossa');
+  }
+
+  // Localhost sallittu vain dev-ympäristössä
+  const isLocalhost = env.ENVIRONMENT !== 'production'
+    && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+
+  // Tuotannossa älä koskaan päästä wildcardia läpi vastauskenttään.
+  const wildcardOk = env.ENVIRONMENT !== 'production' && allowed.includes('*');
+  const isAllowed = isLocalhost
+    || wildcardOk
+    || allowed.some(a => a !== '*' && (origin === a || origin.startsWith(a + '/')));
+
+  // Jos origin ei ole sallittu, jätä Allow-Origin-header asettamatta —
+  // selain tulkitsee tämän CORS-virheeksi eikä päästä luvatonta jsx:ää.
+  const responseHeaders = {
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-Momentum-Org, Authorization',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin',
   };
+  if (isAllowed && origin) {
+    responseHeaders['Access-Control-Allow-Origin'] = origin;
+  }
+  return responseHeaders;
 }
 
 function corsResponse(request, env, body, status = 200, extraHeaders = {}) {
@@ -92,14 +168,27 @@ export default {
 
     // ── AUTH MIDDLEWARE ──
     let authUser = null;
+    let idToken = null;
     if (!isPublicRoute(path)) {
       authUser = await verifyFirebaseToken(request);
       if (!authUser) {
         return corsResponse(request, env, { error: 'Unauthorized — valid Firebase token required' }, 401);
       }
+      const authHeader = request.headers.get('Authorization') || '';
+      idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
     }
 
-    const orgId = request.headers.get('X-Momentum-Org') || 'avl';
+    // X-Momentum-Org PAKOLLINEN org-bound-reiteille, ei oletusarvoa.
+    const orgId = request.headers.get('X-Momentum-Org');
+    if (isOrgBoundRoute(path)) {
+      if (!orgId) {
+        return corsResponse(request, env, { error: 'X-Momentum-Org header puuttuu' }, 400);
+      }
+      const isMember = await verifyOrgMembership(authUser.uid, idToken, orgId, env);
+      if (!isMember) {
+        return corsResponse(request, env, { error: 'Et ole tämän organisaation jäsen' }, 403);
+      }
+    }
 
     try {
       // ── AUTH ROUTES ──
@@ -173,8 +262,15 @@ export default {
 
       return corsResponse(request, env, { error: 'Not found' }, 404);
     } catch (err) {
-      console.error('Worker error:', err);
-      return corsResponse(request, env, { error: err.message }, 500);
+      const reqId = crypto.randomUUID().slice(0, 8);
+      console.error(`Worker error [${reqId}] ${path}:`, err);
+      // Tuotannossa älä paljasta sisäistä viestiä — devissä mukava debug
+      const isDev = env.ENVIRONMENT !== 'production';
+      return corsResponse(request, env, {
+        error: 'Internal error',
+        requestId: reqId,
+        ...(isDev ? { detail: err.message } : {}),
+      }, 500);
     }
   },
 };

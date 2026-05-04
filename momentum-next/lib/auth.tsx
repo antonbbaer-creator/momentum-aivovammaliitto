@@ -5,6 +5,7 @@ import { User, onAuthStateChanged, signInWithPopup, signOut, createUserWithEmail
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider, persistenceReady } from './firebase';
 import { isOrgEnabled } from './enabled-orgs';
+import { isSuperAdminEmail } from './super-admins';
 
 // Super-admin email -> auto-provision -lista. Synkattu firestore.rules:n
 // isSuperAdmin()-funktion kanssa. Nämä käyttäjät saavat kirjautuessaan
@@ -12,13 +13,6 @@ import { isOrgEnabled } from './enabled-orgs';
 // vielä ole jäseniä — ei tarvita admin-paneelin nappia.
 const SUPER_ADMIN_AUTO_PROVISION_ORGS: { orgId: string; name: string }[] = [
   { orgId: 'hetki-company', name: 'Hetki Company' },
-];
-const SUPER_ADMIN_EMAILS = [
-  'anton@hetkicompany.com',
-  'anton.baer@gmail.com',
-  'anton.b.baer@gmail.com',
-  'anton.baer@kinolapinlahti.fi',
-  'claude-test@hetkicompany.com',
 ];
 
 export type OrgRole = 'owner' | 'admin' | 'member' | 'visitor';
@@ -132,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Super-admin auto-provision: jos kayttaja on super-admin, ja
           // SUPER_ADMIN_AUTO_PROVISION_ORGS-listassa on org jota ei viela
           // loydy hanen userOrgs-listalta, luodaan org-doc + member + linkitys.
-          if (u.email && SUPER_ADMIN_EMAILS.includes(u.email)) {
+          if (isSuperAdminEmail(u.email)) {
             try {
               const userOrgsSnap = await getDoc(doc(db, 'userOrgs', u.uid));
               const cur = userOrgsSnap.exists() ? userOrgsSnap.data() : {};
