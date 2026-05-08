@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { ReactNode, useState, useEffect, useCallback } from 'react';
 import { useIsMobile } from '@/lib/use-mobile';
 import Sidebar from './Sidebar';
+import NotifyMePrompt from './NotifyMePrompt';
 import { useToast } from '@/lib/toast';
 import { touchDeviceLastSeen, useForegroundNotifications, currentPermission } from '@/lib/notifications';
 
@@ -129,6 +130,7 @@ export default function AppShell({ children, title, subtitle, hideTitle = false,
           )}
           <span className="date">{dateLabel} · {timeLabel}</span>
         </div>
+        <NotifyMePrompt />
         {subtitle && (
           <div style={{ padding: '14px 36px 0', fontFamily: 'var(--font-display)', fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink2)' }}>
             {subtitle}

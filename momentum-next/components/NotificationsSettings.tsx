@@ -25,6 +25,78 @@ const PLATFORM_LABEL: Record<DeviceDoc['platform'], string> = {
   'android-pwa': 'Android',
 };
 
+/** Onko iOS Safari ilman asennettua PWA:ta? iOS-pushit toimivat vain
+ *  PWA:na (Add to Home Screen) — siksi kerrotaan käyttäjälle miten. */
+function isIosSafariNotInstalled(): boolean {
+  if (typeof window === 'undefined') return false;
+  const ua = window.navigator.userAgent;
+  const isIos = /iPhone|iPad|iPod/.test(ua);
+  if (!isIos) return false;
+  const standalone = window.matchMedia?.('(display-mode: standalone)').matches
+    || (window.navigator as { standalone?: boolean }).standalone === true;
+  if (standalone) return false;
+  // Chrome/Firefox/Edge iOS:llä Add to Home Screen ei tuota PWA:ta jolla on push.
+  if (/CriOS|FxiOS|EdgiOS/.test(ua)) return false;
+  return /Safari/.test(ua);
+}
+
+function IosInstallCard() {
+  return (
+    <div style={{
+      marginBottom: '1rem',
+      padding: '0.9rem 1rem',
+      background: 'rgba(5,107,159,.06)',
+      border: '1px solid rgba(5,107,159,.2)',
+      borderRadius: 'var(--r)',
+    }}>
+      <div style={{ display: 'flex', gap: '.7rem', alignItems: 'flex-start' }}>
+        <div aria-hidden style={{
+          width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+          background: 'linear-gradient(180deg, var(--pri-l), var(--pri))',
+          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.2rem',
+        }}>M</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '.86rem', fontWeight: 600, marginBottom: '.3rem' }}>
+            Asenna Momentum kotinäytölle
+          </div>
+          <div style={{ fontSize: '.75rem', color: 'var(--t2)', lineHeight: 1.55, marginBottom: '.6rem' }}>
+            iPhonella push-ilmoitukset toimivat vasta kun Momentum on asennettu kotinäytölle. Sen jälkeen voit avata Momentumin yhdellä napautuksella eikä se vie selainikkunaa.
+          </div>
+          <ol style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '.75rem', lineHeight: 1.7, color: 'var(--ink)' }}>
+            <li>
+              Paina selaimen alalaidan{' '}
+              <span aria-label="jakamiskuvake" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '0 .4rem', background: 'var(--paper-d)',
+                borderRadius: 4, fontSize: '.7rem',
+              }}>
+                <svg width="11" height="13" viewBox="0 0 11 13" fill="none" aria-hidden style={{ marginTop: 1 }}>
+                  <path d="M5.5 1L5.5 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                  <path d="M3 3.2L5.5 1L8 3.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M2 6V11.5C2 11.7761 2.22386 12 2.5 12H8.5C8.77614 12 9 11.7761 9 11.5V6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                </svg>
+                jakaminen
+              </span>
+              -kuvaketta.
+            </li>
+            <li>
+              Vieritä alas ja valitse{' '}
+              <b>“Lisää aloitusnäyttöön”</b>{' '}
+              <span aria-hidden style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 14, height: 14, border: '1.2px solid currentColor',
+                borderRadius: 3, fontSize: '.75rem', lineHeight: 1, fontWeight: 600,
+              }}>+</span>
+            </li>
+            <li>Avaa Momentum kotinäytön M-ikonista ja palaa tähän näkymään ottaaksesi ilmoitukset käyttöön.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function NotificationsSettings() {
   const { toast } = useToast();
   const [permission, setPermission] = useState<NotifPermission>('default');
@@ -145,8 +217,11 @@ export default function NotificationsSettings() {
     unsupported: 'Selain ei tue',
   };
 
+  const showIosInstall = isIosSafariNotInstalled() && permission !== 'granted';
+
   return (
     <div style={{ marginTop: '.85rem' }}>
+      {showIosInstall && <IosInstallCard />}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: '.82rem', fontWeight: 600, marginBottom: '.2rem' }}>Ilmoitukset</div>
