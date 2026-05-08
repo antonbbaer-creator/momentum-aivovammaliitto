@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import {
@@ -14,9 +14,22 @@ import { useToast } from '@/lib/toast';
 
 const SNOOZE_MS = 14 * 24 * 60 * 60 * 1000; // 14 päivää
 
-interface ProfileMeta {
-  pushAsked?: boolean;
-  notifPromptDismissedAt?: number;
+// Snooze on per-laite (localStorage) — käyttäjä voi käydä saman tilin alla useilla
+// laitteilla ja jokaisen pitää saada oma onboarding-banneri kunnes asentaa & sallii
+// ilmoitukset siltä laitteelta.
+const SNOOZE_KEY = 'momentum_notif_prompt_snooze';
+
+function readSnoozeMs(): number {
+  if (typeof window === 'undefined') return 0;
+  try {
+    const v = window.localStorage.getItem(SNOOZE_KEY);
+    return v ? parseInt(v, 10) || 0 : 0;
+  } catch { return 0; }
+}
+
+function writeSnoozeMs(ts: number) {
+  if (typeof window === 'undefined') return;
+  try { window.localStorage.setItem(SNOOZE_KEY, String(ts)); } catch { /* ignore */ }
 }
 
 interface BeforeInstallPromptEvent extends Event {
@@ -76,38 +89,32 @@ export default function NotifyMePrompt() {
 
     let cancelled = false;
     (async () => {
-      // Snooze + jo kysytty -tila
-      try {
-        const ref = doc(db, 'users', user.uid, 'meta', 'profile');
-        const snap = await getDoc(ref);
-        const data = (snap.exists() ? snap.data() : {}) as ProfileMeta;
-        const dismissedAt = data.notifPromptDismissedAt;
-        if (dismissedAt && Date.now() - dismissedAt < SNOOZE_MS) return;
+      // Snooze on per-laite — luetaan localStoragesta. Tämä takaa että saman tilin
+      // alla oleva käyttäjä saa onboardingin jokaisella uudella laitteella/selaimella.
+      const dismissedAt = readSnoozeMs();
+      if (dismissedAt && Date.now() - dismissedAt < SNOOZE_MS) return;
 
-        const perm = currentPermission();
-        // Käyttäjä on jo sallinut → ei näytetä mitään
-        if (perm === 'granted') return;
+      const perm = currentPermission();
+      // Käyttäjä on jo sallinut tämän laitteen → ei näytetä mitään
+      if (perm === 'granted') return;
 
-        // iOS Safari + ei standalonea → opasta asennus (push toimii vain PWA:na)
-        if (isIosSafari && !standalone) {
-          if (!cancelled) setStep('ios-install');
-          return;
-        }
-
-        // Voiko asentaa PWA:n? Annetaan eventille hetki tulla — se voi tulla vasta
-        // muutaman sadan ms:n päässä page loadista.
-        await new Promise(r => setTimeout(r, 800));
-        if (cancelled) return;
-        if (installEvtRef.current && !standalone) {
-          setStep('install');
-          return;
-        }
-
-        // Muuten: pyydä lupa suoraan
-        if (perm === 'default') setStep('permit');
-      } catch {
-        /* ignore */
+      // iOS Safari + ei standalonea → opasta asennus (push toimii vain PWA:na)
+      if (isIosSafari && !standalone) {
+        if (!cancelled) setStep('ios-install');
+        return;
       }
+
+      // Voiko asentaa PWA:n? Annetaan eventille hetki tulla — se voi tulla vasta
+      // muutaman sadan ms:n päässä page loadista.
+      await new Promise(r => setTimeout(r, 800));
+      if (cancelled) return;
+      if (installEvtRef.current && !standalone) {
+        setStep('install');
+        return;
+      }
+
+      // Muuten: pyydä lupa suoraan
+      if (perm === 'default') setStep('permit');
     })();
     return () => { cancelled = true; };
   }, [user]);
@@ -175,17 +182,9 @@ export default function NotifyMePrompt() {
     }
   };
 
-  const snooze = async () => {
+  const snooze = () => {
     setStep('hidden');
-    const u = auth.currentUser;
-    if (!u) return;
-    try {
-      await setDoc(
-        doc(db, 'users', u.uid, 'meta', 'profile'),
-        { notifPromptDismissedAt: Date.now() },
-        { merge: true },
-      );
-    } catch { /* ignore */ }
+    writeSnoozeMs(Date.now());
   };
 
   const goToSettings = () => {
