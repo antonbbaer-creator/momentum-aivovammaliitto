@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useParams } from 'next/navigation';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import AppShell from '@/components/AppShell';
@@ -130,19 +130,14 @@ export default function GraafinenOhjeistoPage() {
     );
   }
 
+  const isAvl = orgSlug === 'avl';
+
   return (
     <AppShell title={guide.intro.title || 'Graafinen ohjeisto'} subtitle={guide.intro.subtitle || ''}>
       <div style={{ maxWidth: 980, margin: '0 auto' }}>
 
-        {/* INTRO */}
-        <IntroCard
-          guide={guide}
-          editing={isEditing('intro')}
-          canEdit={canEdit}
-          onToggleEdit={() => toggleEdit('intro')}
-          onStop={() => stopEditing('intro')}
-          patch={patch}
-        />
+        {/* AVL — alkuperäinen PDF luettavissa kokonaisuudessaan */}
+        {isAvl && <AvlOriginalPdfCard />}
 
         {/* LOGO */}
         <LogoCard
@@ -154,6 +149,7 @@ export default function GraafinenOhjeistoPage() {
           patch={patch}
           uploadAsset={uploadAsset}
           removeStored={removeStored}
+          isAvl={isAvl}
         />
 
         {/* COLORS */}
@@ -174,50 +170,7 @@ export default function GraafinenOhjeistoPage() {
           onToggleEdit={() => toggleEdit('typography')}
           onStop={() => stopEditing('typography')}
           patch={patch}
-        />
-
-        {/* IMAGERY */}
-        <ImageryCard
-          guide={guide}
-          editing={isEditing('imagery')}
-          canEdit={canEdit}
-          onToggleEdit={() => toggleEdit('imagery')}
-          onStop={() => stopEditing('imagery')}
-          patch={patch}
-          uploadAsset={uploadAsset}
-          removeStored={removeStored}
-        />
-
-        {/* MATERIALS */}
-        <MaterialsCard
-          guide={guide}
-          editing={isEditing('materials')}
-          canEdit={canEdit}
-          onToggleEdit={() => toggleEdit('materials')}
-          onStop={() => stopEditing('materials')}
-          patch={patch}
-          uploadAsset={uploadAsset}
-          removeStored={removeStored}
-        />
-
-        {/* ACCESSIBILITY */}
-        <AccessibilityCard
-          guide={guide}
-          editing={isEditing('accessibility')}
-          canEdit={canEdit}
-          onToggleEdit={() => toggleEdit('accessibility')}
-          onStop={() => stopEditing('accessibility')}
-          patch={patch}
-        />
-
-        {/* CONTACT */}
-        <ContactCard
-          guide={guide}
-          editing={isEditing('contact')}
-          canEdit={canEdit}
-          onToggleEdit={() => toggleEdit('contact')}
-          onStop={() => stopEditing('contact')}
-          patch={patch}
+          isAvl={isAvl}
         />
 
       </div>
@@ -296,7 +249,177 @@ interface AssetCardProps extends CardProps {
   removeStored: (a: BrandAsset) => Promise<void>;
 }
 
-function LogoCard({ guide, editing, canEdit, onToggleEdit, onStop, patch, uploadAsset, removeStored }: AssetCardProps) {
+interface LogoCardProps extends AssetCardProps {
+  isAvl?: boolean;
+}
+
+type LogoVariant = {
+  id: string;
+  title: string;
+  preview: string;
+  download: string;
+};
+
+const AVL_LOGO_VARIANTS: LogoVariant[] = [
+  { id: 'avl-vaaka', title: 'Vaakalogo', preview: '/brand/avl/logo-vaaka.png', download: '/brand/avl/logo-vaaka.jpg' },
+  { id: 'avl-keskitetty', title: 'Pystylogo (keskitetty)', preview: '/brand/avl/logo-keskitetty.png', download: '/brand/avl/logo-keskitetty.jpg' },
+  { id: 'avl-tunnus', title: 'Tunnus', preview: '/brand/avl/logo-tunnus.png', download: '/brand/avl/logo-tunnus.jpg' },
+];
+
+type AvlFont = { family: string; bundle: string; weights: string[]; note?: string };
+const AVL_FONTS: AvlFont[] = [
+  {
+    family: 'Outfit',
+    bundle: '/brand/avl/fonts/Outfit.zip',
+    weights: ['Light', 'Regular', 'Medium', 'SemiBold', 'Bold', 'Black'],
+  },
+  {
+    family: 'Avenir',
+    bundle: '/brand/avl/fonts/Avenir.zip',
+    weights: ['Regular'],
+    note: 'Avenir on lisensoitu fontti (Adobe Fonts). Muut leikkaukset asennetaan Adobe Fontsin kautta.',
+  },
+];
+
+const AVL_GUIDE_TOTAL_PAGES = 17;
+
+function AvlOriginalPdfCard() {
+  const [page, setPage] = useState(1);
+  const total = AVL_GUIDE_TOTAL_PAGES;
+  const goPrev = () => setPage(p => Math.max(1, p - 1));
+  const goNext = () => setPage(p => Math.min(total, p + 1));
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') goPrev();
+      else if (e.key === 'ArrowRight' || e.key === ' ') goNext();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  return (
+    <div style={card}>
+      <div style={headerRow}>
+        <h2 style={{ ...sectionHeading, marginBottom: 0 }}>Graafinen ohjeisto</h2>
+        <a className="btn btn-secondary" style={editBtn} href="/brand/avl/graafinen-ohjeisto.pdf" target="_blank" rel="noopener noreferrer" download>Lataa PDF</a>
+      </div>
+
+      <div
+        onClick={(e) => {
+          const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+          if (e.clientX - rect.left < rect.width / 2) goPrev(); else goNext();
+        }}
+        style={{ position: 'relative', width: '100%', aspectRatio: '3368 / 2382', background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden', cursor: 'pointer', userSelect: 'none' }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`/brand/avl/pages/page-${pad(page)}.png`}
+          alt={`Sivu ${page} / ${total}`}
+          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+          draggable={false}
+        />
+
+        {/* Edellinen */}
+        <button
+          onClick={(e) => { e.stopPropagation(); goPrev(); }}
+          disabled={page === 1}
+          aria-label="Edellinen sivu"
+          style={navBtnStyle('left', page === 1)}
+        >‹</button>
+
+        {/* Seuraava */}
+        <button
+          onClick={(e) => { e.stopPropagation(); goNext(); }}
+          disabled={page === total}
+          aria-label="Seuraava sivu"
+          style={navBtnStyle('right', page === total)}
+        >›</button>
+
+        {/* Sivunumero */}
+        <div style={{ position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.65)', color: '#fff', padding: '0.3rem 0.7rem', borderRadius: 999, fontSize: '0.78rem', fontFamily: 'var(--font-display)', letterSpacing: '0.05em' }}>
+          {page} / {total}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function navBtnStyle(side: 'left' | 'right', disabled: boolean): CSSProperties {
+  return {
+    position: 'absolute',
+    top: '50%',
+    [side]: 12,
+    transform: 'translateY(-50%)',
+    width: 44,
+    height: 44,
+    borderRadius: '50%',
+    border: 'none',
+    background: 'rgba(0,0,0,0.55)',
+    color: '#fff',
+    fontSize: '1.6rem',
+    lineHeight: 1,
+    cursor: disabled ? 'default' : 'pointer',
+    opacity: disabled ? 0.3 : 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 4,
+  } as CSSProperties;
+}
+
+function AvlLogoVariants() {
+  return (
+    <div style={{ marginTop: '1.75rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+      <div style={{ ...sectionTitle, marginBottom: '0.75rem' }}>Lataa logoversiot</div>
+      <p style={{ ...muted, fontSize: '0.88rem', marginBottom: '1rem' }}>
+        Aivovammaliiton viralliset logoversiot. Vaakalogo on ensisijainen versio; pystylogoa käytetään esimerkiksi kapeissa tiloissa kuten käyntikorteissa. Tunnus toimii yksinään erikoissovelluksissa tai graafisena elementtinä.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.75rem' }}>
+        {AVL_LOGO_VARIANTS.map(v => (
+          <div key={v.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '0.85rem', background: 'var(--paper-l)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ height: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', marginBottom: '0.6rem', borderRadius: 'var(--r)' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={v.preview} alt={v.title} style={{ maxWidth: '85%', maxHeight: '85%', objectFit: 'contain' }} />
+            </div>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: '0.95rem', color: 'var(--t1)', marginBottom: '0.6rem' }}>{v.title}</div>
+            <a className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.4rem 0.7rem', textAlign: 'center', marginTop: 'auto' }} href={v.download} target="_blank" rel="noopener noreferrer" download>
+              Lataa JPG
+            </a>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AvlFontDownloads() {
+  return (
+    <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+      <div style={{ ...sectionTitle, marginBottom: '0.75rem' }}>Lataa fontit</div>
+      <div style={{ display: 'grid', gap: '1rem' }}>
+        {AVL_FONTS.map(f => (
+          <div key={f.family} style={{ border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1rem', background: 'var(--paper-l)', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ flex: '1 1 240px' }}>
+              <div style={{ fontFamily: `'${f.family}', var(--font-display)`, fontWeight: 500, fontSize: '1.1rem', color: 'var(--t1)', marginBottom: '0.25rem' }}>{f.family}</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--t3)', marginBottom: f.note ? '0.4rem' : 0 }}>
+                Leikkaukset: {f.weights.join(', ')}
+              </div>
+              {f.note && <p style={{ ...muted, fontSize: '0.82rem', margin: 0 }}>{f.note}</p>}
+            </div>
+            <a className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.45rem 0.9rem' }} href={f.bundle} target="_blank" rel="noopener noreferrer" download>
+              Lataa kaikki (ZIP)
+            </a>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LogoCard({ guide, editing, canEdit, onToggleEdit, onStop, patch, uploadAsset, removeStored, isAvl }: LogoCardProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -339,6 +462,9 @@ function LogoCard({ guide, editing, canEdit, onToggleEdit, onStop, patch, upload
       ) : (
         <p style={muted}>{guide.logo.description || (canEdit ? 'Lisää kuvaus painikkeesta Muokkaa.' : 'Ei kuvausta.')}</p>
       )}
+
+      {/* AVL — viralliset logoversiot (aina näkyvissä) */}
+      {isAvl && <AvlLogoVariants />}
 
       {/* Logo-tiedostot */}
       <div style={{ marginTop: '1.5rem' }}>
@@ -466,6 +592,20 @@ function ColorsCard({ guide, editing, canEdit, onToggleEdit, onStop, patch }: Ca
 }
 
 function ColorSwatch({ color, editing, onChange, onRemove }: { color: BrandColor; editing: boolean; onChange: (field: keyof BrandColor, value: string) => void; onRemove: () => void }) {
+  const { toast } = useToast();
+  const [copied, setCopied] = useState(false);
+  const copyHex = async () => {
+    if (!color.hex) return;
+    try {
+      await navigator.clipboard.writeText(color.hex);
+      setCopied(true);
+      toast(`Kopioitu ${color.hex}`, 'success');
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      toast('Kopiointi epäonnistui', 'error');
+    }
+  };
+
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden', background: 'var(--paper-l)' }}>
       <div style={{ height: 90, background: color.hex || '#ccc' }} />
@@ -484,8 +624,28 @@ function ColorSwatch({ color, editing, onChange, onRemove }: { color: BrandColor
           <>
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '0.95rem', color: 'var(--t1)', marginBottom: '0.2rem' }}>{color.name}</div>
             {color.theme && <div style={{ fontSize: '0.72rem', color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>{color.theme}</div>}
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.85rem', color: 'var(--t1)' }}>{color.hex}</div>
-            {color.cmyk && <div style={{ fontSize: '0.72rem', color: 'var(--t3)', marginTop: '0.2rem' }}>{color.cmyk}</div>}
+            <button
+              type="button"
+              onClick={copyHex}
+              title="Kopioi värikoodi"
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '0.85rem',
+                color: 'var(--t1)',
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--r)',
+                padding: '0.25rem 0.55rem',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+              }}
+            >
+              <span>{color.hex}</span>
+              <span style={{ fontSize: '0.68rem', color: copied ? 'var(--pri)' : 'var(--t3)' }}>{copied ? 'Kopioitu' : 'Kopioi'}</span>
+            </button>
+            {color.cmyk && <div style={{ fontSize: '0.72rem', color: 'var(--t3)', marginTop: '0.4rem' }}>{color.cmyk}</div>}
             {color.rgb && <div style={{ fontSize: '0.72rem', color: 'var(--t3)' }}>{color.rgb}</div>}
             {color.description && <div style={{ fontSize: '0.78rem', color: 'var(--t2)', marginTop: '0.5rem', lineHeight: 1.5 }}>{color.description}</div>}
           </>
@@ -499,7 +659,7 @@ function ColorSwatch({ color, editing, onChange, onRemove }: { color: BrandColor
 /* TYPOGRAPHY                                     */
 /* ─────────────────────────────────────────────── */
 
-function TypographyCard({ guide, editing, canEdit, onToggleEdit, onStop, patch }: CardProps) {
+function TypographyCard({ guide, editing, canEdit, onToggleEdit, onStop, patch, isAvl }: CardProps & { isAvl?: boolean }) {
   const updateFont = (id: string, field: keyof BrandFont, value: string) => {
     patch(g => ({
       ...g,
@@ -580,6 +740,8 @@ function TypographyCard({ guide, editing, canEdit, onToggleEdit, onStop, patch }
       {canEdit && editing && (
         <button className="btn btn-secondary" style={{ ...editBtn, marginTop: '0.75rem' }} onClick={addFont}>+ Lisää fontti</button>
       )}
+
+      {isAvl && <AvlFontDownloads />}
     </div>
   );
 }
