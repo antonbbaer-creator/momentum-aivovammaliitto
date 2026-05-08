@@ -276,8 +276,7 @@ const AVL_FONTS: AvlFont[] = [
   {
     family: 'Avenir',
     bundle: '/brand/avl/fonts/Avenir.zip',
-    weights: ['Regular'],
-    note: 'Avenir on lisensoitu fontti (Adobe Fonts). Muut leikkaukset asennetaan Adobe Fontsin kautta.',
+    weights: ['Light', 'Roman', 'Medium', 'Black', 'Oblique', 'Black Oblique'],
   },
 ];
 
