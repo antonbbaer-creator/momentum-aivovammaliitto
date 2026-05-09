@@ -260,6 +260,79 @@ export function appendMessage(existing: Message[], msg: Message): Message[] {
   return next;
 }
 
+// Korvaa yksittäinen viesti (käytetään edit/delete/reaktioissa)
+export function updateMessage(
+  existing: Message[],
+  id: string,
+  patch: Partial<Message> | ((m: Message) => Message),
+): Message[] {
+  return (existing || []).map(m => {
+    if (m.id !== id) return m;
+    return typeof patch === 'function' ? patch(m) : { ...m, ...patch };
+  });
+}
+
+// Toggleta reaktio: lisää oma userId emojin userIds:hin tai poista jos jo siellä
+export function toggleReaction(msg: Message, emoji: string, userId: string): Message {
+  const reactions = (msg.reactions || []).map(r => ({ ...r, userIds: [...r.userIds] }));
+  const existing = reactions.find(r => r.emoji === emoji);
+  if (existing) {
+    if (existing.userIds.includes(userId)) {
+      existing.userIds = existing.userIds.filter(u => u !== userId);
+    } else {
+      existing.userIds.push(userId);
+    }
+  } else {
+    reactions.push({ emoji, userIds: [userId] });
+  }
+  // Poista tyhjät
+  const cleaned = reactions.filter(r => r.userIds.length > 0);
+  return { ...msg, reactions: cleaned };
+}
+
+// Lukematta jääneiden mainintojen lukumäärä per kanava
+export function unreadMentionCount(
+  channelId: string,
+  messages: Message[],
+  state: UserChatState | null,
+  currentUserId: string | null,
+): number {
+  if (!state || !currentUserId) return 0;
+  const lastRead = state.lastReadAt?.[channelId] || 0;
+  return messages.filter(m =>
+    m.createdAt > lastRead &&
+    m.authorId !== currentUserId &&
+    !m.deletedAt &&
+    ((m.mentions || []).includes(currentUserId) ||
+     (m.mentions || []).includes('all') ||
+     (m.mentions || []).includes('here'))
+  ).length;
+}
+
+// Threadin top-level viestit (joilla ei ole threadId:tä)
+export function topLevelMessages(messages: Message[]): Message[] {
+  return (messages || []).filter(m => !m.threadId);
+}
+
+// Threadin vastaukset — viestit joiden threadId === parentId
+export function threadReplies(messages: Message[], parentId: string): Message[] {
+  return (messages || []).filter(m => m.threadId === parentId);
+}
+
+// Päivitä parent-viestin replyCount kun thread saa uuden vastauksen
+export function recountReplies(messages: Message[]): Message[] {
+  const counts = new Map<string, number>();
+  for (const m of messages || []) {
+    if (m.threadId) counts.set(m.threadId, (counts.get(m.threadId) || 0) + 1);
+  }
+  return (messages || []).map(m => {
+    if (m.threadId) return m; // vastauksissa ei replyCount
+    const c = counts.get(m.id) || 0;
+    if ((m.replyCount || 0) === c) return m;
+    return { ...m, replyCount: c };
+  });
+}
+
 // Muotoile aikaleima: tänään → klo, viime viikko → ti 14:30, muuten → 5.4. 14:30
 export function formatTimestamp(ts: number): string {
   const d = new Date(ts);

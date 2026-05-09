@@ -1,36 +1,30 @@
 'use client';
 
 /*
- * ChatMain — oikean palstan pääsisältö: header + viestilista + composer.
- * Sisältää alakomponentit inline koska ne ovat tiivisti kytkettyjä tämän palstan layoutiin.
+ * ChatMain — oikean palstan pääsisältö: header + viestilista + composer (+ ThreadPanel sivussa).
+ * Käyttää MessageList-, Composer- ja ThreadPanel-komponentteja.
  */
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  Channel,
-  Message,
-  appendMessage,
-  newMessage,
-  groupMessagesByDay,
-  formatTimestamp,
-  displayNameFor,
-  canPostInChannel,
+  Channel, Message, Attachment,
+  appendMessage, newMessage, displayNameFor, canPostInChannel,
+  updateMessage, toggleReaction, recountReplies,
 } from '@/lib/chat-shared';
 import { OrgTeam, OrgTeamMember } from '@/lib/team-shared';
 import { useAuth } from '@/lib/auth';
 import { getOrgDisplayName, getOrgChannels } from '@/lib/org-defaults';
 import { useOrgData } from '@/lib/firestore';
 import { Publication, normalizePublication } from '@/lib/publications-shared';
+import { useToast } from '@/lib/toast';
 import {
-  MOMENTUM_BOT_ID,
-  MOMENTUM_BOT_NAME,
-  MOMENTUM_BOT_COLOR,
-  messageTriggersBot,
-  isMomentumDm,
-  runClaudeBot,
-  BotContext,
-  BotMessage,
+  MOMENTUM_BOT_ID, MOMENTUM_BOT_NAME, MOMENTUM_BOT_COLOR,
+  messageTriggersBot, isMomentumDm, runClaudeBot, BotContext, BotMessage,
 } from '@/lib/claude-bot';
+import { useIsMobile } from '@/lib/use-mobile';
+import MessageList from './MessageList';
+import Composer from './Composer';
+import ThreadPanel from './ThreadPanel';
 
 interface Props {
   channel: Channel;
@@ -42,26 +36,22 @@ interface Props {
   myName: string;
   myAvatar?: string;
   setChannels: (fn: (prev: Channel[]) => Channel[]) => void;
+  scrollToMessageId?: string | null;
+  onOpenSidebar?: () => void;        // mobile: avaa sidebar drawer
 }
 
 export default function ChatMain({
-  channel,
-  messages,
-  setMessages,
-  teamMembers,
-  orgTeams,
-  myId,
-  myName,
-  myAvatar,
-  setChannels,
+  channel, messages, setMessages, teamMembers, orgTeams,
+  myId, myName, myAvatar, setChannels, scrollToMessageId, onOpenSidebar,
 }: Props) {
   const { canEdit, activeOrg } = useAuth();
-  const [draft, setDraft] = useState('');
+  const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [botThinking, setBotThinking] = useState(false);
-  const listRef = useRef<HTMLDivElement>(null);
-  const taRef = useRef<HTMLTextAreaElement>(null);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
 
   // Publications — Claude voi luoda niitä työjonoon
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [rawPubs, setPubs] = useOrgData<any[]>('publications', []);
   const publications = useMemo<Publication[]>(
     () => (rawPubs || []).map(normalizePublication),
@@ -70,46 +60,49 @@ export default function ChatMain({
 
   const canUserPost = canEdit && canPostInChannel(channel, myId);
   const channelIsMomentumDm = isMomentumDm(channel);
+  const channelName = displayNameFor(channel, myId, teamMembers);
+  const memberCount = channel.memberIds.includes('all')
+    ? teamMembers.length
+    : channel.memberIds.length;
+  const channelColor = channel.color;
 
-  // Auto-scroll to bottom kun viesti tulee tai kanava vaihtuu
+  // Sulje thread-paneeli kanavanvaihdolla
   useEffect(() => {
-    if (!listRef.current) return;
-    listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [messages.length, channel.id]);
-
-  // Clear draft kun kanava vaihtuu
-  useEffect(() => {
-    setDraft('');
+    setActiveThreadId(null);
   }, [channel.id]);
 
-  // Postaa viesti kanavaan (apufunktio — käytetään myös Claude-bot-vastauksessa)
-  const postMessage = (authorId: string, authorName: string, authorAvatar: string | undefined, text: string) => {
+  // Postaa viesti kanavaan
+  const postMessage = useCallback((
+    authorId: string, authorName: string, authorAvatar: string | undefined,
+    text: string, opts: { mentions?: string[]; attachments?: Attachment[]; threadId?: string } = {},
+  ) => {
     const msg = newMessage({
       channelId: channel.id,
-      authorId,
-      authorName,
-      authorAvatar,
-      text,
+      authorId, authorName, authorAvatar, text,
+      mentions: opts.mentions || [],
+      attachments: opts.attachments || [],
+      threadId: opts.threadId,
     });
-    setMessages(prev => appendMessage(prev || [], msg));
-    setChannels(prev => (prev || []).map(c => c.id === channel.id ? {
-      ...c,
-      lastMessageAt: msg.createdAt,
-      lastMessagePreview: text.slice(0, 80),
-      lastMessageAuthor: authorName,
-    } : c));
+    setMessages(prev => recountReplies(appendMessage(prev || [], msg)));
+    if (!opts.threadId) {
+      setChannels(prev => (prev || []).map(c => c.id === channel.id ? {
+        ...c,
+        lastMessageAt: msg.createdAt,
+        lastMessagePreview: text.slice(0, 80),
+        lastMessageAuthor: authorName,
+      } : c));
+    }
     return msg;
-  };
+  }, [channel.id, setMessages, setChannels]);
 
-  // Triggeroi Claude-botti — kokoa konteksti ja aja tool-use-loop
+  // Triggeroi Claude-botti
   const triggerClaudeBot = async (userMessage: string) => {
     if (!myId || !activeOrg) return;
     setBotThinking(true);
     try {
-      // Kokoa kanavan viimeiset viestit AI:lle kontekstiksi
       const recent = messages.slice(-12);
       const history: BotMessage[] = recent
-        .filter(m => m.text) // skip deleted jne.
+        .filter(m => m.text)
         .map(m => ({
           role: m.authorId === MOMENTUM_BOT_ID ? 'assistant' : 'user',
           content: m.authorId === MOMENTUM_BOT_ID ? m.text : `${m.authorName}: ${m.text}`,
@@ -127,7 +120,6 @@ export default function ChatMain({
         updatePublication: (id, patch) => setPubs(prev => (prev || []).map(p => p.id === id ? { ...p, ...patch, updatedAt: Date.now() } : p)),
       };
 
-      // System prompt + konteksti rakennetaan workerissa — välitetään julkaisut extras-kautta
       const result = await runClaudeBot(userMessage, history, '', ctx, {
         publications,
         orgName: getOrgDisplayName(activeOrg || ''),
@@ -140,58 +132,85 @@ export default function ChatMain({
         reply += `\n\n✓ ${result.publicationsCreated.length} julkaisu${result.publicationsCreated.length > 1 ? 'a' : ''} luotu työjonoon — katso Viestintä → Työjono`;
       }
       postMessage(MOMENTUM_BOT_ID, MOMENTUM_BOT_NAME, undefined, reply);
-    } catch (e: any) {
-      postMessage(MOMENTUM_BOT_ID, MOMENTUM_BOT_NAME, undefined, `⚠ Virhe Momentum-botin kutsussa: ${e.message}`);
+    } catch (e: unknown) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      postMessage(MOMENTUM_BOT_ID, MOMENTUM_BOT_NAME, undefined, `⚠ Virhe Momentum-botin kutsussa: ${errMsg}`);
     } finally {
       setBotThinking(false);
     }
   };
 
-  const sendMessage = () => {
-    const text = draft.trim();
-    if (!text || !myId) return;
-
-    // 1. Postaa käyttäjän viesti normaalisti
-    postMessage(myId, myName, myAvatar, text);
-    setDraft('');
-
-    // 2. Momentum-botti-triggeri: @momentum, /momentum TAI aina Momentum-DM:ssä
+  const handleSend = (text: string, mentions: string[], attachments: Attachment[]) => {
+    if (!myId) return;
+    postMessage(myId, myName, myAvatar, text, { mentions, attachments });
     if (messageTriggersBot(text) || channelIsMomentumDm) {
       triggerClaudeBot(text);
     }
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter = lähetä, Shift+Enter = rivinvaihto
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+  const handleSendReply = (parentId: string) => (text: string, mentions: string[], attachments: Attachment[]) => {
+    if (!myId) return;
+    postMessage(myId, myName, myAvatar, text, { mentions, attachments, threadId: parentId });
+  };
+
+  const handleReact = (msgId: string, emoji: string) => {
+    if (!myId) return;
+    setMessages(prev => updateMessage(prev || [], msgId, m => toggleReaction(m, emoji, myId)));
+  };
+
+  const handleEdit = (msgId: string) => {
+    const target = messages.find(m => m.id === msgId);
+    if (!target) return;
+    const newText = window.prompt('Muokkaa viestiä:', target.text);
+    if (newText === null) return;
+    setMessages(prev => updateMessage(prev || [], msgId, { text: newText, editedAt: Date.now() }));
+  };
+
+  const handleDelete = (msgId: string) => {
+    if (!window.confirm('Poistetaanko viesti?')) return;
+    setMessages(prev => updateMessage(prev || [], msgId, { deletedAt: Date.now(), text: '' }));
+  };
+
+  const handleCopyLink = async (msgId: string) => {
+    const url = `${window.location.origin}/${activeOrg}/viestit?ch=${encodeURIComponent(channel.id)}&m=${encodeURIComponent(msgId)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('Linkki kopioitu', 'success');
+    } catch {
+      toast('Kopiointi epäonnistui', 'error');
     }
   };
 
-  const grouped = useMemo(() => groupMessagesByDay(messages || []), [messages]);
-
-  const channelName = displayNameFor(channel, myId, teamMembers);
-  const memberCount = channel.memberIds.includes('all')
-    ? teamMembers.length
-    : channel.memberIds.length;
-  const channelColor = channel.color;
+  const activeThread = useMemo(
+    () => activeThreadId ? messages.find(m => m.id === activeThreadId) || null : null,
+    [activeThreadId, messages],
+  );
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
       {/* HEADER */}
-      <div
-        style={{
-          padding: '.9rem 1.25rem',
-          borderBottom: '1px solid var(--border)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          background: 'var(--card)',
-          minHeight: 58,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.65rem', minWidth: 0 }}>
+      <div style={{
+        padding: '.9rem 1.25rem',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        background: 'var(--card)',
+        minHeight: 58,
+        gap: '.5rem',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.65rem', minWidth: 0, flex: 1 }}>
+          {isMobile && onOpenSidebar && (
+            <button
+              onClick={onOpenSidebar}
+              aria-label="Avaa kanavalista"
+              style={{
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                padding: '.4rem', fontSize: '1.1rem', color: 'var(--t2)',
+                marginLeft: -4,
+              }}
+            >☰</button>
+          )}
           {channelColor ? (
             <span style={{
               width: 24, height: 24, borderRadius: 6,
@@ -209,7 +228,7 @@ export default function ChatMain({
             <h2 style={{ fontSize: '.95rem', fontWeight: 700, color: 'var(--t1)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {channelName}
             </h2>
-            {channel.description && (
+            {channel.description && !isMobile && (
               <p style={{ fontSize: '.7rem', color: 'var(--t3)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {channel.description}
               </p>
@@ -222,221 +241,99 @@ export default function ChatMain({
       </div>
 
       {/* MESSAGES */}
-      <div
-        ref={listRef}
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '1rem 1.25rem',
-          background: 'var(--bg)',
-        }}
-      >
-        {grouped.length === 0 && (
+      <MessageList
+        messages={messages}
+        myId={myId}
+        teamMembers={teamMembers}
+        orgTeams={orgTeams}
+        scrollToMessageId={scrollToMessageId}
+        onReact={handleReact}
+        onReply={(id) => setActiveThreadId(id)}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onCopyLink={handleCopyLink}
+        onOpenThread={(id) => setActiveThreadId(id)}
+        emptyState={
           <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-            flexDirection: 'column',
-            color: 'var(--t3)',
-            gap: '.5rem',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            height: '100%', flexDirection: 'column', color: 'var(--t3)', gap: '.5rem',
           }}>
             <div style={{ fontSize: '2rem', fontFamily: 'var(--font-display)' }}>{channel.icon || '#'}</div>
             <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--t2)' }}>{channelName}</h3>
             <p style={{ fontSize: '.8rem' }}>Aloita keskustelu — kirjoita ensimmäinen viesti alle.</p>
           </div>
-        )}
+        }
+      />
 
-        {grouped.map((group, gi) => (
-          <div key={gi} style={{ marginBottom: '1rem' }}>
-            {/* Date divider */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '.6rem',
-              margin: '.5rem 0',
-              fontSize: '.68rem',
-              color: 'var(--t3)',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '.04em',
-            }}>
-              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-              <span>{group.dateLabel}</span>
-              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-            </div>
-
-            {group.messages.map((msg, mi) => {
-              const prev = mi > 0 ? group.messages[mi - 1] : null;
-              const collapsed = prev
-                && prev.authorId === msg.authorId
-                && (msg.createdAt - prev.createdAt) < 5 * 60 * 1000; // sama henkilö, alle 5 min
-              const isBot = msg.authorId === MOMENTUM_BOT_ID || msg.authorId === 'claude-bot';
-              const author = isBot ? null : teamMembers.find(m => m.id === msg.authorId);
-              const authorTeam = author ? orgTeams.find(t => t.id === author.teamId) : null;
-              const avatarColor = isBot ? MOMENTUM_BOT_COLOR : (authorTeam?.color || 'var(--pri)');
-              const isMe = msg.authorId === myId;
-              const displayedAuthorName = isBot ? MOMENTUM_BOT_NAME : msg.authorName;
-
-              return (
-                <div
-                  key={msg.id}
-                  style={{
-                    display: 'flex',
-                    gap: '.65rem',
-                    padding: collapsed ? '.15rem 0' : '.4rem 0',
-                    alignItems: 'flex-start',
-                  }}
-                >
-                  <div style={{ width: 32, flexShrink: 0 }}>
-                    {!collapsed && (
-                      <div style={{
-                        width: 32, height: 32, borderRadius: 6,
-                        background: avatarColor, color: '#fff',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontWeight: 700, fontSize: '.82rem',
-                        fontFamily: 'var(--font-display)',
-                        overflow: 'hidden',
-                      }}>
-                        {msg.authorAvatar ? (
-                          <img src={msg.authorAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                          (displayedAuthorName || '?')[0]
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {!collapsed && (
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '.5rem', marginBottom: '.15rem' }}>
-                        <span style={{
-                          fontSize: '.82rem',
-                          fontWeight: 700,
-                          color: isBot ? MOMENTUM_BOT_COLOR : (isMe ? 'var(--pri-l)' : 'var(--t1)'),
-                        }}>{displayedAuthorName}{isBot && <span style={{ fontSize: '.55rem', marginLeft: '.35rem', padding: '.1rem .35rem', borderRadius: 3, background: `${MOMENTUM_BOT_COLOR}20`, color: MOMENTUM_BOT_COLOR, fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase' }}>AI</span>}</span>
-                        <span style={{ fontSize: '.62rem', color: 'var(--t3)' }}>
-                          {formatTimestamp(msg.createdAt)}
-                        </span>
-                      </div>
-                    )}
-                    <div style={{
-                      fontSize: '.88rem',
-                      color: 'var(--t1)',
-                      lineHeight: 1.5,
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                    }}>
-                      {msg.text}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+      {/* Bot-thinking-indikaattori */}
+      {botThinking && (
+        <div style={{ padding: '0 1.25rem', display: 'flex', gap: '.65rem', alignItems: 'center' }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 6,
+            background: MOMENTUM_BOT_COLOR, color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontWeight: 700, fontSize: '.82rem',
+            fontFamily: 'var(--font-display)',
+            flexShrink: 0,
+          }}>M</div>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '.5rem',
+            fontSize: '.78rem', color: 'var(--t3)', fontStyle: 'italic',
+            padding: '.25rem 0',
+          }}>
+            <span style={{ fontWeight: 600, color: MOMENTUM_BOT_COLOR, fontStyle: 'normal' }}>{MOMENTUM_BOT_NAME}</span>
+            <span>kirjoittaa</span>
+            <span className="typing" style={{ transform: 'scale(.7)' }}><span /><span /><span /></span>
           </div>
-        ))}
-
-        {/* Momentum kirjoittaa -indikaattori */}
-        {botThinking && (
-          <div style={{ display: 'flex', gap: '.65rem', padding: '.4rem 0', alignItems: 'center' }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 6,
-              background: MOMENTUM_BOT_COLOR, color: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontWeight: 700, fontSize: '.82rem',
-              fontFamily: 'var(--font-display)',
-              flexShrink: 0,
-            }}>M</div>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '.5rem',
-              fontSize: '.78rem', color: 'var(--t3)', fontStyle: 'italic',
-            }}>
-              <span style={{ fontWeight: 600, color: MOMENTUM_BOT_COLOR, fontStyle: 'normal' }}>{MOMENTUM_BOT_NAME}</span>
-              <span>kirjoittaa</span>
-              <span className="typing" style={{ transform: 'scale(.7)' }}><span /><span /><span /></span>
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* COMPOSER */}
-      <div
-        style={{
-          padding: '.75rem 1rem 1rem',
-          borderTop: '1px solid var(--border)',
-          background: 'var(--card)',
-        }}
-      >
+      <div style={{ padding: '.75rem 1rem 1rem', borderTop: '1px solid var(--border)', background: 'var(--card)' }}>
         {canUserPost ? (
-          <div style={{
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r)',
-            background: 'var(--elev)',
-            display: 'flex',
-            alignItems: 'flex-end',
-            gap: '.5rem',
-            padding: '.5rem .65rem',
-          }}>
-            <textarea
-              ref={taRef}
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onKeyDown={onKeyDown}
-              placeholder={channelIsMomentumDm ? 'Kirjoita Momentumille — esim. "tee IG-postaus ohjelmistosta"' : `Kirjoita kanavaan ${channelName} · vihje: @momentum pyytämään AI-apua`}
-              rows={1}
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                resize: 'none',
-                fontSize: '.88rem',
-                color: 'var(--t1)',
-                fontFamily: 'inherit',
-                lineHeight: 1.5,
-                minHeight: 22,
-                maxHeight: 140,
-              }}
-            />
-            <button
-              onClick={sendMessage}
-              disabled={!draft.trim()}
-              style={{
-                background: draft.trim() ? 'var(--pri)' : 'var(--bg)',
-                color: draft.trim() ? '#fff' : 'var(--t3)',
-                border: 'none',
-                borderRadius: 6,
-                padding: '.4rem .75rem',
-                fontSize: '.78rem',
-                fontWeight: 700,
-                cursor: draft.trim() ? 'pointer' : 'not-allowed',
-                flexShrink: 0,
-              }}
-            >Lähetä</button>
-          </div>
+          <Composer
+            members={teamMembers}
+            channelId={channel.id}
+            orgId={activeOrg || ''}
+            placeholder={
+              channelIsMomentumDm
+                ? 'Kirjoita Momentumille — esim. "tee IG-postaus ohjelmistosta"'
+                : `Kirjoita kanavaan ${channelName}`
+            }
+            onSend={handleSend}
+            autoFocus
+          />
         ) : (
           <div style={{
-            textAlign: 'center',
-            padding: '.75rem',
-            background: 'var(--elev)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r)',
-            fontSize: '.78rem',
-            color: 'var(--t3)',
+            textAlign: 'center', padding: '.75rem',
+            background: 'var(--elev)', border: '1px solid var(--border)',
+            borderRadius: 'var(--r)', fontSize: '.78rem', color: 'var(--t3)',
           }}>
-            {!canEdit
-              ? 'Vierailijat eivät voi kirjoittaa viestejä'
-              : 'Et ole tämän yksityisen kanavan jäsen'}
+            {!canEdit ? 'Vierailijat eivät voi kirjoittaa viestejä' : 'Et ole tämän yksityisen kanavan jäsen'}
           </div>
         )}
-        <div style={{
-          fontSize: '.62rem',
-          color: 'var(--t3)',
-          marginTop: '.4rem',
-          textAlign: 'right',
-        }}>
-          Enter lähettää · Shift+Enter uusi rivi
+        <div style={{ fontSize: '.62rem', color: 'var(--t3)', marginTop: '.4rem', textAlign: 'right' }}>
+          Enter lähettää · Shift+Enter uusi rivi · @maininnat · :emoji: · **lihava** *kursiivi* `koodi`
         </div>
       </div>
+
+      {/* THREAD PANEL */}
+      {activeThread && (
+        <ThreadPanel
+          parentMessage={activeThread}
+          messages={messages}
+          myId={myId}
+          teamMembers={teamMembers}
+          orgTeams={orgTeams}
+          channelId={channel.id}
+          orgId={activeOrg || ''}
+          isMobile={isMobile}
+          onClose={() => setActiveThreadId(null)}
+          onSendReply={handleSendReply(activeThread.id)}
+          onReact={handleReact}
+          onCopyLink={handleCopyLink}
+        />
+      )}
     </div>
   );
 }

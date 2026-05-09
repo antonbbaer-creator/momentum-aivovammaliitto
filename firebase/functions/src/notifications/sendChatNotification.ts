@@ -127,10 +127,11 @@ function diffNewMessages(before: ChatMessage[], after: ChatMessage[]): ChatMessa
   return after.filter(m => !beforeIds.has(m.id) && !m.deletedAt);
 }
 
-function buildNotificationLink(orgId: string, channelId: string): string {
+function buildNotificationLink(orgId: string, channelId: string, messageId?: string): string {
   // Keskitetty syvälinkki — UI navigoi avoimeen kanavaan kun avataan tämä polku.
-  // Org-slug pitää resolvoida — mutta orgId on jo slug nykyisessä mallissa.
-  return `/${orgId}/chat?channel=${encodeURIComponent(channelId)}`;
+  // ChatLayout lukee `?ch=` (kanava) ja `?m=` (viesti, scroll + korostus).
+  const base = `/${orgId}/viestit?ch=${encodeURIComponent(channelId)}`;
+  return messageId ? `${base}&m=${encodeURIComponent(messageId)}` : base;
 }
 
 function previewText(msg: ChatMessage): string {
@@ -206,22 +207,27 @@ export const sendChatNotification = onDocumentWritten(
 
       const channelLabel =
         channel.type === 'dm' ? msg.authorName : `${channel.displayName || channel.name}`;
-      const title = channel.type === 'dm' ? msg.authorName : channelLabel;
+      const isThreadReply = !!msg.threadId;
+      const title = channel.type === 'dm'
+        ? msg.authorName
+        : isThreadReply ? `↩ ${channelLabel}` : channelLabel;
       const body = channel.type === 'dm'
         ? previewText(msg)
-        : `${msg.authorName}: ${previewText(msg)}`;
+        : `${msg.authorName}${isThreadReply ? ' threadissa' : ''}: ${previewText(msg)}`;
+      const linkMessageId = isThreadReply && msg.threadId ? msg.threadId : msg.id;
 
       try {
         await sendPushToUsers(recipients, {
           title,
           body,
-          link: buildNotificationLink(orgId, channelId),
-          tag: `chat:${channelId}`,
+          link: buildNotificationLink(orgId, channelId, linkMessageId),
+          tag: isThreadReply ? `thread:${msg.threadId}` : `chat:${channelId}`,
           data: {
-            kind: 'chat',
+            kind: isThreadReply ? 'thread' : 'chat',
             orgId,
             channelId,
             messageId: msg.id,
+            ...(msg.threadId ? { threadId: msg.threadId } : {}),
           },
         });
       } catch (err) {

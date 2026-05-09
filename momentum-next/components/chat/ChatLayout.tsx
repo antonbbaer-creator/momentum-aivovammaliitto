@@ -2,18 +2,17 @@
 
 /*
  * ChatLayout — Viestit-moduulin pääkomponentti.
- * Vastuut:
- *  - Lataa kanavat (chat_channels) + auto-luo puuttuvat tiimikanavat
- *  - Hallitsee aktiivista kanavaa (URL ?ch=X)
- *  - Lataa valitun kanavan viestit (chat_messages_{id})
- *  - Lataa käyttäjän chat-tilan (chat_state_{uid}) lukumerkintöjä varten
- *  - Antaa kaiken datan ChatSidebarille ja ChatMainille
+ * - Lataa kanavat (chat_channels) + auto-luo puuttuvat tiimikanavat
+ * - Hallitsee aktiivista kanavaa URL-parametrissa ?ch=
+ * - Tukee deeplink-parametria ?m= (push-ilmoitus → suoraan viestin kohdalle)
+ * - Mobiilissa sidebar muuttuu vetolaatikoksi
  */
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, usePathname, useRouter, useParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
+import { useIsMobile } from '@/lib/use-mobile';
 import {
   Channel,
   Message,
@@ -23,7 +22,7 @@ import {
   channelStorageKey,
   userStateStorageKey,
 } from '@/lib/chat-shared';
-import { momentumDmChannelFor, MOMENTUM_BOT_ID } from '@/lib/claude-bot';
+import { momentumDmChannelFor } from '@/lib/claude-bot';
 import { OrgTeam, OrgTeamMember, resolveUserMember } from '@/lib/team-shared';
 import { getOrgTeams, getOrgTeamMembers } from '@/lib/org-defaults';
 import ChatSidebar from './ChatSidebar';
@@ -35,6 +34,8 @@ export default function ChatLayout() {
   const pathname = usePathname();
   const router = useRouter();
   const orgSlug = (useParams().orgSlug as string) || '';
+  const isMobile = useIsMobile();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [channels, setChannels] = useOrgData<Channel[]>('chat_channels', []);
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
@@ -48,11 +49,9 @@ export default function ChatLayout() {
     if (!user || orgTeams.length === 0 || teamMembers.length === 0) return;
     const toCreate: Channel[] = [];
 
-    // Tiimikanavat + #yleinen
     const missing = missingDefaultChannels(channels, orgTeams, teamMembers);
     toCreate.push(...missing);
 
-    // Momentum-DM käyttäjälle (jos ei vielä olemassa)
     if (myId) {
       const momentumDm = momentumDmChannelFor(myId);
       const exists = (channels || []).some(c => c.id === momentumDm.id);
@@ -65,29 +64,33 @@ export default function ChatLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, orgTeams, teamMembers, channels.length, myId]);
 
-  // Näkyvät kanavat nykyiselle käyttäjälle
   const allVisible = useMemo(
     () => visibleChannels(channels || [], myId),
     [channels, myId]
   );
 
-  // Aktiivinen kanava URL:sta, oletus #yleinen
   const activeChannelId = searchParams?.get('ch') || 'ch_yleinen';
+  const scrollToMessageId = searchParams?.get('m') || null;
   const activeChannel = allVisible.find(c => c.id === activeChannelId) || allVisible[0] || null;
 
   const setActiveChannel = (id: string) => {
     const p = new URLSearchParams(searchParams.toString());
     p.set('ch', id);
+    p.delete('m'); // Tyhjennä deeplink-paraami kun käyttäjä vaihtaa kanavaa manuaalisesti
     router.replace(`${pathname}?${p.toString()}`, { scroll: false });
+    if (isMobile) setSidebarOpen(false);
   };
 
-  // Kanavan viestit — haetaan useOrgDatan kautta (yksi doc per kanava)
+  // Kun deeplink ohjaa kanavalle, varmista että sidebar ei jää eteen mobiilissa
+  useEffect(() => {
+    if (scrollToMessageId && isMobile) setSidebarOpen(false);
+  }, [scrollToMessageId, isMobile]);
+
   const [messages, setMessages] = useOrgData<Message[]>(
     activeChannel ? channelStorageKey(activeChannel.id) : 'chat_messages_placeholder',
     []
   );
 
-  // Käyttäjän chat-tila
   const [chatState, setChatState] = useOrgData<UserChatState>(
     myId ? userStateStorageKey(myId) : 'chat_state_anon',
     {
@@ -98,7 +101,7 @@ export default function ChatLayout() {
     }
   );
 
-  // Merkitse aktiivinen kanava luetuksi kun se vaihtuu tai viestit tulevat
+  // Merkitse aktiivinen kanava luetuksi
   useEffect(() => {
     if (!activeChannel || !myId) return;
     const lastMessage = messages[messages.length - 1];
@@ -117,7 +120,6 @@ export default function ChatLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannel?.id, messages.length, myId]);
 
-  // Jos ei aktiivista kanavaa (esim. ladataan), näytetään placeholder
   if (!activeChannel) {
     return (
       <div className="chat-wrap" style={{ display: 'flex', height: 'calc(100vh - 140px)', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
@@ -129,6 +131,9 @@ export default function ChatLayout() {
     );
   }
 
+  // Sidebar-näkyvyys: desktopilla aina, mobiilissa drawer-tyyppinen
+  const sidebarVisible = !isMobile || sidebarOpen;
+
   return (
     <div
       className="chat-wrap"
@@ -139,20 +144,53 @@ export default function ChatLayout() {
         border: '1px solid var(--border)',
         borderRadius: 'var(--rl)',
         overflow: 'hidden',
+        position: 'relative',
       }}
     >
-      <ChatSidebar
-        channels={allVisible}
-        activeChannelId={activeChannel.id}
-        onSelectChannel={setActiveChannel}
-        chatState={chatState}
-        setChatState={setChatState}
-        teamMembers={teamMembers}
-        orgTeams={orgTeams}
-        myId={myId}
-        allChannels={channels}
-        setChannels={setChannels}
-      />
+      {/* Mobile overlay */}
+      {isMobile && sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            zIndex: 9,
+          }}
+        />
+      )}
+
+      {/* Sidebar — fixed drawer mobiilissa, normal flex desktop */}
+      <div
+        style={{
+          ...(isMobile ? {
+            position: 'absolute',
+            top: 0, bottom: 0, left: 0,
+            width: 280,
+            zIndex: 10,
+            transform: sidebarVisible ? 'translateX(0)' : 'translateX(-100%)',
+            transition: 'transform 0.18s ease-out',
+            boxShadow: sidebarVisible ? '4px 0 16px rgba(0,0,0,0.12)' : 'none',
+          } : {
+            width: 260,
+            flexShrink: 0,
+          }),
+        }}
+      >
+        <ChatSidebar
+          channels={allVisible}
+          activeChannelId={activeChannel.id}
+          onSelectChannel={setActiveChannel}
+          chatState={chatState}
+          setChatState={setChatState}
+          teamMembers={teamMembers}
+          orgTeams={orgTeams}
+          myId={myId}
+          allChannels={channels}
+          setChannels={setChannels}
+        />
+      </div>
+
       <ChatMain
         channel={activeChannel}
         messages={messages}
@@ -163,6 +201,8 @@ export default function ChatLayout() {
         myName={myMember?.name || user?.displayName || 'Käyttäjä'}
         myAvatar={user?.photoURL || undefined}
         setChannels={setChannels}
+        scrollToMessageId={scrollToMessageId}
+        onOpenSidebar={isMobile ? () => setSidebarOpen(true) : undefined}
       />
     </div>
   );
