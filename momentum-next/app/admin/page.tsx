@@ -356,7 +356,39 @@ export default function AdminPage() {
 
   const { toast } = useToast();
   const [seeding, setSeeding] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   const isSuperAdmin = isSuperAdminEmail(user?.email);
+
+  // Backfill: käy läpi kaikki organizations-dokumentit ja luo joinCodes/{code}
+  // mappaus jos org-dokilla on joinCode-kenttä mutta vastaavaa lookup-dokia ei ole.
+  // Korjaa kerralla olemassa olevien orgien onboarding-tilan uusien sääntöjen alla.
+  const backfillJoinCodes = async () => {
+    if (!user) return;
+    setBackfilling(true);
+    try {
+      const orgsSnap = await getDocs(collection(db, 'organizations'));
+      let written = 0;
+      let skipped = 0;
+      for (const orgDoc of orgsSnap.docs) {
+        const data = orgDoc.data();
+        const code = (data.joinCode || '').trim();
+        if (!code) { skipped++; continue; }
+        await setDoc(doc(db, 'joinCodes', code.toLowerCase()), {
+          orgId: orgDoc.id,
+          orgName: data.name || orgDoc.id,
+          joinCode: code,
+          updatedAt: new Date().toISOString(),
+        });
+        written++;
+      }
+      toast(`Join-koodit päivitetty: ${written} kirjoitettu, ${skipped} ohitettu (ei koodia)`, 'success');
+    } catch (e) {
+      console.error('Backfill error:', e);
+      toast('Virhe join-koodien päivityksessä: ' + String(e), 'error');
+    } finally {
+      setBackfilling(false);
+    }
+  };
 
   // Seed AVL + LLFF demo communities
   const seedCommunities = async () => {
@@ -373,6 +405,12 @@ export default function AdminPage() {
           name: orgName, shortName: orgData.s, slogan: orgData.slogan,
           joinCode, createdAt: new Date().toISOString(), createdBy: user.uid, plan: 'free',
         }, { merge: true });
+
+        // joinCodes-lookup: kanoninen lähde, jonka avulla muut käyttäjät
+        // voivat löytää orgin koodillaan ilman organizations-listausoikeutta.
+        await setDoc(doc(db, 'joinCodes', joinCode.toLowerCase()), {
+          orgId, orgName, joinCode, updatedAt: new Date().toISOString(),
+        });
 
         // Add current user as owner
         await setDoc(doc(db, 'organizations', orgId, 'members', user.uid), {
@@ -724,6 +762,18 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* Maintenance actions */}
+      <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={backfillJoinCodes}
+          disabled={backfilling}
+          title="Luo joinCodes/{code} -lookup-dokumentti kaikille orgeille joilla on joinCode-kenttä. Tarvitaan jotta uudet käyttäjät voivat liittyä koodilla."
+        >
+          {backfilling ? 'Päivitetään…' : 'Päivitä join-koodien lookup'}
+        </button>
+      </div>
 
       {/* Stats */}
       <div className="stats" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>

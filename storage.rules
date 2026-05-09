@@ -1,10 +1,13 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Organisaation tiedostot: vain saman orgin jäsenet pääsevät käsiksi
+    // Organisaation tiedostot: vain saman orgin jäsenet pääsevät käsiksi.
+    // Kanoninen jäsenyys luetaan organizations/{orgId}/members/{uid} -dokkarista
+    // (sama lähde kuin firestore.rulesissa). Käyttäjä ei voi väärentää tätä
+    // omalla userOrgs-dokumentillaan.
     match /organizations/{orgId}/{allPaths=**} {
       allow read, write: if request.auth != null
-        && orgId in firestore.get(/databases/(default)/documents/userOrgs/$(request.auth.uid)).data.orgIds;
+        && firestore.exists(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid));
     }
 
     // Kaikki muu estetty

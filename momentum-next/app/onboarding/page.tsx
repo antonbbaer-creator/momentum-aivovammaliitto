@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
-import { doc, setDoc, collection, getDocs, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/lib/toast';
 
@@ -44,23 +44,21 @@ export default function OnboardingPage() {
   const panel = rightPanel[step];
 
   const lookupCode = async () => {
-    if (!joinCode.trim()) return;
+    const code = joinCode.trim().toLowerCase();
+    if (!code) return;
     setJoinLoading(true); setJoinError('');
     try {
-      const orgsSnap = await getDocs(collection(db, 'organizations'));
-      let found = false;
-      for (const orgDoc of orgsSnap.docs) {
-        const data = orgDoc.data();
-        if (data.joinCode?.toLowerCase() === joinCode.trim().toLowerCase()) {
-          setJoinOrgName(data.name);
-          setJoinOrgId(orgDoc.id);
-          setStep('role');
-          found = true;
-          break;
-        }
+      const codeSnap = await getDoc(doc(db, 'joinCodes', code));
+      if (!codeSnap.exists()) {
+        setJoinError('Salasanaa ei löytynyt. Tarkista kirjoitusasu.');
+        return;
       }
-      if (!found) setJoinError('Salasanaa ei löytynyt. Tarkista kirjoitusasu.');
+      const data = codeSnap.data();
+      setJoinOrgName(data.orgName || data.orgId);
+      setJoinOrgId(data.orgId);
+      setStep('role');
     } catch (e) {
+      console.error('Onboarding lookup error:', e);
       setJoinError('Virhe haussa. Yritä uudelleen.');
     } finally {
       setJoinLoading(false);
@@ -72,8 +70,11 @@ export default function OnboardingPage() {
     setSaving(true);
     try {
       const roleLabel = roles.find(r => r.id === selectedRole)?.label || selectedRole;
+      const codeProof = joinCode.trim().toLowerCase();
 
-      // Add as member
+      // 1) Luo OMA jäsenyys joinCode-todisteella. Tämä tekee käyttäjästä
+      // jäsenen sääntöjen mielessä — kaikki seuraavat kirjoitukset menevät
+      // läpi isOrgMember-tarkistuksesta.
       await setDoc(doc(db, 'organizations', joinOrgId, 'members', user.uid), {
         role: 'member',
         joinedAt: new Date().toISOString(),
@@ -81,9 +82,10 @@ export default function OnboardingPage() {
         email: user.email || '',
         photoURL: user.photoURL || '',
         userRole: roleLabel,
+        joinCode: codeProof,
       });
 
-      // Add to org team in data
+      // 2) Lisää tiimiin org-datassa
       const orgDataSnap = await getDoc(doc(db, 'organizations', joinOrgId, 'data', 'org'));
       if (orgDataSnap.exists()) {
         const orgData = JSON.parse(orgDataSnap.data().v || '{}');
@@ -98,11 +100,13 @@ export default function OnboardingPage() {
         }
       }
 
-      // Update userOrgs
+      // 3) Päivitä userOrgs-cache (UI-tarkoitus, ei jäsenyyden lähde)
       const existingDoc = await getDoc(doc(db, 'userOrgs', user.uid));
       const existingOrgs = existingDoc.exists() ? (existingDoc.data().orgs || []) : [];
+      const newOrgs = [...existingOrgs.filter((o: any) => o.orgId !== joinOrgId), { orgId: joinOrgId, role: 'member', name: joinOrgName }];
       await setDoc(doc(db, 'userOrgs', user.uid), {
-        orgs: [...existingOrgs.filter((o: any) => o.orgId !== joinOrgId), { orgId: joinOrgId, role: 'member', name: joinOrgName }],
+        orgs: newOrgs,
+        orgIds: newOrgs.map((o: any) => o.orgId),
       });
 
       setActiveOrg(joinOrgId);
