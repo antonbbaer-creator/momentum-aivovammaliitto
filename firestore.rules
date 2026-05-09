@@ -15,6 +15,24 @@ service cloud.firestore {
       ];
     }
 
+    // Kanoninen jäsenyystarkistus: lue suoraan members-alikokoelmasta.
+    // Älä koskaan luota userOrgs-dokkarin sisältöön — sen kirjoittaa käyttäjä
+    // itse ja se voi olla väärennetty (kts. /userOrgs sääntö alla).
+    function isOrgMember(orgId) {
+      return request.auth != null && exists(
+        /databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)
+      );
+    }
+
+    // Tarkistaa että request.resource.data.joinCode (lowercase) on voimassa
+    // oleva kutsukoodi tälle orgille.
+    function joinCodeMatches(orgId) {
+      return request.resource.data.joinCode is string
+        && request.resource.data.joinCode.size() > 0
+        && exists(/databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode))
+        && get(/databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode)).data.orgId == orgId;
+    }
+
     // Users: get oma docc tai super-admin, list vain super-admin
     match /users/{userId} {
       allow get: if request.auth != null && (request.auth.uid == userId || isSuperAdmin());
@@ -27,15 +45,28 @@ service cloud.firestore {
       }
     }
 
-    // User org memberships: get oma tai super, list vain super
+    // userOrgs on per-käyttäjä DENORMALISAATIO (mihin orgeihin kuulun) jota
+    // käyttäjä hallitsee itse. EI ole jäsenyyden lähde — todellinen jäsenyys
+    // tarkistetaan organizations/{orgId}/members/{uid} -dokkarista.
     match /userOrgs/{userId} {
       allow get: if request.auth != null && (request.auth.uid == userId || isSuperAdmin());
       allow list: if isSuperAdmin();
       allow write: if request.auth != null && (request.auth.uid == userId || isSuperAdmin());
     }
 
-    // Organizations: get vain jäsenille tai super, list vain super (jäsenet listaavat
-    // omat orgit userOrgs-dokumentin kautta, eivät tämän kollektion läpi)
+    // Kutsukoodien lookup-taulu: joinCodes/{lowercaseCode} -> { orgId, orgName, joinCode }
+    // Yksittäinen GET on auki kaikille kirjautuneille — koodi ITSE on
+    // jaettu salaisuus ja vasta sen tarjoaminen oikeuttaa luomaan jäsenyyden
+    // (kts. members/{memberUid} create-sääntö alla).
+    // List ja write vain super-adminille — tällöin koodeja ei voi enumeroida.
+    match /joinCodes/{code} {
+      allow get: if request.auth != null;
+      allow list: if isSuperAdmin();
+      allow write: if isSuperAdmin();
+    }
+
+    // Organizations: get vain jäsenille tai super, list vain super (jäsenet
+    // listaavat omat orgit userOrgs-dokumentin kautta, eivät tämän kollektion läpi)
     match /organizations/{orgId} {
       allow get: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
       allow list: if isSuperAdmin();
@@ -48,11 +79,27 @@ service cloud.firestore {
 
       // Org members subcollection
       match /members/{memberUid} {
-        allow read, write: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow update, delete: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+
+        // SELF-JOIN: käyttäjä saa luoda OMAN member-dokumenttinsa kun hän
+        // tarjoaa joinCode-todisteen. Rooliksi pakotetaan 'member' (omistajia
+        // ei voi tehdä koodilla). Super-admin saa luoda mitä tahansa.
+        allow create: if request.auth != null && (
+          isSuperAdmin()
+          || isOrgMember(orgId)
+          || (
+            request.auth.uid == memberUid
+            && request.resource.data.role == 'member'
+            && joinCodeMatches(orgId)
+          )
+        );
       }
 
-      // Onboarding: lue joinCode liittyäkseen — sallittu kaikille kirjautuneille
-      // (suojaa: koodi tarvitaan kuitenkin, eikä pelkkä luku riitä jäseneksi)
+      // Org invitations subcollection (sähköposti-kutsut, audit-tarkoitus)
+      match /invitations/{inviteId} {
+        allow read, write: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+      }
     }
 
     // Momentumin palaute (bugit, kehityspyynnöt). Jaettu org-jäsenten
@@ -76,13 +123,6 @@ service cloud.firestore {
         && request.resource.data.submittedAt == resource.data.submittedAt;
       allow delete: if request.auth != null
         && (resource.data.userUid == request.auth.uid || isSuperAdmin());
-    }
-
-    // Helper: check if user belongs to the organization
-    // Uses the orgIds array field in userOrgs document
-    function isOrgMember(orgId) {
-      let userOrgsPath = /databases/$(database)/documents/userOrgs/$(request.auth.uid);
-      return exists(userOrgsPath) && (orgId in get(userOrgsPath).data.orgIds);
     }
   }
 }

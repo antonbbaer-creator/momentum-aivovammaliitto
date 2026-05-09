@@ -105,20 +105,20 @@ export default function SettingsPage() {
     setJoining(true); setJoinError('');
     try {
       const code = joinCode.trim().toLowerCase();
-      const orgsSnap = await getDocs(collection(db, 'organizations'));
-      let foundId = '', foundName = '';
-      for (const d of orgsSnap.docs) {
-        if (d.data().joinCode?.toLowerCase() === code) { foundId = d.id; foundName = d.data().name || d.id; break; }
-      }
-      if (!foundId) { setJoinError('Salasanaa ei loytynyt.'); setJoining(false); return; }
+      const codeSnap = await getDoc(doc(db, 'joinCodes', code));
+      if (!codeSnap.exists()) { setJoinError('Salasanaa ei loytynyt.'); setJoining(false); return; }
+      const codeData = codeSnap.data();
+      const foundId = codeData.orgId as string;
+      const foundName = (codeData.orgName as string) || foundId;
       if (orgs.some(o => o.orgId === foundId)) {
         setJoinError('Olet jo taman yhteison jasen.'); setJoining(false); return;
       }
 
-      // Lisaa member
+      // Lisaa member joinCode-todisteella (saanto vaatii sen)
       await setDoc(doc(db, 'organizations', foundId, 'members', user.uid), {
         role: 'member', joinedAt: new Date().toISOString(),
         displayName: user.displayName || '', email: user.email || '', photoURL: user.photoURL || '',
+        joinCode: code,
       }, { merge: true });
 
       // Paivita userOrgs
