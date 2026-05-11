@@ -500,48 +500,30 @@ ${chunk}`,
     setEditSummaryText('');
   };
 
-  // ── Refine summary with context ──
+  // ── Korjaa yhteenveto kontekstilla ──
+  // Tarkeaa: regeneroi yhteenveto AINA alkuperaisesta transkriptiosta (note.content)
+  // ja antaa kayttajan korjauksen lisakontekstina. EI tiivista nykyista
+  // yhteenvetoa, jotta toistuva paivitys ei kadottaisi palaverin sisaltoa.
   const refineSummaryWithContext = async (noteId: string) => {
-    const note = notes.find(n => n.id === noteId);
-    if (!note || !contextText.trim()) return;
+    const ctx = contextText.trim();
+    if (!ctx) return;
     setRefiningContext(true);
+    setContextText('');
+    setShowContextInput(false);
     try {
-      const prompt = `Alla on palaverimuistiinpanon AI-yhteenveto. Kayttaja on lisannyt korjauksen tai tarkennuksen. Päivitä yhteenveto niin etta korjaus on huomioitu. Vastaa SELKOTEKSTINA ilman markdown-muotoilua. Sailyta yhteenvedon rakenne ja tyyli, muuta vain se mika korjauksen perusteella pitaa muuttaa.
-
-Nykyinen yhteenveto:
-${note.summary}
-
-Kayttajan korjaus/tarkennus:
-${contextText.trim()}
-
-Paivitetty yhteenveto:`;
-
-      const response = await workerFetch('/api/chat', {
-        method: 'POST',
-        orgId: activeOrg || '',
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: prompt }],
-          systemContext: 'Olet palaverimuistiinpanojen yhteenvetaja. Päivitä yhteenveto kayttajan korjauksen perusteella. Vastaa selkotekstina ilman markdown-muotoilua.',
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const updated = ((data.response || '') as string).trim();
-        if (updated) {
-          setNotes(prev => prev.map(n => n.id === noteId ? { ...n, summary: updated } : n));
-          toast('Yhteenveto päivitetty korjauksen perusteella', 'success');
-        }
-      } else {
-        toast('Päivitys epäonnistui', 'error');
-      }
-    } catch {
-      toast('Päivitys epäonnistui', 'error');
+      await requestSummary(noteId, ctx);
     } finally {
       setRefiningContext(false);
-      setContextText('');
-      setShowContextInput(false);
     }
+  };
+
+  // Aloita yhteenveto alusta — pyyhkii nykyisen ja regeneroi puhtaalta poydalta.
+  const regenerateSummaryFromScratch = async (noteId: string) => {
+    if (typeof window !== 'undefined') {
+      const ok = window.confirm('Aloita yhteenveto alusta? Nykyinen yhteenveto korvataan kokonaan uudella, joka tehdaan alkuperaisesta palaveritekstista.');
+      if (!ok) return;
+    }
+    await requestSummary(noteId);
   };
 
   // ── Action item management ──
@@ -1145,6 +1127,17 @@ Paivitetty yhteenveto:`;
                     style={{ fontSize: '.65rem', color: '#9b7cf6', padding: '.2rem .5rem' }}
                   >
                     Muokkaa tekstia
+                  </button>
+                )}
+                {canEdit && !editingSummary && (
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => regenerateSummaryFromScratch(detail.id)}
+                    disabled={summarizing}
+                    title="Pyyhkii nykyisen yhteenvedon ja luo uuden alkuperaisesta palaveritekstista"
+                    style={{ fontSize: '.65rem', color: '#9b7cf6', padding: '.2rem .5rem' }}
+                  >
+                    {summarizingId === detail.id ? 'Luodaan...' : '↻ Aloita alusta'}
                   </button>
                 )}
               </div>
