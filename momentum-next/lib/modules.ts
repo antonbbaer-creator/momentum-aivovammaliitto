@@ -206,12 +206,16 @@ export const IHAA_MODULES: Record<string, boolean> = {
   graafinen: false,
 };
 
+// Loistosetlementti ry — jarjestotoiminta, sama profiili kuin AVL:lla.
+export const LOISTOSETLEMENTTI_MODULES: Record<string, boolean> = AVL_MODULES;
+
 export function getDefaultModules(orgSlug: string): Record<string, boolean> {
   if (orgSlug === 'avl') return AVL_MODULES;
   if (orgSlug === 'juhlatoimikunta') return JUHLATOIMIKUNTA_MODULES;
   if (orgSlug === 'luuri') return LUURI_MODULES;
   if (orgSlug === 'ihaa') return IHAA_MODULES;
   if (orgSlug === 'hetki-company') return HETKI_COMPANY_MODULES;
+  if (orgSlug === 'loistosetlementti') return LOISTOSETLEMENTTI_MODULES;
   return DEFAULT_MODULES;
 }
 

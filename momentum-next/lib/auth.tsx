@@ -13,6 +13,7 @@ import { isSuperAdminEmail } from './super-admins';
 // vielä ole jäseniä — ei tarvita admin-paneelin nappia.
 const SUPER_ADMIN_AUTO_PROVISION_ORGS: { orgId: string; name: string }[] = [
   { orgId: 'hetki-company', name: 'Hetki Company' },
+  { orgId: 'loistosetlementti', name: 'Loisto' },
 ];
 
 export type OrgRole = 'owner' | 'admin' | 'member' | 'visitor';

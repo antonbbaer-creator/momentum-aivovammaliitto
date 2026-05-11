@@ -4,6 +4,6 @@
  * Kun haluat aktivoida tai poistaa työtilan käyttäjänäkymästä, muokkaa tätä listaa.
  * Admin-paneeli (/admin) näkee kaikki orgit tietokannasta aina.
  */
-export const ENABLED_ORG_SLUGS = ['llff', 'avl', 'juhlatoimikunta', 'luuri', 'ihaa', 'hetki-company'];
+export const ENABLED_ORG_SLUGS = ['llff', 'avl', 'juhlatoimikunta', 'luuri', 'ihaa', 'hetki-company', 'loistosetlementti'];
 
 export const isOrgEnabled = (orgId: string): boolean => ENABLED_ORG_SLUGS.includes(orgId);
