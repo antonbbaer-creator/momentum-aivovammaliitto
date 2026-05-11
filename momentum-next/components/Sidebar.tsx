@@ -7,7 +7,7 @@ import { usePathname, useRouter, useParams } from 'next/navigation';
 import { getOrgBanner, getOrgTeamMembers, getGrantsKey } from '@/lib/org-defaults';
 import { useOrgData } from '@/lib/firestore';
 import { OrgTeamMember, uniqueMembersByName, resolveUserMember } from '@/lib/team-shared';
-import { Assignable, effectiveStatus } from '@/lib/assignments-shared';
+import { Assignable, effectiveStatus, getAssignees } from '@/lib/assignments-shared';
 import type { Grant } from '@/lib/grants-shared';
 import { isPersonalPath } from '@/lib/personal-shared';
 
@@ -53,7 +53,11 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
     const check = (a: Assignable, done?: boolean) => {
       const st = effectiveStatus(a);
       if (done) return false;
-      if (a.assignee === myName && st === 'pending') return true;
+      // Saapunut hyvaksyttavaksi: joku muu antoi, minä assignee, status pending
+      const assignees = getAssignees(a);
+      const iAmAssignee = assignees.includes(myName) || a.assignee === myName;
+      if (iAmAssignee && st === 'pending' && a.assignedBy !== myName) return true;
+      // Hylatty omistani: minä annoin, status rejected
       if (a.assignedBy === myName && st === 'rejected') return true;
       return false;
     };

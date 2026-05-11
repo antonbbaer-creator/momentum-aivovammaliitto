@@ -56,9 +56,16 @@ export default function TyönjakoPage() {
   const unassigned = useMemo(() => getUnassigned(items), [items]);
   const noDeadlineItems = useMemo(() => getNoDeadline(items), [items]);
 
-  // Saapuneet / Antamani
+  // Saapuneet = jonkun MUUN antamia ja odottavat hyvaksyntaa.
+  // Itse itselleen + jollekin muulle annetut tehtavat eivat tule taanne — niiden
+  // status on toki pending mutta antajakin olen mina, joten ei "saapuneita".
   const pendingForMe = useMemo(
-    () => items.filter(i => i.assignees.includes(myName) && i.status === 'pending' && !i.done),
+    () => items.filter(i =>
+      i.assignees.includes(myName)
+      && i.status === 'pending'
+      && !i.done
+      && i.assignedBy !== myName
+    ),
     [items, myName]
   );
   const givenByMe = useMemo(

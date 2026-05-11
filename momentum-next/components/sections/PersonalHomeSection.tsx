@@ -20,6 +20,9 @@ import {
   intentLabel,
   REQUIRED_WEEKS_TO_ESTABLISH,
 } from '@/lib/routines-shared';
+import { acceptAssignedTask, rejectAssignedTask } from '@/lib/assigned-tasks-actions';
+import { useAuth } from '@/lib/auth';
+import { useToast } from '@/lib/toast';
 
 interface DraftTask {
   text: string;
@@ -36,7 +39,43 @@ export default function PersonalHomeSection() {
   const [routineLogs, setRoutineLogs] = useUserData<RoutineLog[]>('routineLogs', []);
   const [personalSettings] = useUserData<PersonalSettings>('settings', { weekStart: 'mon', dayStart: '06:00', dayEnd: '23:00' });
   const { assigned, byOrg, loading: assignedLoading } = useAssignedTasks();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const today = useMemo(() => new Date(), []);
+
+  // Pending vs accepted: pending vaatii kayttajan reaktion (HYVAKSY/HYLKAA)
+  const pendingAssigned = useMemo(() => assigned.filter(t => t.status === 'pending'), [assigned]);
+  const acceptedAssigned = useMemo(() => assigned.filter(t => t.status !== 'pending'), [assigned]);
+  const acceptedByOrg = useMemo(() => {
+    const out: Record<string, AssignedTaskMirror[]> = {};
+    for (const t of acceptedAssigned) {
+      if (!out[t.orgId]) out[t.orgId] = [];
+      out[t.orgId].push(t);
+    }
+    return out;
+  }, [acceptedAssigned]);
+
+  const onAcceptAssigned = async (t: AssignedTaskMirror) => {
+    if (t.sourceType === 'noteAction') {
+      toast('Avaa muistiinpanot ja vahvista tehtava sieltä', 'info');
+      return;
+    }
+    const ok = await acceptAssignedTask(t, user?.uid);
+    if (ok) toast('Tehtava hyvaksytty', 'success');
+    else toast('Ei voitu paivittaa', 'error');
+  };
+
+  const onRejectAssigned = async (t: AssignedTaskMirror) => {
+    if (t.sourceType === 'noteAction') {
+      toast('Avaa muistiinpanot ja kasittele toimenpide sielta', 'info');
+      return;
+    }
+    const reason = window.prompt('Miksi et voi ottaa tehtavaa?') || '';
+    const myName = user?.displayName || '';
+    const ok = await rejectAssignedTask(t, reason, myName, user?.uid);
+    if (ok) toast('Tehtava hylatty', 'success');
+    else toast('Ei voitu paivittaa', 'error');
+  };
   const weekStartDay = personalSettings?.weekStart || 'mon';
   const activeRoutines = useMemo(() => routines.filter(r => r.status === 'active'), [routines]);
 
@@ -161,20 +200,88 @@ export default function PersonalHomeSection() {
         )}
       </section>
 
-      {/* Aggregoidut tehtävät orgeista */}
+      {/* Odottaa hyvaksyntaa — omana sektiona ettei jaa kiinni listaan */}
+      {pendingAssigned.length > 0 && (
+        <section style={{
+          border: '2px solid #f1b434',
+          background: 'rgba(241,180,52,.06)',
+          padding: 16,
+        }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 13, letterSpacing: '.16em', textTransform: 'uppercase', color: '#9a6b00', margin: '0 0 4px' }}>
+            Odottaa hyvaksyntaasi ({pendingAssigned.length})
+          </h2>
+          <p style={{ fontSize: 12, color: 'var(--ink2)', margin: '0 0 12px' }}>
+            Joku on antanut sinulle tehtavan — paata otatko sen vai et.
+          </p>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {pendingAssigned.map((t: AssignedTaskMirror) => {
+              const href = t.sourceType === 'noteAction'
+                ? `/${t.orgId}/muistiinpanot`
+                : `/${t.orgId}/tyonjako`;
+              return (
+                <li key={t.compositeId} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 10px', background: 'var(--card, #fff)',
+                  border: '1px solid var(--rule)', borderLeft: '3px solid #f1b434',
+                  flexWrap: 'wrap',
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <a
+                      href={href}
+                      style={{ color: 'var(--ink)', textDecoration: 'none', fontSize: 14, display: 'block' }}
+                    >
+                      {t.text}
+                    </a>
+                    <div style={{ fontSize: 10, color: 'var(--ink3)', letterSpacing: '.12em', textTransform: 'uppercase', marginTop: 2 }}>
+                      {t.orgName || t.orgId}
+                      {t.assignedBy && <> · antaja {t.assignedBy}</>}
+                      {t.deadline && <> · {t.deadline}</>}
+                      {t.sourceType === 'noteAction' && <> · palaveri</>}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onAcceptAssigned(t)}
+                    style={{
+                      fontFamily: 'var(--font-display)', fontSize: 11, letterSpacing: '.14em',
+                      textTransform: 'uppercase', padding: '6px 12px',
+                      background: '#185e5b', color: '#fff', border: 'none', cursor: 'pointer',
+                    }}
+                  >
+                    Hyvaksy
+                  </button>
+                  <button
+                    onClick={() => onRejectAssigned(t)}
+                    style={{
+                      fontFamily: 'var(--font-display)', fontSize: 11, letterSpacing: '.14em',
+                      textTransform: 'uppercase', padding: '6px 12px',
+                      background: 'transparent', color: '#c14545', border: '1px solid #c14545', cursor: 'pointer',
+                    }}
+                  >
+                    Hylkaa
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {/* Aggregoidut tehtävät orgeista — hyvaksytyt ja hylatyt */}
       <section>
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 13, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink2)', margin: '0 0 12px' }}>
           Tehtävät tiimeistäni
         </h2>
         {assignedLoading ? (
           <div style={{ color: 'var(--ink3)', fontSize: 13 }}>Ladataan…</div>
-        ) : assigned.length === 0 ? (
+        ) : acceptedAssigned.length === 0 ? (
           <div style={{ color: 'var(--ink3)', fontSize: 13, fontStyle: 'italic' }}>
-            Ei avoimia tehtäviä missään tiimissä juuri nyt.
+            {pendingAssigned.length > 0
+              ? 'Ei muita hyvaksyttyja tehtavia juuri nyt.'
+              : 'Ei avoimia tehtäviä missään tiimissä juuri nyt.'}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {Object.entries(byOrg).map(([orgId, list]) => (
+            {Object.entries(acceptedByOrg).map(([orgId, list]) => (
               <div key={orgId}>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--ink2)', marginBottom: 6 }}>
                   {list[0]?.orgName || orgId}
@@ -194,7 +301,6 @@ export default function PersonalHomeSection() {
                           {t.text}
                         </a>
                         {t.deadline && <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{t.deadline}</span>}
-                        {t.status === 'pending' && <span style={{ fontSize: 10, color: '#d97706', letterSpacing: '.12em', textTransform: 'uppercase' }}>Odottaa</span>}
                         {t.sourceType === 'noteAction' && <span style={{ fontSize: 10, color: 'var(--ink3)', letterSpacing: '.12em', textTransform: 'uppercase' }}>Palaveri</span>}
                         {t.status === 'rejected' && <span style={{ fontSize: 10, color: '#e45c81', letterSpacing: '.12em', textTransform: 'uppercase' }}>Hylätty</span>}
                       </li>
