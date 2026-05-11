@@ -30,6 +30,53 @@ const getActionAssignees = (item: ActionItem): string[] => {
   return [];
 };
 
+// Pilkkoo tekstin ~maxChars-mittaisiin paloihin rivirajoja kunnioittaen.
+const chunkText = (text: string, maxChars: number): string[] => {
+  if (text.length <= maxChars) return [text];
+  const chunks: string[] = [];
+  let i = 0;
+  while (i < text.length) {
+    let end = Math.min(i + maxChars, text.length);
+    if (end < text.length) {
+      const nl = text.lastIndexOf('\n', end);
+      if (nl > i + Math.floor(maxChars / 2)) end = nl;
+    }
+    chunks.push(text.slice(i, end).trim());
+    if (end >= text.length) break;
+    i = end;
+  }
+  return chunks.filter(c => c.length > 0);
+};
+
+// Parsii "Vastuuhenkilo: tehtava" -muotoiset rivit ActionItem-objekteiksi.
+const parseActionLines = (raw: string): ActionItem[] => {
+  const out: ActionItem[] = [];
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    const cleaned = line.replace(/^[-*•]\s*/, '').replace(/^\d+[.)]\s*/, '');
+    const colonIdx = cleaned.indexOf(':');
+    if (colonIdx <= 0) continue;
+    const assignee = cleaned.slice(0, colonIdx).trim();
+    const text = cleaned.slice(colonIdx + 1).trim();
+    if (!text || assignee.length > 80) continue;
+    out.push({ text, assignee, confirmed: false });
+  }
+  return out;
+};
+
+// Deduplikoi tehtavat normalisoidun tekstin perusteella; sailyttaa ekan esiintyman.
+const dedupeActions = (items: ActionItem[]): ActionItem[] => {
+  const seen = new Set<string>();
+  const out: ActionItem[] = [];
+  for (const it of items) {
+    const key = it.text.toLowerCase().replace(/[^a-z0-9äöå ]/gi, '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(it);
+  }
+  return out;
+};
+
 interface MeetingNote {
   id: string;
   title: string;
@@ -63,6 +110,8 @@ export default function MuistiinpanotPage() {
   const [selectedNote, setSelectedNote] = useState<string | null>(null);
   const [summarizing, setSummarizing] = useState(false);
   const [summarizingId, setSummarizingId] = useState<string | null>(null);
+  const [extractingTasks, setExtractingTasks] = useState(false);
+  const [extractingTasksId, setExtractingTasksId] = useState<string | null>(null);
   const [editingSummary, setEditingSummary] = useState(false);
   const [editSummaryText, setEditSummaryText] = useState('');
   const [contextText, setContextText] = useState('');
@@ -244,7 +293,25 @@ export default function MuistiinpanotPage() {
     );
   };
 
-  // AI summary request
+  // Apufunktio AI-kutsuille
+  const callChat = useCallback((prompt: string, systemContext: string, maxTokens = 4096) => workerFetch('/api/chat', {
+    method: 'POST',
+    orgId: activeOrg || '',
+    body: JSON.stringify({
+      messages: [{ role: 'user', content: prompt }],
+      systemContext,
+      max_tokens: maxTokens,
+    }),
+  }), [activeOrg]);
+
+  const readResponseText = async (res: Response): Promise<string> => {
+    if (!res.ok) return '';
+    const data = await res.json();
+    return ((data.response || '') as string).trim();
+  };
+
+  // VAIN yhteenveto. Tehtavat poimitaan erillisella napilla (requestActionItems)
+  // jotta pitkat palaverit eivat tormaisi output-tokenrajaan.
   const requestSummary = async (noteId: string, extraContext?: string) => {
     const note = notes.find(n => n.id === noteId);
     if (!note) return;
@@ -254,60 +321,72 @@ export default function MuistiinpanotPage() {
       const contextBlock = extraContext && extraContext.trim()
         ? `\nLisäkonteksti (mistä on kyse, kuka vastaa, mitä ei pidä päätellä väärin):\n${extraContext.trim()}\n`
         : '';
-      const prompt = `Tee tiivis yhteenveto seuraavasta palaverimuistiinpanosta. Vastaa SELKOTEKSTINA ilman markdown-muotoilua (ei #-otsikoita, ei **-boldausta, ei listamerkkejä). Kayta tavallisia kappaleita ja riveja.
-
-Yhteenvedon jalkeen listaa kaikki toimenpiteet ja paatokset omalla rivillaan muodossa:
----TOIMENPITEET---
-Vastuuhenkilo: Toimenpiteen kuvaus
-Vastuuhenkilo: Toinen toimenpide
-
-Jos vastuuhenkiloa ei tiedeta, kayta "Kaikki" tai "Ei maaritetty".
-Vastaa suomeksi.
-
-Otsikko: ${note.title}
+      const meetingHeader = `Otsikko: ${note.title}
 Paivamaara: ${note.date}
 Osallistujat: ${note.attendees.join(', ') || 'Ei merkitty'}
-${contextBlock}
+${contextBlock}`;
+
+      const CHUNK_THRESHOLD = 10000;
+      const CHUNK_SIZE = 8000;
+      const content = note.content || '';
+
+      let summary = '';
+      let chunkCount = 1;
+
+      if (content.length <= CHUNK_THRESHOLD) {
+        const prompt = `Tee tiivis yhteenveto seuraavasta palaverimuistiinpanosta. Vastaa SELKOTEKSTINA ilman markdown-muotoilua (ei #-otsikoita, ei **-boldausta, ei listamerkkejä). Kayta tavallisia kappaleita ja riveja. Vastaa suomeksi.
+
+${meetingHeader}
 Muistiinpano:
-${note.content}`;
-
-      const response = await workerFetch('/api/chat', {
-        method: 'POST',
-        orgId: activeOrg || '',
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: prompt }],
-          systemContext: 'Olet palaverimuistiinpanojen yhteenvetaja. Vastaa selkotekstina ilman markdown-muotoilua.',
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const raw = (data.response || '') as string;
-        // Parse summary and action items
-        const sepIdx = raw.indexOf('---TOIMENPITEET---');
-        const summary = (sepIdx >= 0 ? raw.slice(0, sepIdx) : raw).trim();
-        const actionItems: ActionItem[] = [];
-        if (sepIdx >= 0) {
-          const lines = raw.slice(sepIdx + '---TOIMENPITEET---'.length).trim().split('\n').filter(l => l.trim());
-          for (const line of lines) {
-            const colonIdx = line.indexOf(':');
-            if (colonIdx > 0) {
-              actionItems.push({
-                text: line.slice(colonIdx + 1).trim(),
-                assignee: line.slice(0, colonIdx).trim().replace(/^-\s*/, ''),
-                confirmed: false,
-              });
-            }
-          }
-        }
-        if (summary) {
-          setNotes(prev => prev.map(n => n.id === noteId ? { ...n, summary, actionItems: actionItems.length > 0 ? actionItems : n.actionItems } : n));
-          toast('Yhteenveto luotu', 'success');
-        }
+${content}`;
+        summary = await readResponseText(await callChat(
+          prompt,
+          'Olet palaverimuistiinpanojen yhteenvetaja. Vastaa selkotekstina ilman markdown-muotoilua.',
+          4096,
+        ));
       } else {
-        const lines = note.content.split('\n').filter(l => l.trim());
-        const summary = `Palaveri: ${note.title} (${note.date})\nOsallistujat: ${note.attendees.join(', ') || '-'}\n\nPaakohdat:\n${lines.slice(0, 5).map(l => '- ' + l.trim()).join('\n')}`;
+        // Pitka: map-reduce
+        const chunks = chunkText(content, CHUNK_SIZE);
+        chunkCount = chunks.length;
+
+        const partialSummaries = await Promise.all(chunks.map((chunk, idx) =>
+          callChat(
+            `Tee tiivis selkotekstina yhteenveto tasta palaverin OSASTA ${idx + 1}/${chunks.length}. Ei markdownia. Vastaa suomeksi.
+
+${meetingHeader}
+Muistiinpanon osa ${idx + 1}/${chunks.length}:
+${chunk}`,
+            'Olet palaverimuistiinpanojen yhteenvetaja. Vastaa selkotekstina ilman markdown-muotoilua.',
+            1500,
+          ).then(readResponseText),
+        ));
+
+        const validPartials = partialSummaries.filter(s => s.length > 0);
+        if (validPartials.length > 1) {
+          const reducePrompt = `Alla on saman palaverin osayhteenvedot jarjestyksessa. Yhdista ne yhdeksi koherentiksi tiiviiksi yhteenvedoksi. Sailyta kronologia ja kaikki olennaiset paatokset, mutta poista toistoa. Vastaa SELKOTEKSTINA ilman markdown-muotoilua. Vastaa suomeksi.
+
+${meetingHeader}
+Osayhteenvedot:
+${validPartials.map((s, i) => `--- Osa ${i + 1} ---\n${s}`).join('\n\n')}`;
+          summary = await readResponseText(await callChat(
+            reducePrompt,
+            'Olet palaverimuistiinpanojen yhteenvetaja. Vastaa selkotekstina ilman markdown-muotoilua.',
+            4096,
+          ));
+          if (!summary) summary = validPartials.join('\n\n');
+        } else if (validPartials.length === 1) {
+          summary = validPartials[0];
+        }
+      }
+
+      if (summary) {
         setNotes(prev => prev.map(n => n.id === noteId ? { ...n, summary } : n));
+        const detail = chunkCount > 1 ? ` (${chunkCount} osaa)` : '';
+        toast(`Yhteenveto luotu${detail}`, 'success');
+      } else {
+        const lines = content.split('\n').filter(l => l.trim());
+        const fallback = `Palaveri: ${note.title} (${note.date})\nOsallistujat: ${note.attendees.join(', ') || '-'}\n\nPaakohdat:\n${lines.slice(0, 5).map(l => '- ' + l.trim()).join('\n')}`;
+        setNotes(prev => prev.map(n => n.id === noteId ? { ...n, summary: fallback } : n));
         toast('Yhteenveto luotu (perusmuoto)', 'success');
       }
     } catch {
@@ -315,6 +394,85 @@ ${note.content}`;
     } finally {
       setSummarizing(false);
       setSummarizingId(null);
+    }
+  };
+
+  // VAIN tehtavien poiminta omalla token-budjetilla. Korvaa olemassa olevat
+  // ehdotetut (vahvistamattomat) toimenpiteet; vahvistetut sailyvat.
+  const requestActionItems = async (noteId: string) => {
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return;
+    setExtractingTasks(true);
+    setExtractingTasksId(noteId);
+    try {
+      const meetingHeader = `Otsikko: ${note.title}
+Paivamaara: ${note.date}
+Osallistujat: ${note.attendees.join(', ') || 'Ei merkitty'}
+`;
+
+      const CHUNK_THRESHOLD = 10000;
+      const CHUNK_SIZE = 8000;
+      const content = note.content || '';
+      let newItems: ActionItem[] = [];
+      let chunkCount = 1;
+
+      if (content.length <= CHUNK_THRESHOLD) {
+        const prompt = `Poimi alla olevasta palaverimuistiinpanosta KAIKKI toimenpiteet, paatokset ja sovitut tehtavat. Ala jata mitaan pois. Listaa jokainen toimenpide omalla rivillaan muodossa:
+
+Vastuuhenkilo: Toimenpiteen kuvaus
+
+Jos vastuuhenkiloa ei tiedeta, kayta "Kaikki" tai "Ei maaritetty". Ala lisaa otsikoita, numerointia tai muuta tekstia – vain rivit muodossa "Vastuuhenkilo: tehtava". Vastaa suomeksi.
+
+${meetingHeader}
+Muistiinpano:
+${content}`;
+        const raw = await readResponseText(await callChat(
+          prompt,
+          'Olet palaverimuistiinpanojen tehtavapoimija. Listaa vain toimenpiteet muodossa "Vastuuhenkilo: tehtava".',
+          4096,
+        ));
+        newItems = parseActionLines(raw);
+      } else {
+        const chunks = chunkText(content, CHUNK_SIZE);
+        chunkCount = chunks.length;
+        const chunkActions = await Promise.all(chunks.map((chunk, idx) =>
+          callChat(
+            `Poimi tasta palaverin OSASTA ${idx + 1}/${chunks.length} KAIKKI toimenpiteet, paatokset ja sovitut tehtavat. Listaa jokainen omalla rivillaan muodossa:
+
+Vastuuhenkilo: Toimenpiteen kuvaus
+
+Jos vastuuhenkiloa ei tiedeta, kayta "Kaikki" tai "Ei maaritetty". Ala lisaa otsikoita, numerointia tai muuta tekstia. Vastaa suomeksi.
+
+${meetingHeader}
+Muistiinpanon osa ${idx + 1}/${chunks.length}:
+${chunk}`,
+            'Olet palaverimuistiinpanojen tehtavapoimija. Listaa vain toimenpiteet muodossa "Vastuuhenkilo: tehtava".',
+            2048,
+          ).then(readResponseText),
+        ));
+        newItems = dedupeActions(chunkActions.flatMap(parseActionLines));
+      }
+
+      if (newItems.length > 0) {
+        // Sailyta vahvistetut + linkitetyt vanhat tehtavat; korvaa muut ehdotukset.
+        setNotes(prev => prev.map(n => {
+          if (n.id !== noteId) return n;
+          const keep = (n.actionItems || []).filter(a => a.confirmed || a.linkedTaskId);
+          // Suodata uudet jotka ovat samat kuin sailytetyt (deduplikointi yli vanhojen)
+          const keepKeys = new Set(keep.map(k => k.text.toLowerCase().replace(/\s+/g, ' ').trim()));
+          const fresh = newItems.filter(it => !keepKeys.has(it.text.toLowerCase().replace(/\s+/g, ' ').trim()));
+          return { ...n, actionItems: [...keep, ...fresh] };
+        }));
+        const detail = chunkCount > 1 ? `, ${chunkCount} osaa` : '';
+        toast(`Tehtavat poimittu (${newItems.length} kpl${detail})`, 'success');
+      } else {
+        toast('Tehtavia ei loytynyt', 'info');
+      }
+    } catch {
+      toast('Tehtavien poiminta epaonnistui', 'error');
+    } finally {
+      setExtractingTasks(false);
+      setExtractingTasksId(null);
     }
   };
 
@@ -1026,13 +1184,28 @@ Paivitetty yhteenveto:`;
                 Toimenpiteet {detail.actionItems && detail.actionItems.length > 0 && `(${detail.actionItems.filter(a => a.confirmed).length}/${detail.actionItems.length} vahvistettu)`}
               </span>
               {canEdit && !showAddAction && (
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => setShowAddAction(true)}
-                  style={{ fontSize: '.65rem', color: '#9b7cf6', padding: '.2rem .5rem' }}
-                >
-                  + Lisää toimenpide
-                </button>
+                <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => requestActionItems(detail.id)}
+                    disabled={summarizing || extractingTasks}
+                    style={{ fontSize: '.65rem', color: '#9b7cf6', padding: '.2rem .5rem' }}
+                    title="Poimi tehtavat AI:lla erillisella kutsulla (toimii myos pitkille palavereille)"
+                  >
+                    {extractingTasksId === detail.id
+                      ? 'Poimitaan...'
+                      : (detail.actionItems && detail.actionItems.length > 0)
+                        ? 'Poimi uudelleen'
+                        : 'Poimi AI:lla'}
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => setShowAddAction(true)}
+                    style={{ fontSize: '.65rem', color: '#9b7cf6', padding: '.2rem .5rem' }}
+                  >
+                    + Lisää toimenpide
+                  </button>
+                </div>
               )}
             </div>
             {detail.actionItems && detail.actionItems.map((item, idx) => (
@@ -1298,10 +1471,23 @@ Paivitetty yhteenveto:`;
               <button
                 className="btn btn-ghost btn-sm"
                 onClick={() => requestSummary(detail.id)}
-                disabled={summarizing}
+                disabled={summarizing || extractingTasks}
                 style={{ color: '#9b7cf6' }}
               >
-                {summarizing ? 'Luodaan...' : detail.summary ? 'Paivita yhteenveto' : 'Luo AI-yhteenveto'}
+                {summarizingId === detail.id ? 'Luodaan...' : detail.summary ? 'Paivita yhteenveto' : 'Luo AI-yhteenveto'}
+              </button>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => requestActionItems(detail.id)}
+                disabled={summarizing || extractingTasks}
+                style={{ color: '#9b7cf6' }}
+                title="Poimii tehtavat erikseen omalla AI-kutsulla – soveltuu pitkille palavereille"
+              >
+                {extractingTasksId === detail.id
+                  ? 'Poimitaan...'
+                  : (detail.actionItems && detail.actionItems.length > 0)
+                    ? 'Poimi tehtavat uudelleen'
+                    : 'Poimi tehtavat'}
               </button>
               {driveStatus.connected && (
                 <button
