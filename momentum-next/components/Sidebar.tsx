@@ -10,6 +10,7 @@ import { OrgTeamMember, uniqueMembersByName, resolveUserMember } from '@/lib/tea
 import { Assignable, effectiveStatus, getAssignees } from '@/lib/assignments-shared';
 import type { Grant } from '@/lib/grants-shared';
 import { isPersonalPath } from '@/lib/personal-shared';
+import { useUserData } from '@/lib/use-user-data';
 
 const PERSONAL_MODULES = [
   { id: 'p-koti',       label: 'Koti',       path: '/oma/koti' },
@@ -36,6 +37,9 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
   const personalMode = isPersonalPath(pathname);
   const orgSlug = (params.orgSlug as string) || activeOrg || '';
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [hiddenOrgs] = useUserData<string[]>('hiddenOrgs', []);
+  // Aktiivinen org näkyy aina, vaikka olisi piilotettuna (esim. suora linkki)
+  const visibleOrgs = orgs.filter(o => !hiddenOrgs.includes(o.orgId) || o.orgId === orgSlug);
 
   const currentOrg = orgs.find(o => o.orgId === orgSlug);
   const banner = personalMode ? null : getOrgBanner(orgSlug);
@@ -122,7 +126,7 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
               boxShadow: '0 8px 24px rgba(0,0,0,.08)', zIndex: 20, padding: '6px 0',
             }}
           >
-            {orgs.map(o => (
+            {visibleOrgs.map(o => (
               <div
                 key={o.orgId}
                 className={`nav-row ${o.orgId === orgSlug && !personalMode ? 'act' : ''}`}
