@@ -256,10 +256,13 @@ export function computeCapacity(
   return members.map(m => byName.get(m.name)!);
 }
 
-// Jakamattomat = tehtävät ilman tekijöitä ja jotka eivät ole valmiita/hylättyjä
+// Jakamattomat = tehtävät ilman tekijöitä ja jotka eivät ole valmiita.
+// Mukaan otetaan myös hylätyt: rejectAssignment tyhjentaa assignees-listan, joten
+// hylätty tehtava palaa "ei tekijää" -tilaan ettei se huku, vaikka status pysyy
+// 'rejected' jotta antaja nakee Antamani/Hylatty-listalla syyn ja hylkaajan.
 export function getUnassigned(items: WorkItem[]): WorkItem[] {
   return items
-    .filter(i => i.assignees.length === 0 && !i.done && i.status !== 'rejected')
+    .filter(i => i.assignees.length === 0 && !i.done)
     .sort((a, b) => {
       // Myöhässä olevat ja lähempänä erääntyvät ylös
       const da = daysUntilDeadline(a.deadline);

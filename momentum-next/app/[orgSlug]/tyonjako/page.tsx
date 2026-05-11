@@ -995,6 +995,7 @@ function UnassignedSection({
       <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
         {visible.map(i => {
           const overdue = isOverdue(i);
+          const wasRejected = i.status === 'rejected';
           const sourceLabel =
             i.kind === 'project-task' ? `▣ ${i.projectName}` :
             i.kind === 'grant-subtask' ? `€ ${i.grantName}` :
@@ -1006,8 +1007,8 @@ function UnassignedSection({
               onDragEnd={onDragEnd}
               style={{
                 padding: '.5rem .7rem', background: 'var(--elev)',
-                border: `1px solid ${overdue ? 'rgba(239,68,68,.4)' : 'var(--border)'}`,
-                borderLeft: `3px solid var(--yellow)`,
+                border: `1px solid ${overdue ? 'rgba(239,68,68,.4)' : wasRejected ? 'rgba(239,68,68,.35)' : 'var(--border)'}`,
+                borderLeft: `3px solid ${wasRejected ? 'var(--red)' : 'var(--yellow)'}`,
                 borderRadius: 'var(--r)', cursor: canEdit ? 'grab' : 'default',
                 minWidth: 200, maxWidth: 300,
               }}
@@ -1019,7 +1020,25 @@ function UnassignedSection({
                     title={i.done ? 'Peru merkintä' : 'Merkitse valmiiksi'} />
                 )}
                 <div style={{ fontSize: '.8rem', fontWeight: 600, flex: 1 }}>{i.text}</div>
+                {wasRejected && (
+                  <span style={{
+                    fontSize: '.55rem', padding: '.1rem .35rem', borderRadius: 9999,
+                    background: 'rgba(239,68,68,.15)', color: 'var(--red)',
+                    fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em',
+                    flexShrink: 0,
+                  }}>
+                    Hylatty
+                  </span>
+                )}
               </div>
+              {wasRejected && i.rejectReason && (
+                <div style={{
+                  fontSize: '.65rem', color: 'var(--red)', marginBottom: '.25rem',
+                  fontStyle: 'italic',
+                }}>
+                  Syy: {i.rejectReason}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: '.4rem', fontSize: '.65rem', color: 'var(--t3)', flexWrap: 'wrap', alignItems: 'center' }}>
                 {sourceLabel && <span>{sourceLabel}</span>}
                 {canEdit ? (
