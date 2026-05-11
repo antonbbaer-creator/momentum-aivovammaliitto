@@ -541,6 +541,24 @@ export default function AdminPage() {
     }
   }, [user, loading, isSuperAdmin, router]);
 
+  // Saman nimiset käyttäjät — eri uid:llä mutta samalla displayNamella.
+  // HUOM: tämä useMemo MUST olla ennen ehdollista returnia jotta hook-jarjestys
+  // pysyy vakaana (rules of hooks: kaikki hookit kutsutaan joka renderissä).
+  const duplicateGroups = useMemo(() => {
+    const groups: Record<string, Array<{ orgId: string; orgName: string; member: OrgMember }>> = {};
+    for (const org of orgs) {
+      for (const m of org.members) {
+        const norm = (m.displayName || '').trim().toLowerCase();
+        if (!norm) continue;
+        if (!groups[norm]) groups[norm] = [];
+        groups[norm].push({ orgId: org.id, orgName: org.name, member: m });
+      }
+    }
+    return Object.values(groups)
+      .filter(list => new Set(list.map(x => x.member.uid)).size > 1)
+      .map(list => ({ name: list[0].member.displayName, entries: list }));
+  }, [orgs]);
+
   if (loading || !isSuperAdmin) {
     return (
       <div className="onb">
@@ -665,23 +683,6 @@ export default function AdminPage() {
 
 
   const selectedOrgData = selectedOrg ? orgs.find(o => o.id === selectedOrg) : null;
-
-  // Saman nimiset käyttäjät — eri uid:llä mutta samalla displayNamella.
-  // Anton Baer pitäisi olla vain yksi uid (anton@hetkicompany.com).
-  const duplicateGroups = useMemo(() => {
-    const groups: Record<string, Array<{ orgId: string; orgName: string; member: OrgMember }>> = {};
-    for (const org of orgs) {
-      for (const m of org.members) {
-        const norm = (m.displayName || '').trim().toLowerCase();
-        if (!norm) continue;
-        if (!groups[norm]) groups[norm] = [];
-        groups[norm].push({ orgId: org.id, orgName: org.name, member: m });
-      }
-    }
-    return Object.values(groups)
-      .filter(list => new Set(list.map(x => x.member.uid)).size > 1)
-      .map(list => ({ name: list[0].member.displayName, entries: list }));
-  }, [orgs]);
 
   return (
     <AppShell title="Hallintapaneeli" subtitle="Käyttäjien ja organisaatioiden hallinta">
