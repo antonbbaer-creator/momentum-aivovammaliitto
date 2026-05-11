@@ -34,7 +34,9 @@ const getActionAssignees = (item: ActionItem): string[] => {
 };
 
 // Pilkkoo tekstin ~maxChars-mittaisiin paloihin rivirajoja kunnioittaen.
-const chunkText = (text: string, maxChars: number): string[] => {
+// overlap (oletus 0) tuottaa palaisiin pienen paalleemenon jotta rajan
+// yli menevat keskustelut nakyvat kahdesti — auttaa AI:ta yhdistamaan kontekstin.
+const chunkText = (text: string, maxChars: number, overlap = 0): string[] => {
   if (text.length <= maxChars) return [text];
   const chunks: string[] = [];
   let i = 0;
@@ -46,7 +48,8 @@ const chunkText = (text: string, maxChars: number): string[] => {
     }
     chunks.push(text.slice(i, end).trim());
     if (end >= text.length) break;
-    i = end;
+    // siirry eteenpain, mutta jata overlap-merkkien verran paallekkaisyyteen
+    i = Math.max(end - overlap, i + 1);
   }
   return chunks.filter(c => c.length > 0);
 };
@@ -330,51 +333,95 @@ Paivamaara: ${note.date}
 Osallistujat: ${note.attendees.join(', ') || 'Ei merkitty'}
 ${contextBlock}`;
 
-      const CHUNK_THRESHOLD = 10000;
-      const CHUNK_SIZE = 8000;
+      const CHUNK_THRESHOLD = 6000;     // Aloita chunkkaus aikaisemmin (~25 min palaverin transkriptio)
+      const CHUNK_SIZE = 5000;          // Pienempi palanen → tarkempi per-osa yhteenveto
+      const CHUNK_OVERLAP = 400;        // 8% paalleemenoa rajojen yli, ettei konteksti hyppaa
+      const GROUP_REDUCE_SIZE = 4;      // Hierarkinen reduce: yhdista 4 osayhteenvetoa ryhmaan
       const content = note.content || '';
+
+      const partialSummaryPrompt = (chunk: string, idx: number, total: number) =>
+        `Tee SEIKKAPERAINEN yhteenveto tasta palaverin OSASTA ${idx + 1}/${total}. Sisaltaa:
+- Mista puhuttiin (kaikki esiin tulleet aiheet, ei vain paaaiheita)
+- Kaikki paatokset, ehdotukset ja erimielisyydet — myos pienemmat
+- Numerot, paivamaarat, nimet ja konkreettiset detaljit jotka mainittiin
+- Avoimet kysymykset jotka jaivat keskustelussa kesken
+
+Vastaa SELKOTEKSTINA suomeksi, ei markdownia, ei listamerkkeja.
+
+${meetingHeader}
+Muistiinpanon osa ${idx + 1}/${total}:
+${chunk}`;
+
+      const reducePrompt = (parts: string[], finalShort = false) =>
+        finalShort
+          ? `Alla on saman palaverin valiyhteenvedot. Tee niista lopullinen koherentti yhteenveto kappaleina (ei listamerkkeja, ei markdownia). Sailyta KAIKKI olennaiset paatokset, ehdotukset, numerot, nimet ja avoimet kysymykset. Poista vain toistoa, ala lyhenna sisaltoa muuten. Sailyta kronologinen kulku jos se on selvaa. Vastaa suomeksi.
+
+${meetingHeader}
+Valiyhteenvedot:
+${parts.map((s, i) => `--- Valiosio ${i + 1} ---\n${s}`).join('\n\n')}`
+          : `Yhdista alla olevat samaan palaveriin liittyvat osayhteenvedot YHDEKSI rikkaaksi tekstiksi. Sailyta kaikki yksityiskohdat, paatokset, numerot ja nimet — ala tiivista. Poista vain selvaa toistoa. Vastaa SELKOTEKSTINA suomeksi (ei markdownia).
+
+${meetingHeader}
+Osayhteenvedot:
+${parts.map((s, i) => `--- Osa ${i + 1} ---\n${s}`).join('\n\n')}`;
 
       let summary = '';
       let chunkCount = 1;
 
       if (content.length <= CHUNK_THRESHOLD) {
-        const prompt = `Tee tiivis yhteenveto seuraavasta palaverimuistiinpanosta. Vastaa SELKOTEKSTINA ilman markdown-muotoilua (ei #-otsikoita, ei **-boldausta, ei listamerkkejä). Kayta tavallisia kappaleita ja riveja. Vastaa suomeksi.
+        const prompt = `Tee SEIKKAPERAINEN ja KATTAVA yhteenveto seuraavasta palaverimuistiinpanosta. Sailyta:
+- Kaikki esiin tulleet aiheet (ei vain paaaiheita)
+- Kaikki paatokset, ehdotukset ja erimielisyydet
+- Konkreettiset detaljit: numerot, paivamaarat, nimet
+- Avoimet kysymykset
+
+Vastaa SELKOTEKSTINA ilman markdown-muotoilua (ei #-otsikoita, ei **-boldausta, ei listamerkkejä). Kayta tavallisia kappaleita. Vastaa suomeksi.
 
 ${meetingHeader}
 Muistiinpano:
 ${content}`;
         summary = await readResponseText(await callChat(
           prompt,
-          'Olet palaverimuistiinpanojen yhteenvetaja. Vastaa selkotekstina ilman markdown-muotoilua.',
+          'Olet palaverimuistiinpanojen yhteenvetaja. Vastaa selkotekstina ilman markdown-muotoilua, sailyta kaikki olennaiset yksityiskohdat.',
           4096,
         ));
       } else {
-        // Pitka: map-reduce
-        const chunks = chunkText(content, CHUNK_SIZE);
+        // Pitka: map-reduce — pienemmat palaset + isompi tokenbudjetti per palanen
+        const chunks = chunkText(content, CHUNK_SIZE, CHUNK_OVERLAP);
         chunkCount = chunks.length;
 
         const partialSummaries = await Promise.all(chunks.map((chunk, idx) =>
           callChat(
-            `Tee tiivis selkotekstina yhteenveto tasta palaverin OSASTA ${idx + 1}/${chunks.length}. Ei markdownia. Vastaa suomeksi.
-
-${meetingHeader}
-Muistiinpanon osa ${idx + 1}/${chunks.length}:
-${chunk}`,
-            'Olet palaverimuistiinpanojen yhteenvetaja. Vastaa selkotekstina ilman markdown-muotoilua.',
-            1500,
+            partialSummaryPrompt(chunk, idx, chunks.length),
+            'Olet palaverimuistiinpanojen yhteenvetaja. Vastaa selkotekstina, sailyta kaikki yksityiskohdat tasta osasta.',
+            2500,
           ).then(readResponseText),
         ));
 
-        const validPartials = partialSummaries.filter(s => s.length > 0);
-        if (validPartials.length > 1) {
-          const reducePrompt = `Alla on saman palaverin osayhteenvedot jarjestyksessa. Yhdista ne yhdeksi koherentiksi tiiviiksi yhteenvedoksi. Sailyta kronologia ja kaikki olennaiset paatokset, mutta poista toistoa. Vastaa SELKOTEKSTINA ilman markdown-muotoilua. Vastaa suomeksi.
+        let validPartials = partialSummaries.filter(s => s.length > 0);
 
-${meetingHeader}
-Osayhteenvedot:
-${validPartials.map((s, i) => `--- Osa ${i + 1} ---\n${s}`).join('\n\n')}`;
+        // Hierarkinen reduce: jos osayhteenvetoja on yli GROUP_REDUCE_SIZE,
+        // tehdaan ensin ryhmareduce 4:n erissa ja vasta sitten lopullinen yhdistely.
+        // Tama estaa ylipakkautumisen kun on 6+ palasta.
+        if (validPartials.length > GROUP_REDUCE_SIZE) {
+          const groups: string[][] = [];
+          for (let i = 0; i < validPartials.length; i += GROUP_REDUCE_SIZE) {
+            groups.push(validPartials.slice(i, i + GROUP_REDUCE_SIZE));
+          }
+          const groupSummaries = await Promise.all(groups.map(group =>
+            callChat(
+              reducePrompt(group, false),
+              'Olet palaverimuistiinpanojen yhteenvetaja. Yhdista osat ilman tiivistysta — sailyta kaikki yksityiskohdat.',
+              3000,
+            ).then(readResponseText),
+          ));
+          validPartials = groupSummaries.filter(s => s.length > 0);
+        }
+
+        if (validPartials.length > 1) {
           summary = await readResponseText(await callChat(
-            reducePrompt,
-            'Olet palaverimuistiinpanojen yhteenvetaja. Vastaa selkotekstina ilman markdown-muotoilua.',
+            reducePrompt(validPartials, true),
+            'Olet palaverimuistiinpanojen yhteenvetaja. Vastaa selkotekstina, sailyta kaikki olennaiset paatokset ja yksityiskohdat.',
             4096,
           ));
           if (!summary) summary = validPartials.join('\n\n');
@@ -414,14 +461,15 @@ Paivamaara: ${note.date}
 Osallistujat: ${note.attendees.join(', ') || 'Ei merkitty'}
 `;
 
-      const CHUNK_THRESHOLD = 10000;
-      const CHUNK_SIZE = 8000;
+      const CHUNK_THRESHOLD = 6000;
+      const CHUNK_SIZE = 5000;
+      const CHUNK_OVERLAP = 400;
       const content = note.content || '';
       let newItems: ActionItem[] = [];
       let chunkCount = 1;
 
       if (content.length <= CHUNK_THRESHOLD) {
-        const prompt = `Poimi alla olevasta palaverimuistiinpanosta KAIKKI toimenpiteet, paatokset ja sovitut tehtavat. Ala jata mitaan pois. Listaa jokainen toimenpide omalla rivillaan muodossa:
+        const prompt = `Poimi alla olevasta palaverimuistiinpanosta KAIKKI toimenpiteet, paatokset ja sovitut tehtavat. Ala jata mitaan pois — myos pienemmat tehtavat ja "muista tehda X" -tyyppiset kommentit. Listaa jokainen toimenpide omalla rivillaan muodossa:
 
 Vastuuhenkilo: Toimenpiteen kuvaus
 
@@ -432,16 +480,16 @@ Muistiinpano:
 ${content}`;
         const raw = await readResponseText(await callChat(
           prompt,
-          'Olet palaverimuistiinpanojen tehtavapoimija. Listaa vain toimenpiteet muodossa "Vastuuhenkilo: tehtava".',
+          'Olet palaverimuistiinpanojen tehtavapoimija. Listaa vain toimenpiteet muodossa "Vastuuhenkilo: tehtava". Ala jata mitaan pois.',
           4096,
         ));
         newItems = parseActionLines(raw);
       } else {
-        const chunks = chunkText(content, CHUNK_SIZE);
+        const chunks = chunkText(content, CHUNK_SIZE, CHUNK_OVERLAP);
         chunkCount = chunks.length;
         const chunkActions = await Promise.all(chunks.map((chunk, idx) =>
           callChat(
-            `Poimi tasta palaverin OSASTA ${idx + 1}/${chunks.length} KAIKKI toimenpiteet, paatokset ja sovitut tehtavat. Listaa jokainen omalla rivillaan muodossa:
+            `Poimi tasta palaverin OSASTA ${idx + 1}/${chunks.length} KAIKKI toimenpiteet, paatokset ja sovitut tehtavat. Ala jata mitaan pois — myos pienemmat tehtavat. HUOMIO: tassa osassa voi olla paallekkaisyytta edellisen osan kanssa rajalla — ala huoli toistosta, lista mieluummin tehtava kahdesti kuin jata pois. Listaa jokainen omalla rivillaan muodossa:
 
 Vastuuhenkilo: Toimenpiteen kuvaus
 
@@ -450,8 +498,8 @@ Jos vastuuhenkiloa ei tiedeta, kayta "Kaikki" tai "Ei maaritetty". Ala lisaa ots
 ${meetingHeader}
 Muistiinpanon osa ${idx + 1}/${chunks.length}:
 ${chunk}`,
-            'Olet palaverimuistiinpanojen tehtavapoimija. Listaa vain toimenpiteet muodossa "Vastuuhenkilo: tehtava".',
-            2048,
+            'Olet palaverimuistiinpanojen tehtavapoimija. Listaa vain toimenpiteet muodossa "Vastuuhenkilo: tehtava". Mieluummin tupla kuin puuttuva.',
+            2500,
           ).then(readResponseText),
         ));
         newItems = dedupeActions(chunkActions.flatMap(parseActionLines));
