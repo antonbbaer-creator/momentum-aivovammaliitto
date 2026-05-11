@@ -12,6 +12,7 @@ import { useToast } from '@/lib/toast';
 import { connectDrive, disconnectDrive, useDriveStatus } from '@/lib/drive';
 import { isSuperAdminEmail } from '@/lib/super-admins';
 import NotificationsSettings from '@/components/NotificationsSettings';
+import PersonalOrgVisibilitySection from '@/components/sections/PersonalOrgVisibilitySection';
 
 interface Member { uid: string; displayName: string; email: string; photoURL: string; role: string; joinedAt: string; }
 
@@ -230,6 +231,8 @@ Tervetuloa mukaan!${inviter ? '\n\n— ' + inviter : ''}`;
 
   return (
     <AppShell title="Asetukset" subtitle={org.name || ''}>
+
+      <PersonalOrgVisibilitySection />
 
       {/* ── Omat asetukset (kaikille) ── */}
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', marginBottom: '1.5rem' }}>
