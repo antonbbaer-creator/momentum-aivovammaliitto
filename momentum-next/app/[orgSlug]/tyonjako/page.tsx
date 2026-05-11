@@ -22,6 +22,7 @@ import {
 } from '@/lib/workload-shared';
 import { Grant } from '@/lib/grants-shared';
 import TaskNetworkGraph, { UnifiedTask as GraphUnifiedTask, GraphProjectShape } from '@/components/sections/TaskNetworkGraph';
+import LinkifiedText from '@/components/LinkifiedText';
 
 type Tab = 'capacity' | 'inbox' | 'given' | 'graph';
 
@@ -446,6 +447,8 @@ export default function TyönjakoPage() {
         <SimpleList
           empty="Ei saapuneita tehtäviä."
           items={pendingForMe}
+          canEdit={canEdit}
+          onUpdateField={updateItemField}
           actions={(item) => canEdit ? (
             <>
               <button className="btn btn-sm" onClick={() => onAccept(item)} style={{ background: 'var(--green)', color: '#fff', fontSize: '.7rem' }}>Hyväksy</button>
@@ -463,6 +466,8 @@ export default function TyönjakoPage() {
                 Hylätyt — jaa uudelleen ({rejectedFromMe.length})
               </div>
               <SimpleList empty="" items={rejectedFromMe}
+                canEdit={canEdit}
+                onUpdateField={updateItemField}
                 actions={(item) => canEdit ? (
                   <select className="input" defaultValue="" onChange={e => { if (e.target.value) onReassign(item, e.target.value); }}
                     style={{ fontSize: '.7rem', padding: '.25rem .4rem', width: 'auto' }}>
@@ -477,7 +482,10 @@ export default function TyönjakoPage() {
             <div style={emptyStyle}>Et ole antanut tehtäviä vielä.</div>
           )}
           {givenByMe.filter(i => i.status !== 'rejected').length > 0 && (
-            <SimpleList empty="" items={givenByMe.filter(i => i.status !== 'rejected')} />
+            <SimpleList empty="" items={givenByMe.filter(i => i.status !== 'rejected')}
+              canEdit={canEdit}
+              onUpdateField={updateItemField}
+            />
           )}
         </div>
       )}
@@ -1173,10 +1181,14 @@ function QuickAddModal({
 
 // --- Saapuneet / Antamani yksinkertainen lista ---
 
-function SimpleList({ items, empty: emptyText, actions }: {
+function SimpleList({ items, empty: emptyText, actions, canEdit, onUpdateField }: {
   items: WorkItem[]; empty: string;
   actions?: (item: WorkItem) => React.ReactNode;
+  canEdit?: boolean;
+  onUpdateField?: (item: WorkItem, patch: Record<string, any>) => void;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const editable = !!(canEdit && onUpdateField);
   if (items.length === 0) return <div style={emptyStyle}>{emptyText}</div>;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
@@ -1187,22 +1199,77 @@ function SimpleList({ items, empty: emptyText, actions }: {
           i.kind === 'project-task' ? `▣ ${i.projectName}` :
           i.kind === 'grant-subtask' ? `€ ${i.grantName}` :
           '';
+        const isExpanded = expandedId === i.id;
+        const links = i.links || [];
         return (
           <div key={i.id} style={{
-            display: 'flex', alignItems: 'center', gap: '.65rem',
+            display: 'flex', alignItems: 'flex-start', gap: '.65rem',
             padding: '.7rem .9rem', background: 'var(--card)',
             border: `1px solid ${i.status === 'rejected' ? 'rgba(239,68,68,.3)' : 'var(--border)'}`,
             borderLeft: `3px solid ${i.status === 'rejected' ? 'var(--red)' : i.status === 'pending' ? 'var(--yellow)' : 'var(--pri)'}`,
-            borderRadius: 'var(--r)',
+            borderRadius: 'var(--r)', flexWrap: 'wrap',
           }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '.88rem', fontWeight: 600 }}>{i.text}</div>
+              {isExpanded && editable ? (
+                <input
+                  className="input"
+                  value={i.text}
+                  onChange={e => onUpdateField!(i, { text: e.target.value })}
+                  placeholder="Tehtavan nimi"
+                  style={{ fontSize: '.88rem', fontWeight: 600, width: '100%', padding: '.3rem .5rem' }}
+                />
+              ) : (
+                <LinkifiedText
+                  text={i.text}
+                  style={{ fontSize: '.88rem', fontWeight: 600, display: 'block' }}
+                />
+              )}
               <div style={{ fontSize: '.68rem', color: 'var(--t3)', display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginTop: '.15rem' }}>
                 {sourceLabel && <span style={{ fontWeight: 600 }}>{sourceLabel}</span>}
                 {i.assignedBy && i.assignee && i.assignedBy !== i.assignee && <span>{i.assignedBy} {'->'} <b>{i.assignee}</b></span>}
                 {i.status === 'rejected' && i.rejectReason && <span style={{ color: 'var(--red)' }}>Syy: {i.rejectReason}</span>}
                 {i.deadline && <span style={{ color: overdue ? 'var(--red)' : 'var(--t3)', fontWeight: overdue ? 700 : 400 }}>{i.deadline}{overdue ? ' (myöhässä)' : ''}</span>}
               </div>
+              {!isExpanded && (i.note || links.length > 0) && (
+                <div style={{ marginTop: '.3rem', display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+                  {i.note && (
+                    <LinkifiedText
+                      text={i.note}
+                      style={{ fontSize: '.72rem', color: 'var(--t2)', lineHeight: 1.5, display: 'block' }}
+                    />
+                  )}
+                  {links.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
+                      {links.map((url, lidx) => {
+                        const href = url.startsWith('www.') ? `https://${url}` : url;
+                        let label = url;
+                        try {
+                          const u = new URL(href);
+                          label = u.hostname.replace(/^www\./, '') + (u.pathname && u.pathname !== '/' ? u.pathname : '');
+                          if (label.length > 38) label = label.slice(0, 35) + '...';
+                        } catch { /* keep raw */ }
+                        return (
+                          <a
+                            key={lidx}
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                              fontSize: '.65rem', padding: '.15rem .45rem', borderRadius: 9999,
+                              border: '1px solid rgba(155,124,246,.4)', background: 'rgba(155,124,246,.08)',
+                              color: '#9b7cf6', textDecoration: 'none', fontWeight: 600,
+                            }}
+                            title={url}
+                          >
+                            {label}
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             {i.status !== 'accepted' && (
               <span style={{ fontSize: '.6rem', padding: '.15rem .5rem', borderRadius: 9999, background: sc.bg, color: sc.fg, fontWeight: 700, textTransform: 'uppercase' }}>
@@ -1210,6 +1277,96 @@ function SimpleList({ items, empty: emptyText, actions }: {
               </span>
             )}
             {actions && <div style={{ display: 'flex', gap: '.3rem' }}>{actions(i)}</div>}
+            <button
+              type="button"
+              onClick={() => setExpandedId(isExpanded ? null : i.id)}
+              title={isExpanded ? 'Sulje lisätiedot' : 'Avaa lisätiedot (muokkaa, lisää linkki)'}
+              style={{
+                fontSize: '.7rem', padding: '.2rem .45rem', background: 'transparent',
+                border: '1px solid var(--border)', borderRadius: 'var(--r)',
+                color: 'var(--t2)', cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              {isExpanded ? '▴' : '▾'}
+            </button>
+            {isExpanded && (
+              <div style={{
+                flexBasis: '100%', marginTop: '.5rem', padding: '.7rem',
+                background: 'var(--elev)', borderRadius: 'var(--r)',
+                border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '.55rem',
+              }}>
+                <label style={{ fontSize: '.65rem', color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 700 }}>
+                  Lisätieto
+                </label>
+                <textarea
+                  className="input"
+                  value={i.note || ''}
+                  onChange={e => editable && onUpdateField!(i, { note: e.target.value })}
+                  placeholder="Kontekstia, taustaa, ohjeita..."
+                  disabled={!editable}
+                  rows={3}
+                  style={{ fontSize: '.78rem', resize: 'vertical', minHeight: '3rem' }}
+                />
+                <label style={{ fontSize: '.65rem', color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 700 }}>
+                  Linkit
+                </label>
+                {links.map((url, lidx) => (
+                  <div key={lidx} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+                    <input
+                      className="input"
+                      value={url}
+                      onChange={e => {
+                        if (!editable) return;
+                        const next = [...links];
+                        next[lidx] = e.target.value;
+                        onUpdateField!(i, { links: next });
+                      }}
+                      placeholder="https://..."
+                      disabled={!editable}
+                      style={{ flex: 1, fontSize: '.75rem' }}
+                    />
+                    {url && (
+                      <a
+                        href={url.startsWith('www.') ? `https://${url}` : url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        style={{ fontSize: '.7rem', color: '#9b7cf6', padding: '.2rem .4rem' }}
+                        title="Avaa linkki"
+                      >
+                        ↗
+                      </a>
+                    )}
+                    {editable && (
+                      <button
+                        type="button"
+                        onClick={() => onUpdateField!(i, { links: links.filter((_, idx) => idx !== lidx) })}
+                        style={{
+                          fontSize: '.72rem', color: 'var(--red)', padding: '.2rem .4rem',
+                          background: 'transparent', border: 'none', cursor: 'pointer',
+                        }}
+                        title="Poista linkki"
+                      >
+                        x
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {editable && (
+                  <button
+                    type="button"
+                    onClick={() => onUpdateField!(i, { links: [...links, ''] })}
+                    style={{
+                      fontSize: '.7rem', padding: '.25rem .55rem', alignSelf: 'flex-start',
+                      background: 'transparent', border: '1px dashed var(--border)',
+                      borderRadius: 'var(--r)', color: '#9b7cf6', cursor: 'pointer',
+                    }}
+                  >
+                    + Lisää linkki
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         );
       })}

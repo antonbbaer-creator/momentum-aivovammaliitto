@@ -14,6 +14,7 @@ import { softDelete, filterActive } from '@/lib/trash';
 import { workerFetch } from '@/lib/worker-fetch';
 import DrivePicker, { PickedItem } from '@/components/DrivePicker';
 import { useDriveStatus, getFileContent, exportToDoc } from '@/lib/drive';
+import LinkifiedText from '@/components/LinkifiedText';
 
 interface ActionItem {
   text: string;
@@ -21,6 +22,8 @@ interface ActionItem {
   assignees?: string[];        // useampi tekijä (uusi); jos puuttuu, käytetään assignee-kenttää
   confirmed?: boolean;         // true kun käyttäjä on lisännyt projektiin/luonut projektin (eli "siirretty pois palaverista")
   linkedTaskId?: string;       // automaattisesti luotu standalone-tehtävä data/tasks-listassa
+  note?: string;               // vapaamuotoinen lisätieto (kontekstia, taustaa)
+  links?: string[];            // URL-linkit relevanttiin tietoon
 }
 
 // Lue actionItemin tekijät joko uudesta tai vanhasta kentästä.
@@ -112,6 +115,7 @@ export default function MuistiinpanotPage() {
   const [summarizingId, setSummarizingId] = useState<string | null>(null);
   const [extractingTasks, setExtractingTasks] = useState(false);
   const [extractingTasksId, setExtractingTasksId] = useState<string | null>(null);
+  const [expandedAction, setExpandedAction] = useState<string | null>(null); // key: noteId:idx
   const [editingSummary, setEditingSummary] = useState(false);
   const [editSummaryText, setEditSummaryText] = useState('');
   const [contextText, setContextText] = useState('');
@@ -1208,15 +1212,73 @@ Paivitetty yhteenveto:`;
                 </div>
               )}
             </div>
-            {detail.actionItems && detail.actionItems.map((item, idx) => (
+            {detail.actionItems && detail.actionItems.map((item, idx) => {
+              const expandKey = `${detail.id}:${idx}`;
+              const isExpanded = expandedAction === expandKey;
+              const links = item.links || [];
+              return (
               <div key={idx} style={{
                 padding: '.75rem 1.25rem', borderTop: '1px solid var(--border)',
-                display: 'flex', alignItems: 'center', gap: '.75rem',
+                display: 'flex', alignItems: 'flex-start', gap: '.75rem',
                 background: item.confirmed ? 'rgba(24,94,91,.04)' : 'var(--card)',
                 opacity: item.confirmed ? 0.7 : 1,
+                flexWrap: 'wrap',
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '.82rem', lineHeight: 1.5, color: 'var(--t1)' }}>{item.text}</div>
+                  {isExpanded && canEdit ? (
+                    <input
+                      className="input"
+                      value={item.text}
+                      onChange={e => updateActionItem(detail.id, idx, { text: e.target.value })}
+                      style={{ fontSize: '.82rem', width: '100%', padding: '.3rem .5rem' }}
+                      placeholder="Tehtavan nimi"
+                    />
+                  ) : (
+                    <LinkifiedText
+                      text={item.text}
+                      style={{ fontSize: '.82rem', lineHeight: 1.5, color: 'var(--t1)', display: 'block' }}
+                    />
+                  )}
+                  {!isExpanded && (item.note || links.length > 0) && (
+                    <div style={{ marginTop: '.3rem', display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+                      {item.note && (
+                        <LinkifiedText
+                          text={item.note}
+                          style={{ fontSize: '.72rem', color: 'var(--t2)', lineHeight: 1.5, display: 'block' }}
+                        />
+                      )}
+                      {links.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
+                          {links.map((url, lidx) => {
+                            const href = url.startsWith('www.') ? `https://${url}` : url;
+                            let label = url;
+                            try {
+                              const u = new URL(href);
+                              label = u.hostname.replace(/^www\./, '') + (u.pathname && u.pathname !== '/' ? u.pathname : '');
+                              if (label.length > 38) label = label.slice(0, 35) + '...';
+                            } catch { /* keep raw */ }
+                            return (
+                              <a
+                                key={lidx}
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                style={{
+                                  fontSize: '.65rem', padding: '.15rem .45rem', borderRadius: 9999,
+                                  border: '1px solid rgba(155,124,246,.4)', background: 'rgba(155,124,246,.08)',
+                                  color: '#9b7cf6', textDecoration: 'none', fontWeight: 600,
+                                }}
+                                title={url}
+                              >
+                                {label}
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginTop: '.35rem', flexWrap: 'wrap' }}>
                     {(() => {
                       const current = getActionAssignees(item);
@@ -1337,14 +1399,110 @@ Paivitetty yhteenveto:`;
                     </button>
                   </div>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setExpandedAction(isExpanded ? null : expandKey)}
+                  title={isExpanded ? 'Sulje lisätiedot' : 'Avaa lisätiedot (muokkaa, lisaa linkki)'}
+                  style={{
+                    fontSize: '.7rem', padding: '.2rem .4rem', background: 'transparent',
+                    border: '1px solid var(--border)', borderRadius: 'var(--r)',
+                    color: 'var(--t2)', cursor: 'pointer', flexShrink: 0,
+                  }}
+                >
+                  {isExpanded ? '▴' : '▾'}
+                </button>
                 {item.confirmed && (
                   <span style={{ fontSize: '.65rem', color: 'var(--green)', fontWeight: 700 }}>Projektissa</span>
                 )}
                 {!item.confirmed && item.linkedTaskId && (
                   <span style={{ fontSize: '.6rem', color: 'var(--t3)', letterSpacing: '.08em', textTransform: 'uppercase' }}>Tehtäväksi</span>
                 )}
+                {isExpanded && (
+                  <div style={{
+                    flexBasis: '100%', marginTop: '.6rem', padding: '.7rem',
+                    background: 'var(--elev)', borderRadius: 'var(--r)',
+                    border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '.55rem',
+                  }}>
+                    <label style={{ fontSize: '.65rem', color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 700 }}>
+                      Lisatieto
+                    </label>
+                    <textarea
+                      className="input"
+                      value={item.note || ''}
+                      onChange={e => updateActionItem(detail.id, idx, { note: e.target.value })}
+                      placeholder="Kontekstia, taustaa, ohjeita..."
+                      disabled={!canEdit}
+                      rows={3}
+                      style={{ fontSize: '.78rem', resize: 'vertical', minHeight: '3rem' }}
+                    />
+                    <label style={{ fontSize: '.65rem', color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 700 }}>
+                      Linkit
+                    </label>
+                    {(item.links || []).map((url, lidx) => (
+                      <div key={lidx} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+                        <input
+                          className="input"
+                          value={url}
+                          onChange={e => {
+                            const next = [...(item.links || [])];
+                            next[lidx] = e.target.value;
+                            updateActionItem(detail.id, idx, { links: next });
+                          }}
+                          placeholder="https://..."
+                          disabled={!canEdit}
+                          style={{ flex: 1, fontSize: '.75rem' }}
+                        />
+                        {url && (
+                          <a
+                            href={url.startsWith('www.') ? `https://${url}` : url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            style={{ fontSize: '.7rem', color: '#9b7cf6', padding: '.2rem .4rem' }}
+                            title="Avaa linkki"
+                          >
+                            ↗
+                          </a>
+                        )}
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = (item.links || []).filter((_, i) => i !== lidx);
+                              updateActionItem(detail.id, idx, { links: next });
+                            }}
+                            style={{
+                              fontSize: '.72rem', color: 'var(--red)', padding: '.2rem .4rem',
+                              background: 'transparent', border: 'none', cursor: 'pointer',
+                            }}
+                            title="Poista linkki"
+                          >
+                            x
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = [...(item.links || []), ''];
+                          updateActionItem(detail.id, idx, { links: next });
+                        }}
+                        style={{
+                          fontSize: '.7rem', padding: '.25rem .55rem', alignSelf: 'flex-start',
+                          background: 'transparent', border: '1px dashed var(--border)',
+                          borderRadius: 'var(--r)', color: '#9b7cf6', cursor: 'pointer',
+                        }}
+                      >
+                        + Lisaa linkki
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-            ))}
+              );
+            })}
 
             {/* Manuaalinen toimenpiteen lisäys */}
             {showAddAction && canEdit && (

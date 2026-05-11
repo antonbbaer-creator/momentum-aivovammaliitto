@@ -22,6 +22,8 @@ export interface GrantSubtask extends Assignable {
   text: string;            // esim. "Hakemusteksti", "Budjetti", "Liitteet"
   done: boolean;
   deadline?: string;       // YYYY-MM-DD
+  note?: string;
+  links?: string[];
 }
 
 export const DEFAULT_GRANT_SUBTASK_TEMPLATES = [

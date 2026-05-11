@@ -29,6 +29,8 @@ export interface WorkItem {
   createdAt?: number;
   completedAt?: number;
   rejectReason?: string;
+  note?: string;            // vapaamuotoinen lisätieto
+  links?: string[];         // URL-linkit relevanttiin tietoon
 }
 
 export type CapacityStatus = 'free' | 'light' | 'normal' | 'overloaded';
@@ -54,6 +56,8 @@ export interface StandaloneTaskLike extends Assignable {
   deadline?: string;
   priority?: 'normal' | 'high';
   deletedAt?: number;
+  note?: string;
+  links?: string[];
 }
 
 export interface ProjectTaskLike extends Assignable {
@@ -61,6 +65,8 @@ export interface ProjectTaskLike extends Assignable {
   text: string;
   done?: boolean;
   deadline?: string;
+  note?: string;
+  links?: string[];
 }
 
 export interface ProjectLike {
@@ -96,6 +102,8 @@ export function buildWorkItems(
       createdAt: t.createdAt,
       completedAt: t.completedAt,
       rejectReason: t.rejectReason,
+      note: t.note,
+      links: t.links,
     });
   }
 
@@ -119,6 +127,8 @@ export function buildWorkItems(
         createdAt: t.createdAt,
         completedAt: t.completedAt,
         rejectReason: t.rejectReason,
+        note: t.note,
+        links: t.links,
       });
     }
   }
@@ -143,6 +153,8 @@ export function buildWorkItems(
         createdAt: s.createdAt,
         completedAt: s.completedAt,
         rejectReason: s.rejectReason,
+        note: s.note,
+        links: s.links,
       });
     }
   }
