@@ -18,8 +18,10 @@ const VERSION = '1';
 
 function getSecret(): string {
   const s = process.env.OAUTH_STATE_SECRET;
-  if (!s || s.length < 16) {
-    throw new Error('OAUTH_STATE_SECRET puuttuu tai on liian lyhyt (vähintään 16 merkkiä)');
+  // 32 merkkiä = 256 bittiä, suositeltu HMAC-SHA256 -avaimen pituus.
+  // Tätä lyhyemmät altistuvat heikoille avaimille (esim. dictionary-pohjaiset).
+  if (!s || s.length < 32) {
+    throw new Error('OAUTH_STATE_SECRET puuttuu tai on liian lyhyt (vähintään 32 merkkiä). Generoi: openssl rand -base64 48');
   }
   return s;
 }

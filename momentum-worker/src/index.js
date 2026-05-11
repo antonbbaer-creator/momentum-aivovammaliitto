@@ -35,18 +35,41 @@ async function verifyFirebaseToken(request) {
       audience: FIREBASE_PROJECT_ID,
     });
     if (!payload.sub) return null;
-    return { uid: payload.sub, email: payload.email || null };
+    return {
+      uid: payload.sub,
+      email: payload.email || null,
+      email_verified: payload.email_verified === true,
+    };
   } catch (e) {
     return null;
   }
 }
 
-// Routes that do NOT require authentication
+// Super-admin -lista on synkattu firestore.rules ja momentum-next/lib/super-admins.ts -tiedostojen kanssa.
+const SUPER_ADMIN_EMAILS = new Set([
+  'anton@hetkicompany.com',
+  'anton.baer@gmail.com',
+  'anton.b.baer@gmail.com',
+  'anton.baer@kinolapinlahti.fi',
+  'claude-test@hetkicompany.com',
+]);
+function isSuperAdminUser(authUser) {
+  return !!(authUser && authUser.email_verified && SUPER_ADMIN_EMAILS.has(authUser.email));
+}
+
+// Routes that do NOT require authentication.
+//
+// MEDIA: R2-bucketissa on TARKOITUKSELLA julkista CDN-sisältöä — julkaisuihin
+// liittyviä kuvia, brand-assetteja yms. Polkurakenne (orgId/folder/timestamp_name)
+// ei ole salaisuus, vaan julkinen URL on sosiaalisen median julkaisuihin tarkoitettu.
+// ÄLÄ tallenna R2:een arkaluonteista materiaalia — jos sellainen tarve tulee,
+// tee siitä erillinen presigned-URL -pohjainen reitti, joka tarkistaa
+// org-jäsenyyden (kts. handleMediaUpload jossa upload on org-bound).
 const PUBLIC_PATHS = new Set(['/', '/health']);
 function isPublicRoute(path) {
   if (PUBLIC_PATHS.has(path)) return true;
   if (path === '/auth/callback') return true; // OAuth redirect, no browser auth context
-  if (path.startsWith('/media/file/')) return true;  // public CDN
+  if (path.startsWith('/media/file/')) return true;  // public CDN, ks. yllä
   if (path.startsWith('/media/thumb/')) return true;
   if (path.startsWith('/media/img/')) return true;
   return false;
@@ -72,39 +95,65 @@ function isOrgBoundRoute(path) {
   return false;
 }
 
-// Cache org-jäsenyyksille — yksi worker-instanssi muistaa per uid
-// 60 sekunnin ajan, jotta jokaista pyyntöä ei pommiteta Firestoreen.
-const ORG_MEMBERSHIP_CACHE = new Map(); // uid → { orgIds, expiresAt }
-async function getUserOrgIds(uid, idToken, env) {
-  const cached = ORG_MEMBERSHIP_CACHE.get(uid);
+// Canonical jäsenyystarkistus: lue suoraan organizations/{orgId}/members/{uid}.
+// ÄLÄ käytä userOrgs-dokkaria — sen kirjoittaa käyttäjä itse ja se on
+// trivially spoofattavissa (ks. firestore.rules /userOrgs säännöt).
+//
+// Cache per-(uid,orgId) 60 sekuntia ettei jokaista pyyntöä pommiteta Firestoreen.
+const ORG_MEMBERSHIP_CACHE = new Map(); // `${uid}:${orgId}` → { isMember, expiresAt }
+async function verifyOrgMembership(authUser, idToken, orgId, env) {
+  if (!orgId || !authUser) return false;
+
+  // Super-admin saa pääsyn kaikkiin orgeihin (matchaa firestore.rules isSuperAdmin).
+  if (isSuperAdminUser(authUser)) return true;
+
+  const cacheKey = `${authUser.uid}:${orgId}`;
+  const cached = ORG_MEMBERSHIP_CACHE.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
-    return cached.orgIds;
+    return cached.isMember;
   }
-  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/userOrgs/${uid}`;
-  let orgIds = [];
+
+  // Tarkista canonical members-dokumentin olemassaolo. Status 200 = member,
+  // 404 = ei jäsen, muu = transientti virhe (käsittele konservatiivisesti = ei jäsen).
+  const safeOrgId = encodeURIComponent(orgId);
+  const safeUid = encodeURIComponent(authUser.uid);
+  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/organizations/${safeOrgId}/members/${safeUid}`;
+  let isMember = false;
   try {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${idToken}` },
     });
     if (res.ok) {
-      const data = await res.json();
-      orgIds = (data.fields?.orgIds?.arrayValue?.values || [])
-        .map(v => v.stringValue)
-        .filter(Boolean);
+      isMember = true;
     } else if (res.status !== 404) {
-      console.warn('Firestore userOrgs read failed:', res.status);
+      console.warn(`Firestore members-check failed (${res.status})`);
     }
   } catch (e) {
-    console.warn('getUserOrgIds error:', e.message);
+    console.warn('verifyOrgMembership error:', e.message);
   }
-  ORG_MEMBERSHIP_CACHE.set(uid, { orgIds, expiresAt: Date.now() + 60_000 });
-  return orgIds;
+  ORG_MEMBERSHIP_CACHE.set(cacheKey, { isMember, expiresAt: Date.now() + 60_000 });
+  return isMember;
 }
 
-async function verifyOrgMembership(uid, idToken, orgId, env) {
-  if (!orgId) return false;
-  const orgIds = await getUserOrgIds(uid, idToken, env);
-  return orgIds.includes(orgId);
+// ── RATE LIMITING ──
+// Per-isolate liukuva ikkuna kalliisiin AI-kutsuihin. Estää että yksittäinen
+// kirjautunut käyttäjä voi pommittaa Anthropic-API:a (laskutus juoksee per kutsu).
+// Cloudflare Worker -isolaatti voi pyöriä monella samaan aikaan, joten tämä on
+// pehmeä raja — kova raja vaatisi Durable Objects tai erillisen rate-limit-palvelun.
+const RATE_LIMIT_BUCKETS = new Map(); // uid → { timestamps: number[] }
+function checkRateLimit(uid, opts = {}) {
+  const windowMs = opts.windowMs || 60_000;
+  const maxRequests = opts.maxRequests || 30;
+  const now = Date.now();
+  const bucket = RATE_LIMIT_BUCKETS.get(uid) || { timestamps: [] };
+  // Pudota ikkunan ulkopuoliset
+  bucket.timestamps = bucket.timestamps.filter(t => t > now - windowMs);
+  if (bucket.timestamps.length >= maxRequests) {
+    return { allowed: false, retryAfterMs: bucket.timestamps[0] + windowMs - now };
+  }
+  bucket.timestamps.push(now);
+  RATE_LIMIT_BUCKETS.set(uid, bucket);
+  return { allowed: true };
 }
 
 // ── CORS ──
@@ -184,9 +233,21 @@ export default {
       if (!orgId) {
         return corsResponse(request, env, { error: 'X-Momentum-Org header puuttuu' }, 400);
       }
-      const isMember = await verifyOrgMembership(authUser.uid, idToken, orgId, env);
+      const isMember = await verifyOrgMembership(authUser, idToken, orgId, env);
       if (!isMember) {
         return corsResponse(request, env, { error: 'Et ole tämän organisaation jäsen' }, 403);
+      }
+    }
+
+    // ── RATE LIMIT kalliille AI-reiteille ──
+    // 30 / minuutti / käyttäjä. Cloudflare-laskutus ja Anthropic-laskutus suojataan.
+    if (authUser && (path === '/api/ai/assist' || path === '/api/chat' || path === '/api/reflect' || path === '/api/transcribe')) {
+      const rl = checkRateLimit(authUser.uid, { windowMs: 60_000, maxRequests: 30 });
+      if (!rl.allowed) {
+        return corsResponse(request, env, {
+          error: 'Liikaa pyyntöjä — odota hetki ennen seuraavaa.',
+          retryAfterMs: rl.retryAfterMs,
+        }, 429, { 'Retry-After': Math.ceil(rl.retryAfterMs / 1000).toString() });
       }
     }
 

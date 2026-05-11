@@ -25,9 +25,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
   let callerEmail: string | undefined;
+  let callerEmailVerified = false;
   try {
     const decoded = await getAuth().verifyIdToken(match[1]);
     callerEmail = (decoded.email || '').toLowerCase();
+    callerEmailVerified = decoded.email_verified === true;
   } catch (e) {
     console.error('verifyIdToken failed:', e);
     const mode = adminMode();
@@ -39,8 +41,10 @@ export async function POST(req: NextRequest) {
         : 'Token saattaa olla vanhentunut tai eri Firebase-projektista. Kirjaudu ulos ja takaisin.',
     }, { status: 401 });
   }
-  if (!isSuperAdminEmail(callerEmail)) {
-    return NextResponse.json({ error: 'forbidden', email: callerEmail }, { status: 403 });
+  // Vaadi email_verified — muuten joku voisi rekisteröityä spoofatulla emailillä
+  // (esim. custom provider) ja kutsua admin-reittiä super-adminin oikeuksilla.
+  if (!callerEmailVerified || !isSuperAdminEmail(callerEmail)) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
   if (adminMode() === 'project-only') {
     return NextResponse.json({

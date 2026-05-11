@@ -39,8 +39,8 @@ export async function GET(req: NextRequest) {
     });
 
     if (!tokenRes.ok) {
-      const body = await tokenRes.text();
-      console.error('Microsoft token exchange failed:', body);
+      // Älä lokita response-bodya — voi sisältää OAuth-koodin tai muuta arkaluonteista
+      console.error('Microsoft token exchange failed:', tokenRes.status);
       return NextResponse.redirect(new URL('/oma/asetukset?oauth_error=token_exchange', req.url));
     }
 

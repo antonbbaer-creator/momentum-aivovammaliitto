@@ -124,10 +124,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             lastLoginAt: new Date().toISOString(),
           }, { merge: true });
 
-          // Super-admin auto-provision: jos kayttaja on super-admin, ja
-          // SUPER_ADMIN_AUTO_PROVISION_ORGS-listassa on org jota ei viela
-          // loydy hanen userOrgs-listalta, luodaan org-doc + member + linkitys.
-          if (isSuperAdminEmail(u.email)) {
+          // Super-admin auto-provision: jos kayttaja on super-admin (email
+          // verified + listalla), ja SUPER_ADMIN_AUTO_PROVISION_ORGS-listassa
+          // on org jota ei viela loydy hanen userOrgs-listalta, luodaan
+          // org-doc + member + linkitys.
+          //
+          // u.emailVerified vaaditaan jotta joku ei voisi rekisteröityä
+          // anton@hetkicompany.com -spoofatulla emaililla custom-providerilla
+          // ja saada owner-oikeudet (kts. firestore.rules isSuperAdmin).
+          if (u.emailVerified && isSuperAdminEmail(u.email)) {
             try {
               const userOrgsSnap = await getDoc(doc(db, 'userOrgs', u.uid));
               const cur = userOrgsSnap.exists() ? userOrgsSnap.data() : {};

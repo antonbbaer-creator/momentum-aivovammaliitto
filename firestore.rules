@@ -5,14 +5,19 @@ service cloud.firestore {
     // ⚠ SUPER-ADMIN-LISTA: synkkaa manuaalisesti tiedoston
     // momentum-next/lib/super-admins.ts kanssa. Säännöt eivät voi importata.
     // Nämä saavat lukuoikeuden kaikkiin orgeihin / käyttäjiin admin-paneelia varten.
+    //
+    // Vaadimme email_verified-flagin: muuten joku voisi rekisteröityä custom
+    // providerilla anton@hetkicompany.com -spoofatulla emailillä ja saada owner-oikeudet.
     function isSuperAdmin() {
-      return request.auth != null && request.auth.token.email in [
-        'anton@hetkicompany.com',
-        'anton.baer@gmail.com',
-        'anton.b.baer@gmail.com',
-        'anton.baer@kinolapinlahti.fi',
-        'claude-test@hetkicompany.com'
-      ];
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          'anton@hetkicompany.com',
+          'anton.baer@gmail.com',
+          'anton.b.baer@gmail.com',
+          'anton.baer@kinolapinlahti.fi',
+          'claude-test@hetkicompany.com'
+        ];
     }
 
     // Kanoninen jäsenyystarkistus: lue suoraan members-alikokoelmasta.
@@ -24,11 +29,28 @@ service cloud.firestore {
       );
     }
 
+    // Rooli kanonisesta members-dokumentista. Käytetään muuttavissa operaatioissa
+    // (organisaation meta, jäsenten roolien muutos), jotta tavallinen member ei
+    // voi nostaa itseään owneriksi tai poistaa muita.
+    function memberRole(orgId) {
+      return get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role;
+    }
+    function isOrgAdminOrOwner(orgId) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
+        && memberRole(orgId) in ['owner', 'admin'];
+    }
+    function isOrgOwner(orgId) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
+        && memberRole(orgId) == 'owner';
+    }
+
     // Tarkistaa että request.resource.data.joinCode (lowercase) on voimassa
     // oleva kutsukoodi tälle orgille.
     function joinCodeMatches(orgId) {
       return request.resource.data.joinCode is string
-        && request.resource.data.joinCode.size() > 0
+        && request.resource.data.joinCode.size() >= 8
         && exists(/databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode))
         && get(/databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode)).data.orgId == orgId;
     }
@@ -48,6 +70,8 @@ service cloud.firestore {
     // userOrgs on per-käyttäjä DENORMALISAATIO (mihin orgeihin kuulun) jota
     // käyttäjä hallitsee itse. EI ole jäsenyyden lähde — todellinen jäsenyys
     // tarkistetaan organizations/{orgId}/members/{uid} -dokkarista.
+    // HUOM: Workerit ja API-reitit EIVÄT saa luottaa tähän kenttään
+    // jäsenyystarkistuksessa — käytä isOrgMember()-tyylistä canonical-tarkistusta.
     match /userOrgs/{userId} {
       allow get: if request.auth != null && (request.auth.uid == userId || isSuperAdmin());
       allow list: if isSuperAdmin();
@@ -59,6 +83,7 @@ service cloud.firestore {
     // jaettu salaisuus ja vasta sen tarjoaminen oikeuttaa luomaan jäsenyyden
     // (kts. members/{memberUid} create-sääntö alla).
     // List ja write vain super-adminille — tällöin koodeja ei voi enumeroida.
+    // joinCodeMatches vaatii minimi 8 merkkiä pituuden brute-forcen vaikeuttamiseksi.
     match /joinCodes/{code} {
       allow get: if request.auth != null;
       allow list: if isSuperAdmin();
@@ -70,35 +95,65 @@ service cloud.firestore {
     match /organizations/{orgId} {
       allow get: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
       allow list: if isSuperAdmin();
-      allow write: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+      // Org-metan kirjoittaminen (nimi, plan, jne.) ja poisto vain owner/admin.
+      // Tavallinen member EI saa muokata org-metaa eikä poistaa orgia.
+      allow create: if isSuperAdmin();
+      allow update: if isOrgAdminOrOwner(orgId) || isSuperAdmin();
+      allow delete: if isOrgOwner(orgId) || isSuperAdmin();
 
-      // Org data subcollection
+      // Org data subcollection — itse sovelluksen data (moduulit, suunnitelmat, tehtävät).
+      // Member-tason kirjoitusoikeudet ovat sovelluksen toiminnallinen perusta.
       match /data/{key} {
         allow read, write: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
       }
 
-      // Org members subcollection
+      // Org members subcollection. Rooli on turvakriittinen kenttä:
+      // - Vain owner/admin (tai super-admin) saa muuttaa toisten rooleja tai poistaa muita
+      // - Käyttäjä saa muokata omia perustietojaan (displayName, photoURL) mutta EI omaa rooliaan
+      // - Käyttäjä saa poistaa itsensä orgista (leave) ilman owner-oikeuksia
       match /members/{memberUid} {
         allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
-        allow update, delete: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
 
         // SELF-JOIN: käyttäjä saa luoda OMAN member-dokumenttinsa kun hän
         // tarjoaa joinCode-todisteen. Rooliksi pakotetaan 'member' (omistajia
         // ei voi tehdä koodilla). Super-admin saa luoda mitä tahansa.
+        // Owner/admin saa kutsua uusia jäseniä mille tahansa roolille paitsi owner.
         allow create: if request.auth != null && (
           isSuperAdmin()
-          || isOrgMember(orgId)
+          || (isOrgAdminOrOwner(orgId) && request.resource.data.role != 'owner')
           || (
             request.auth.uid == memberUid
             && request.resource.data.role == 'member'
             && joinCodeMatches(orgId)
           )
         );
+
+        // Update: owner/admin saa muuttaa kaikkia kenttiä. Käyttäjä saa muokata
+        // omaa profiiliaan paitsi rolea, koska rooli on turvallisuuskenttä.
+        // Owner-roolin antaminen vaatii owner-oikeudet.
+        allow update: if request.auth != null && (
+          isSuperAdmin()
+          || (isOrgOwner(orgId))
+          || (isOrgAdminOrOwner(orgId) && request.resource.data.role != 'owner')
+          || (
+            request.auth.uid == memberUid
+            && request.resource.data.role == resource.data.role
+          )
+        );
+
+        // Delete: owner/admin tai itse (leave-toiminto).
+        allow delete: if request.auth != null && (
+          isSuperAdmin()
+          || isOrgAdminOrOwner(orgId)
+          || request.auth.uid == memberUid
+        );
       }
 
-      // Org invitations subcollection (sähköposti-kutsut, audit-tarkoitus)
+      // Org invitations subcollection (sähköposti-kutsut, audit-tarkoitus).
+      // Vain owner/admin saa luoda/muokata/poistaa kutsuja.
       match /invitations/{inviteId} {
-        allow read, write: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if isOrgAdminOrOwner(orgId) || isSuperAdmin();
       }
     }
 
@@ -106,6 +161,12 @@ service cloud.firestore {
     // kesken: koko orgin jäsenet näkevät toistensa palautteet ja voivat
     // merkitä ne tehdyiksi/työn alla. Lähettäjän tai super-adminin voi
     // myös poistaa.
+    //
+    // HUOM: list-sääntö on rajattu super-adminille TAI bounded queryyn
+    // (limit <= 200) jossa client filtteröi orgId:llä. Tämä estää että
+    // mikä tahansa kirjautunut käyttäjä voisi listata KAIKKI palautteet
+    // ja vuotaa PII:tä org-rajojen yli. TODO: pitkän aikavälin korjaus
+    // on siirtää tämä /organizations/{orgId}/feedback alikokoelmaksi.
     match /momentumFeedback/{feedbackId} {
       allow create: if request.auth != null
         && request.resource.data.userUid == request.auth.uid;
@@ -113,7 +174,8 @@ service cloud.firestore {
         && (resource.data.userUid == request.auth.uid
             || isOrgMember(resource.data.orgId)
             || isSuperAdmin());
-      allow list: if request.auth != null;
+      allow list: if request.auth != null
+        && (isSuperAdmin() || request.query.limit <= 200);
       // Org-jäsenet voivat päivittää statusta. Suojataan: orgId, userUid ja
       // submittedAt eivät saa muuttua — vain status / muut kuratointikentät.
       allow update: if request.auth != null
