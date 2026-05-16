@@ -75,6 +75,17 @@ export const getExternalSyncs = (b: TimeBlock): ExternalSync[] => {
   return [];
 };
 
+// Yksisuuntainen ICS-feed Apple Calendariin / muihin pollaaviin asiakkaisiin.
+// Polku: users/{uid}/personalData/icsFeed
+// Token toimii URL-tunnuksena — kuka tahansa jolla on URL voi lukea kalenterin,
+// joten "Uudista tunnus" rikkoo vanhat tilaukset.
+export interface IcsFeedDoc {
+  token: string;
+  enabled: boolean;
+  createdAt: number;
+  rotatedAt?: number;
+}
+
 export interface PersonalSettings {
   weekStart?: 'mon' | 'sun';  // oletus 'mon'
   dayStart?: string;          // 'HH:MM' oletus '06:00'

@@ -11,7 +11,7 @@ import {
   getCalendarCategoryIds,
   isCalendarWriteFor,
 } from '@/lib/integrations-shared';
-import { PersonalCategory } from '@/lib/personal-shared';
+import { PersonalCategory, IcsFeedDoc } from '@/lib/personal-shared';
 
 const PROVIDER_LABEL: Record<CalendarProvider, string> = {
   google: 'Google Calendar',
@@ -125,7 +125,135 @@ export default function PersonalIntegrationsSection() {
           );
         })}
       </section>
+
+      <AppleSubscriptionSection />
     </div>
+  );
+}
+
+function genToken(): string {
+  // 32 merkin url-safe satunnaisuus. crypto.randomUUID poistaa väliviivat.
+  const a = (globalThis.crypto?.randomUUID?.() ?? '').replace(/-/g, '');
+  const b = (globalThis.crypto?.randomUUID?.() ?? '').replace(/-/g, '');
+  return (a + b).slice(0, 40) || `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+}
+
+function AppleSubscriptionSection() {
+  const [feed, setFeed] = useUserData<IcsFeedDoc | null>('icsFeed', null);
+  const { user } = useAuth();
+  const [copied, setCopied] = useState<'https' | 'webcal' | null>(null);
+
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const path = user && feed?.token
+    ? `/api/personal-calendar/${user.uid}/${feed.token}`
+    : '';
+  const httpsUrl = origin && path ? `${origin}${path}` : '';
+  const webcalUrl = origin && path
+    ? `webcal://${origin.replace(/^https?:\/\//, '')}${path}`
+    : '';
+
+  const enable = () => {
+    setFeed({
+      token: genToken(),
+      enabled: true,
+      createdAt: Date.now(),
+    });
+  };
+  const rotate = () => {
+    if (!confirm('Uudistetaanko tunnus? Vanha tilauslinkki lakkaa toimimasta.')) return;
+    setFeed({
+      token: genToken(),
+      enabled: true,
+      createdAt: feed?.createdAt ?? Date.now(),
+      rotatedAt: Date.now(),
+    });
+  };
+  const disable = () => {
+    if (!confirm('Poistetaanko Apple Calendar -tilaus käytöstä? Linkki lakkaa toimimasta.')) return;
+    setFeed({
+      token: feed?.token ?? '',
+      enabled: false,
+      createdAt: feed?.createdAt ?? Date.now(),
+      rotatedAt: Date.now(),
+    });
+  };
+
+  const copy = async (val: string, which: 'https' | 'webcal') => {
+    try {
+      await navigator.clipboard.writeText(val);
+      setCopied(which);
+      setTimeout(() => setCopied(null), 1500);
+    } catch {
+      /* noop */
+    }
+  };
+
+  const active = !!feed?.enabled && !!feed?.token;
+
+  return (
+    <section>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 13, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink2)', margin: 0 }}>
+          Apple Calendar -tilaus
+        </h2>
+      </div>
+      <p style={{ color: 'var(--ink3)', fontSize: 12, marginTop: 0, marginBottom: 14 }}>
+        Yksisuuntainen vienti: Momentumin viikkokalenterin lohkot näkyvät Apple Calendarissa
+        tilattuna kalenterina. Apple päivittää sen automaattisesti (oletus n. tunnin välein, voit pakottaa Refreshillä).
+        Tilattu kalenteri on Applessa vain-luku.
+      </p>
+
+      <div style={{ border: '1px solid var(--rule)', padding: 16 }}>
+        {!active ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
+              Tilauslinkkiä ei ole vielä luotu.
+            </div>
+            <button onClick={enable} style={btnPrimary}>Luo tilauslinkki</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink3)', marginBottom: 6 }}>
+              Tilauslinkki
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              <input
+                readOnly
+                value={httpsUrl}
+                onFocus={(e) => e.currentTarget.select()}
+                style={{ ...inputBase, fontFamily: 'monospace', fontSize: 11, flex: 1, minWidth: 280 }}
+              />
+              <button onClick={() => copy(httpsUrl, 'https')} style={btnSecondary}>
+                {copied === 'https' ? 'Kopioitu' : 'Kopioi'}
+              </button>
+              <a href={webcalUrl} style={{ ...btnPrimary, textDecoration: 'none', display: 'inline-block' }}>
+                Avaa Applessa
+              </a>
+            </div>
+
+            <details style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 12 }}>
+              <summary style={{ cursor: 'pointer', marginBottom: 6 }}>Ohjeet</summary>
+              <ol style={{ paddingLeft: 18, margin: '6px 0', lineHeight: 1.55 }}>
+                <li><strong>Mac:</strong> Avaa Calendar → File → New Calendar Subscription → liitä yllä oleva URL.</li>
+                <li><strong>iPhone/iPad:</strong> Settings → Calendar → Accounts → Add Account → Other → Add Subscribed Calendar → liitä URL.</li>
+                <li>Tai paina &ldquo;Avaa Applessa&rdquo; jos olet Mac- tai iOS-laitteella.</li>
+                <li>Tilattu kalenteri päivittyy automaattisesti. Voit pakottaa päivityksen Apple Calendarin Refresh-toiminnolla.</li>
+              </ol>
+            </details>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={rotate} style={btnSecondary}>Uudista tunnus</button>
+              <button onClick={disable} style={btnDanger}>Poista käytöstä</button>
+            </div>
+            {feed?.rotatedAt && (
+              <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 8 }}>
+                Tunnus uudistettu {new Date(feed.rotatedAt).toLocaleString('fi-FI')}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 
