@@ -4,21 +4,22 @@
 export const AVL_ORG = {
   name: 'Aivovammaliitto', s: 'AVL', slogan: 'Aivovauriotietouden levittäminen ja vertaistuki',
 
-  // ═══ ORGANISAATION STRATEGIA 2023-2030 ═══
+  // ═══ VIESTINTÄSTRATEGIA 2026-2030 ═══
+  // Lähde: 2026_LUONNOS_Aivovammaliiton viestintästrategia.docx
   orgStrategy: {
-    mission: 'Edistää aivovammaisten sekä heidän läheistensä hyvinvointia ja osallistumisen mahdollisuuksia. Lisäämme tietoisuutta aivovammoista ja osallistumme aktiivisesti kuntoutuksen kehittämiseen.',
-    vision: 'Suomesta on tullut aivovammojen hoidon, kuntoutuksen ja vertaistuen edelläkävijämaa, jossa kukaan ei jää yksin vammansa kanssa. Aivovammautuneet ovat yhdenvertaisia kansalaisia ja vammojen määrä on merkittävästi vähentynyt.',
+    mission: 'Aivovammaliitto edistää aivovamman, aivoverenkiertohäiriön tai muun aivovaurion (esim. aivokuumeen tai aivokasvaimen jälkitilan) saaneiden ihmisten sekä heidän läheistensä hyvinvointia, osallisuutta ja yhdenvertaisuutta yhteiskunnassa. Liitto tukee myös ammattilaisia, jotka kohtaavat työssään aivovaurion kokeneita ihmisiä.',
+    vision: 'Aivovaurion kokeneet ja heidän läheisensä saavat tarvitsemansa luotettavaa tietoa ja vertaistukea monikanavaisesti, saavutettavasti ja oikea-aikaisesti. Aivovammaliitto on tunnettu asiantuntija ja edunvalvoja, joka osallistuu yhteiskunnalliseen keskusteluun. Suomalaisten tietous aivovaurioista, niiden ennaltaehkäisystä ja aivoterveydestä on lisääntynyt — ja näkymättömät oireet näkyvät.',
     values: [
-      { name: 'Inhimillinen', desc: 'Matalan kynnyksen tuki ja ihmisyyden kunnioitus' },
-      { name: 'Asiantunteva', desc: 'Yhteistyökyky ja laaja verkostoituminen' },
-      { name: 'Oikeudenmukainen', desc: 'Yksilöllinen ja yhdenvertainen kohtelu, avoin toiminta' },
-      { name: 'Rohkea', desc: 'Epäkohtiin puuttuminen, aktiivinen oikeuksien puolustus' },
+      { name: 'Inhimillinen', desc: 'Viestimme ymmärrettävästi, empaattisesti ja helposti lähestyttävästi. Kohtaamme ihmiset yksilöinä ja kunnioitamme erilaisia elämäntilanteita.' },
+      { name: 'Asiantunteva', desc: 'Tarjoamme ajankohtaista, tutkittuun tietoon perustuvaa luotettavaa sisältöä. Toimimme aktiivisesti yhteistyössä ammattilaisten, tutkijoiden ja verkostojen kanssa.' },
+      { name: 'Oikeudenmukainen', desc: 'Viestintämme on saavutettavaa, avointa ja yhdenvertaista. Huomioimme eri kohderyhmien tarpeet, toimintakyvyn ja viestinnälliset erityistarpeet.' },
+      { name: 'Rohkea', desc: 'Nostamme esiin epäkohtia, vaikutamme yhteiskunnalliseen keskusteluun ja puolustamme aktiivisesti kohderyhmämme oikeuksia. Teemme näkymättömät oireet näkyviksi.' },
     ],
-    strategicPeriod: '2023-2030',
+    strategicPeriod: '2026-2030',
   },
 
   // ═══ VIESTINNÄN MISSIO (johdettu strategiasta) ═══
-  commsMission: 'Levitämme aivovauriotietoutta ja tuemme vertaisuutta niin, että jokainen aivovaurion kokenut ja läheinen saa tarvitsemansa tiedon ja tuen — riippumatta sijainnista, iästä tai vamman laadusta.',
+  commsMission: 'Aivovammaliiton viestinnässä yhdistyvät voimaannuttavat ja vertaistukea tarjoavat kokemustarinat, tutkittu tieto ja ammatillinen asiantuntemus. Viestintämme on saavutettavaa, selkeää, vuorovaikutteista, oikea-aikaista, luotettavaa, yhdenvertaista ja kohderyhmälähtöistä.',
 
   // ═══ VIESTINNÄN PERUSTEHTÄVÄT (ohjaavat kaikkea viestintää) ═══
   commsCoreRoles: [

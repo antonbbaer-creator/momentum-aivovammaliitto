@@ -34,11 +34,26 @@ if (!getApps().length) {
 const db = getFirestore();
 
 const { DEFAULT_AVL_YEARWHEEL, DEFAULT_AVL_COMMS_PLAN } = await import('../lib/avl-defaults.ts');
+const { AVL_ORG } = await import('../lib/seed-data.ts');
 
 const ORG = 'avl';
+
+// org-dokumentin merge: säilytetään mahdolliset Firestoressa olevat lisäkentät,
+// mutta päivitetään strategia 2026-2030 ja commsMission tuoreesta seed-datasta.
+async function buildOrgPatch(db) {
+  const ref = db.collection('organizations').doc(ORG).collection('data').doc('org');
+  const snap = await ref.get();
+  const current = snap.exists ? JSON.parse(snap.data().v) : {};
+  return {
+    ...current,
+    ...AVL_ORG, // korvataan kaikki seed-datan rakenteet (mission, vision, values, strategicPeriod, commsMission, commsCoreRoles jne.)
+  };
+}
+
 const writes = [
   { key: 'yearwheel', label: `Vuosikello (${DEFAULT_AVL_YEARWHEEL.length} vaihetta)`, value: DEFAULT_AVL_YEARWHEEL },
   { key: 'commsPlan', label: 'Viestintäsuunnitelma 2026 (strategia 2026–2030)', value: { ...DEFAULT_AVL_COMMS_PLAN, updatedAt: Date.now() } },
+  { key: 'org',       label: 'Org-dokumentti (orgStrategy + commsMission päivitetty)', value: 'DYNAMIC' },
 ];
 
 console.log(`AVL Firestore-päivitys${dryRun ? ' [DRY RUN]' : ''}`);
@@ -50,11 +65,12 @@ for (const { key, label, value } of writes) {
   const ref = db.collection('organizations').doc(ORG).collection('data').doc(key);
   const existing = await ref.get();
   const exists = existing.exists;
-  console.log(`• ${key}: ${exists ? 'ylikirjoitetaan' : 'luodaan uusi'} — ${label}`);
+  const finalValue = value === 'DYNAMIC' && key === 'org' ? await buildOrgPatch(db) : value;
+  console.log(`• ${key}: ${exists ? (key === 'org' ? 'yhdistetään' : 'ylikirjoitetaan') : 'luodaan uusi'} — ${label}`);
 
   if (!dryRun) {
     await ref.set({
-      v: JSON.stringify(value),
+      v: JSON.stringify(finalValue),
       ts: Date.now(),
       updatedBy: 'push-avl-strategy-yearwheel',
     });
