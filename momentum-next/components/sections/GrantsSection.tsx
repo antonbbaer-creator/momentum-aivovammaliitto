@@ -21,7 +21,9 @@ import {
   GrantSubtask,
   GrantsSettings,
   STATUS_DEFS,
-  PROJECT_DEFS,
+  getGrantCategoryDefs,
+  getGrantCategoryOrder,
+  getGrantCategoryLabel,
   PRIORITY_DEFS,
   parseGrantDeadline,
   daysUntilDeadline,
@@ -55,6 +57,11 @@ export default function GrantsSection() {
   const { toast } = useToast();
   const orgSlug = (useParams().orgSlug as string) || '';
   const isMobile = useIsMobile();
+  // Org-kohtainen ryhmittelyakseli (LLFF: hanke, Hetki: rahoituskategoria)
+  const categoryDefs = getGrantCategoryDefs(orgSlug);
+  const categoryOrder = getGrantCategoryOrder(orgSlug);
+  const categoryFieldLabel = getGrantCategoryLabel(orgSlug);
+  const projDef = (k: string) => categoryDefs[k] || { label: k || '—', color: '#94a3b8', icon: '◇' };
   const [rawGrants, setGrants] = useOrgData<Grant[]>(getGrantsKey(orgSlug), getOrgGrants(orgSlug));
   const [rawSettings, setSettings] = useOrgData<GrantsSettings>(getGrantsSettingsKey(orgSlug), getOrgGrantsSettings(orgSlug));
   const [membersRaw] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
@@ -138,7 +145,7 @@ export default function GrantsSection() {
   const [fAmount, setFAmount] = useState('');
   const [fAmountText, setFAmountText] = useState('');
   const [fStatus, setFStatus] = useState<GrantStatus>('planning');
-  const [fProject, setFProject] = useState<GrantProject>('festival');
+  const [fProject, setFProject] = useState<GrantProject>(categoryOrder[0]);
   const [fPriority, setFPriority] = useState<GrantPriority>('high');
   const [fDeadline, setFDeadline] = useState('');
   const [fDeadlineText, setFDeadlineText] = useState('');
@@ -187,7 +194,7 @@ export default function GrantsSection() {
     setEditId(null);
     setFYear(selectedYear);
     setFFunder(''); setFName(''); setFAmount(''); setFAmountText('');
-    setFStatus('planning'); setFProject('festival'); setFPriority('high');
+    setFStatus('planning'); setFProject(categoryOrder[0]); setFPriority('high');
     setFDeadline(''); setFDeadlineText(''); setFDecision('');
     setFResponsible(''); setFUrl(''); setFNotes('');
     setShowForm(true);
@@ -584,7 +591,7 @@ export default function GrantsSection() {
           {[...wheelGrants].sort((a, b) => a.angleDeg - b.angleDeg).map((wg, idx) => {
             const g = wg.grant;
             const def = STATUS_DEFS[g.status];
-            const proj = PROJECT_DEFS[g.project];
+            const proj = projDef(g.project);
             const days = daysUntilDeadline(g);
             const past = days !== null && days < 0;
             const isSelected = selectedId === g.id;
@@ -663,7 +670,7 @@ export default function GrantsSection() {
               </div>
               <div style={{ padding: '.6rem', display: 'flex', flexDirection: 'column', gap: '.4rem', flex: 1, overflowY: 'auto', maxHeight: 600 }}>
                 {colGrants.map(g => {
-                  const proj = PROJECT_DEFS[g.project];
+                  const proj = projDef(g.project);
                   const days = daysUntilDeadline(g);
                   return (
                     <div key={g.id} onClick={() => setSelectedId(g.id)} style={{
@@ -713,11 +720,11 @@ export default function GrantsSection() {
   // FUNDERS TAB — grouped by project
   // =============================================================================
   const renderFunders = () => {
-    const groups: GrantProject[] = ['festival', 'workshops', 'both'];
+    const groups: string[] = categoryOrder;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         {groups.map(g => {
-          const def = PROJECT_DEFS[g];
+          const def = projDef(g);
           const items = yearGrants.filter(x => x.project === g).sort((a, b) => a.funder.localeCompare(b.funder));
           if (items.length === 0) return null;
           const sum = items.reduce((a, b) => a + (b.amount || 0), 0);
@@ -778,7 +785,7 @@ export default function GrantsSection() {
             if (showMonthHeader) lastMonth = month;
             const days = daysUntilDeadline(g);
             const sd = STATUS_DEFS[g.status];
-            const proj = PROJECT_DEFS[g.project];
+            const proj = projDef(g.project);
             const prio = PRIORITY_DEFS[g.priority];
             const past = days !== null && days < 0;
             return (
@@ -844,7 +851,7 @@ export default function GrantsSection() {
   const renderDetail = () => {
     if (!selected) return null;
     const sd = STATUS_DEFS[selected.status];
-    const proj = PROJECT_DEFS[selected.project];
+    const proj = projDef(selected.project);
     const prio = PRIORITY_DEFS[selected.priority];
     const days = daysUntilDeadline(selected);
     return (
@@ -935,7 +942,7 @@ export default function GrantsSection() {
           {selected.notes && (
             <div style={{ background: 'var(--elev)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '.75rem 1rem', marginBottom: '1rem' }}>
               <div style={{ fontSize: '.6rem', color: 'var(--t3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.25rem' }}>Huomiot</div>
-              <div style={{ fontSize: '.78rem', color: 'var(--t2)', lineHeight: 1.5 }}>{selected.notes}</div>
+              <div style={{ fontSize: '.78rem', color: 'var(--t2)', lineHeight: 1.5, whiteSpace: 'pre-line' }}>{selected.notes}</div>
             </div>
           )}
 
@@ -1029,10 +1036,10 @@ export default function GrantsSection() {
           </div>
 
           <div className="field">
-            <label>Hanke</label>
+            <label>{categoryFieldLabel}</label>
             <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
-              {(['festival', 'workshops', 'both'] as GrantProject[]).map(p => {
-                const def = PROJECT_DEFS[p];
+              {categoryOrder.map(p => {
+                const def = projDef(p);
                 const active = fProject === p;
                 return (
                   <button key={p} type="button" onClick={() => setFProject(p)}

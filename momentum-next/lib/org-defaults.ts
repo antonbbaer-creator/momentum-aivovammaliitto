@@ -9,7 +9,7 @@
 import type { OrgTeam, OrgTeamMember } from './team-shared';
 import { DEFAULT_LLFF_TEAMS, DEFAULT_LLFF_TEAM_MEMBERS } from './team-shared';
 import type { Grant, GrantsSettings } from './grants-shared';
-import { LLFF_GRANTS_DEFAULT, DEFAULT_GRANTS_SETTINGS } from './grants-shared';
+import { LLFF_GRANTS_DEFAULT, DEFAULT_GRANTS_SETTINGS, HETKI_GRANTS_DEFAULT, HETKI_GRANTS_SETTINGS } from './grants-shared';
 import type { CommsPlan } from './comms-plan-shared';
 import { DEFAULT_LLFF_2026_PLAN, EMPTY_COMMS_PLAN } from './comms-plan-shared';
 import type { YearPhase } from './yearwheel-shared';
@@ -87,11 +87,13 @@ export function getOrgTeamMembers(orgSlug: string): OrgTeamMember[] {
 
 export function getOrgGrants(orgSlug: string): Grant[] {
   if (orgSlug === 'llff') return LLFF_GRANTS_DEFAULT;
+  if (orgSlug === 'hetki-company') return HETKI_GRANTS_DEFAULT;
   return EMPTY_GRANTS;
 }
 
 export function getOrgGrantsSettings(orgSlug: string): GrantsSettings {
   if (orgSlug === 'llff') return DEFAULT_GRANTS_SETTINGS;
+  if (orgSlug === 'hetki-company') return HETKI_GRANTS_SETTINGS;
   return EMPTY_GRANTS_SETTINGS;
 }
 

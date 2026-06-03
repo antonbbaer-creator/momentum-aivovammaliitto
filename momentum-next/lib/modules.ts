@@ -157,7 +157,7 @@ export const HETKI_COMPANY_MODULES: Record<string, boolean> = {
   aikataulut: true,
   viestinta: true,
   ohjelmisto: false,
-  budget: false,
+  budget: true,           // Rahoitusvuosikello — tuotantoyhtiön rahoittajarekisteri (apurahat)
   budjetti: false,        // vanha (Ihaa-tyylinen) pois — Hetki kayttaa 'talous'
   talous: true,           // Hetki-spesifinen tulot/menot/tulos-budjetti
   vieraat: false,
