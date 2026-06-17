@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
@@ -29,6 +29,66 @@ const LOCATION_ICONS: Record<string, string> = {
   hybrid: 'H',
 };
 
+// ── Osallistujavalitsin (moduulitason komponentti — ei remountteja) ─
+
+function AttendeePicker({ attendees, setAttendees, teamMembers, S, showExternal = true }: {
+  attendees: MeetingAttendee[];
+  setAttendees: (a: MeetingAttendee[]) => void;
+  teamMembers: OrgTeamMember[];
+  S: Record<string, React.CSSProperties>;
+  showExternal?: boolean;
+}) {
+  const [extN, setExtN] = useState('');
+  const [extE, setExtE] = useState('');
+
+  const addMember = (m: OrgTeamMember) => {
+    if (attendees.some(a => a.memberId === m.id)) return;
+    setAttendees([...attendees, {
+      id: generateId(), type: 'member', memberId: m.id, name: m.name, email: m.email,
+      rsvp: 'pending', attendance: null,
+    }]);
+  };
+
+  const addExt = () => {
+    if (!extN.trim()) return;
+    setAttendees([...attendees, {
+      id: generateId(), type: 'external', name: extN.trim(), email: extE.trim() || undefined,
+      rsvp: 'pending', attendance: null,
+    }]);
+    setExtN(''); setExtE('');
+  };
+
+  const remove = (id: string) => setAttendees(attendees.filter(a => a.id !== id));
+
+  return (
+    <div style={S.section}>
+      <label style={S.label}>Osallistujat</label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+        {attendees.map(a => (
+          <span key={a.id} style={{ ...S.tag, background: 'var(--accent-bg)', color: 'var(--accent)' }}>
+            {a.name} {a.type === 'external' ? '(vieras)' : ''}
+            <span onClick={() => remove(a.id)} style={{ cursor: 'pointer', marginLeft: 4, opacity: 0.6 }}>x</span>
+          </span>
+        ))}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+        {teamMembers.filter(m => !m.deletedAt && !attendees.some(a => a.memberId === m.id)).map(m => (
+          <button key={m.id} onClick={() => addMember(m)} style={{ ...S.btnSm, fontSize: 11 }}>
+            + {m.name}
+          </button>
+        ))}
+      </div>
+      {showExternal && (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input placeholder="Vieraan nimi" value={extN} onChange={e => setExtN(e.target.value)} style={{ ...S.input, flex: 1 }} />
+          <input placeholder="Sahkoposti" value={extE} onChange={e => setExtE(e.target.value)} style={{ ...S.input, flex: 1 }} />
+          <button onClick={addExt} style={S.btnSm}>Lisaa</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Paakomponentti ──────────────────────────────────────────────
 
 export default function MeetingsSection() {
@@ -51,6 +111,11 @@ export default function MeetingsSection() {
   const [mode, setMode] = useState<'browse' | 'create' | 'poll' | 'detail' | 'poll-detail'>('browse');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showPast, setShowPast] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editMeetLink, setEditMeetLink] = useState('');
+
+  // Nollaa detail-näkymän Meet-linkki-kenttä kun vaihdetaan palaveria
+  useEffect(() => { setEditMeetLink(''); }, [selectedId]);
 
   // Luontilomakkeen tilat
   const [newTitle, setNewTitle] = useState('');
@@ -113,7 +178,38 @@ export default function MeetingsSection() {
     setNewTitle(''); setNewDesc(''); setNewDate(''); setNewStartTime('10:00'); setNewEndTime('11:00');
     setNewLocationPreset(''); setNewLocationCustom(''); setNewLocationAddress(''); setNewMeetLink('');
     setNewHybrid(false); setNewRecurrence(''); setNewRecurrenceEnd(''); setNewAttendees([]);
+    setExternalName(''); setExternalEmail(''); setEditingId(null);
+  };
+
+  // Lataa olemassa olevan palaverin tiedot luontilomakkeeseen muokkausta varten
+  const startEdit = (m: Meeting) => {
+    setEditingId(m.id);
+    setNewTitle(m.title);
+    setNewDesc(m.description || '');
+    setNewDate(m.date);
+    setNewStartTime(m.startTime);
+    setNewEndTime(m.endTime);
+    if (m.location.presetId) {
+      setNewLocationPreset(m.location.presetId);
+      setNewLocationCustom('');
+      setNewLocationAddress('');
+    } else if (m.location.name && m.location.name !== 'Ei paikkaa' && m.location.name !== 'Ei valittu') {
+      setNewLocationPreset('custom');
+      setNewLocationCustom(m.location.name);
+      setNewLocationAddress(m.location.address || '');
+    } else {
+      setNewLocationPreset('');
+      setNewLocationCustom('');
+      setNewLocationAddress('');
+    }
+    setNewMeetLink(m.location.meetLink || '');
+    setNewHybrid(m.location.type === 'hybrid');
+    // Sarjan toistuvuutta ei muokata yksittäisen palaverin kautta
+    setNewRecurrence('');
+    setNewRecurrenceEnd('');
+    setNewAttendees(m.attendees);
     setExternalName(''); setExternalEmail('');
+    setMode('create');
   };
 
   const resetPollForm = () => {
@@ -180,6 +276,27 @@ export default function MeetingsSection() {
     }
     if (!currentMember) {
       toast('Kayttajaa ei loytynyt tiimista', 'error');
+      return;
+    }
+
+    // Muokkaustila: päivitä olemassa oleva palaveri
+    if (editingId) {
+      setMeetings(meetings.map(m => m.id === editingId ? {
+        ...m,
+        title: newTitle.trim(),
+        description: newDesc.trim() || undefined,
+        date: newDate,
+        startTime: newStartTime,
+        endTime: newEndTime,
+        location: buildLocation(),
+        attendees: newAttendees,
+        meetLinkCreated: m.meetLinkCreated || !!newMeetLink,
+      } : m));
+      const savedId = editingId;
+      toast(`Palaveri "${newTitle}" paivitetty`, 'success');
+      resetCreateForm();
+      setSelectedId(savedId);
+      setMode('detail');
       return;
     }
 
@@ -378,64 +495,6 @@ export default function MeetingsSection() {
     calHeader: { textAlign: 'center' as const, padding: 4, fontSize: 11, fontWeight: 600, color: 'var(--muted)' },
   };
 
-  // ── Osallistujavalitsin (jaettu lomakkeille) ───────────────────
-
-  const AttendeePickerUI = ({ attendees, setAttendees, showExternal = true }: {
-    attendees: MeetingAttendee[];
-    setAttendees: (a: MeetingAttendee[]) => void;
-    showExternal?: boolean;
-  }) => {
-    const [extN, setExtN] = useState('');
-    const [extE, setExtE] = useState('');
-
-    const addMember = (m: OrgTeamMember) => {
-      if (attendees.some(a => a.memberId === m.id)) return;
-      setAttendees([...attendees, {
-        id: generateId(), type: 'member', memberId: m.id, name: m.name, email: m.email,
-        rsvp: 'pending', attendance: null,
-      }]);
-    };
-
-    const addExt = () => {
-      if (!extN.trim()) return;
-      setAttendees([...attendees, {
-        id: generateId(), type: 'external', name: extN.trim(), email: extE.trim() || undefined,
-        rsvp: 'pending', attendance: null,
-      }]);
-      setExtN(''); setExtE('');
-    };
-
-    const remove = (id: string) => setAttendees(attendees.filter(a => a.id !== id));
-
-    return (
-      <div style={S.section}>
-        <label style={S.label}>Osallistujat</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-          {attendees.map(a => (
-            <span key={a.id} style={{ ...S.tag, background: 'var(--accent-bg)', color: 'var(--accent)' }}>
-              {a.name} {a.type === 'external' ? '(vieras)' : ''}
-              <span onClick={() => remove(a.id)} style={{ cursor: 'pointer', marginLeft: 4, opacity: 0.6 }}>x</span>
-            </span>
-          ))}
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-          {teamMembers.filter(m => !m.deletedAt && !attendees.some(a => a.memberId === m.id)).map(m => (
-            <button key={m.id} onClick={() => addMember(m)} style={{ ...S.btnSm, fontSize: 11 }}>
-              + {m.name}
-            </button>
-          ))}
-        </div>
-        {showExternal && (
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input placeholder="Vieraan nimi" value={extN} onChange={e => setExtN(e.target.value)} style={{ ...S.input, flex: 1 }} />
-            <input placeholder="Sahkoposti" value={extE} onChange={e => setExtE(e.target.value)} style={{ ...S.input, flex: 1 }} />
-            <button onClick={addExt} style={S.btnSm}>Lisaa</button>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   // ── RENDERIT ───────────────────────────────────────────────────
 
   // Yksittaisen palaverin kortti
@@ -599,8 +658,8 @@ export default function MeetingsSection() {
     return (
       <div style={{ maxWidth: 640 }}>
         <div style={S.hdr}>
-          <h2 style={{ fontSize: 18, fontWeight: 700 }}>Kutsu palaveri koolle</h2>
-          <button onClick={() => { resetCreateForm(); setMode('browse'); }} style={S.btnSec}>Peruuta</button>
+          <h2 style={{ fontSize: 18, fontWeight: 700 }}>{editingId ? 'Muokkaa palaveria' : 'Kutsu palaveri koolle'}</h2>
+          <button onClick={() => { const id = editingId; resetCreateForm(); if (id) { setSelectedId(id); setMode('detail'); } else { setMode('browse'); } }} style={S.btnSec}>Peruuta</button>
         </div>
 
         <div style={S.section}>
@@ -675,27 +734,29 @@ export default function MeetingsSection() {
           )}
         </div>
 
-        <div style={S.section}>
-          <label style={S.label}>Toistuvuus</label>
-          <select value={newRecurrence} onChange={e => setNewRecurrence(e.target.value as any)} style={{ ...S.select, width: '100%' }}>
-            <option value="">Ei toistu</option>
-            <option value="weekly">Viikoittain</option>
-            <option value="biweekly">Joka toinen viikko</option>
-            <option value="monthly">Kuukausittain</option>
-          </select>
-          {newRecurrence && (
-            <div style={{ marginTop: 8 }}>
-              <label style={S.label}>Toistuu asti</label>
-              <input type="date" value={newRecurrenceEnd} onChange={e => setNewRecurrenceEnd(e.target.value)} style={S.input} />
-            </div>
-          )}
-        </div>
+        {!editingId && (
+          <div style={S.section}>
+            <label style={S.label}>Toistuvuus</label>
+            <select value={newRecurrence} onChange={e => setNewRecurrence(e.target.value as any)} style={{ ...S.select, width: '100%' }}>
+              <option value="">Ei toistu</option>
+              <option value="weekly">Viikoittain</option>
+              <option value="biweekly">Joka toinen viikko</option>
+              <option value="monthly">Kuukausittain</option>
+            </select>
+            {newRecurrence && (
+              <div style={{ marginTop: 8 }}>
+                <label style={S.label}>Toistuu asti</label>
+                <input type="date" value={newRecurrenceEnd} onChange={e => setNewRecurrenceEnd(e.target.value)} style={S.input} />
+              </div>
+            )}
+          </div>
+        )}
 
-        <AttendeePickerUI attendees={newAttendees} setAttendees={setNewAttendees} />
+        <AttendeePicker attendees={newAttendees} setAttendees={setNewAttendees} teamMembers={teamMembers} S={S} />
 
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-          <button onClick={createMeeting} style={S.btn}>Kutsu koolle</button>
-          <button onClick={() => { resetCreateForm(); setMode('browse'); }} style={S.btnSec}>Peruuta</button>
+          <button onClick={createMeeting} style={S.btn}>{editingId ? 'Tallenna muutokset' : 'Kutsu koolle'}</button>
+          <button onClick={() => { const id = editingId; resetCreateForm(); if (id) { setSelectedId(id); setMode('detail'); } else { setMode('browse'); } }} style={S.btnSec}>Peruuta</button>
         </div>
       </div>
     );
@@ -749,7 +810,7 @@ export default function MeetingsSection() {
           <input type="date" value={pollDeadline} onChange={e => setPollDeadline(e.target.value)} style={S.input} />
         </div>
 
-        <AttendeePickerUI attendees={pollAttendees} setAttendees={setPollAttendees} />
+        <AttendeePicker attendees={pollAttendees} setAttendees={setPollAttendees} teamMembers={teamMembers} S={S} />
 
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
           <button onClick={createPoll} style={S.btn}>Luo aanestys</button>
@@ -767,7 +828,6 @@ export default function MeetingsSection() {
     const myAttendee = currentMember ? m.attendees.find(a => a.memberId === currentMember.id) : null;
     const counts = getRsvpCounts(m.attendees);
     const organizer = teamMembers.find(tm => tm.id === m.organizerId);
-    const [editMeetLink, setEditMeetLink] = useState(m.location.meetLink || '');
 
     return (
       <div style={{ maxWidth: 640 }}>
@@ -888,6 +948,9 @@ export default function MeetingsSection() {
         {/* Jarjestajan toiminnot */}
         {isOrganizer && m.status === 'scheduled' && (
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <button onClick={() => startEdit(m)} style={S.btnSec}>
+              Muokkaa
+            </button>
             <button onClick={() => cancelMeeting(m.id)} style={{ ...S.btnSec, color: '#ef4444', borderColor: '#ef4444' }}>
               Peru palaveri
             </button>

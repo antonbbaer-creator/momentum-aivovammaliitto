@@ -17,6 +17,7 @@ const PERSONAL_MODULES = [
   { id: 'p-viikko',     label: 'Viikko',     path: '/oma/viikko' },
   { id: 'p-rutiinit',   label: 'Rutiinit',   path: '/oma/rutiinit' },
   { id: 'p-reflektio',  label: 'Reflektio',  path: '/oma/reflektio' },
+  { id: 'p-muistiinpanot', label: 'Muistiinpanot', path: '/oma/muistiinpanot' },
   { id: 'p-asetukset',  label: 'Asetukset',  path: '/oma/asetukset' },
 ];
 

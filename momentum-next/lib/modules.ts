@@ -39,10 +39,12 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   ohjeet:    { id: 'ohjeet',    label: 'Ohjeet',     icon: '?', path: '/ohjeet',    alwaysOn: false },
   logogeneraattori: { id: 'logogeneraattori', label: 'Logogeneraattori', icon: '✦', path: '/logogeneraattori', alwaysOn: false },
   graafinen: { id: 'graafinen', label: 'Graafinen ohjeisto', icon: '◐', path: '/graafinen', alwaysOn: false },
+  kasikirjoitus: { id: 'kasikirjoitus', label: 'Käsikirjoitus', icon: '✑', path: '/kasikirjoitus', alwaysOn: false },
+  aanite:    { id: 'aanite',    label: 'Äänitteet',  icon: '♪', path: '/aanite',    alwaysOn: false },
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'asiakkuudet', 'laskutus', 'talous', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'graafinen', 'logogeneraattori', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'ohjeet', 'palaute'];
+export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'kasikirjoitus', 'asiakkuudet', 'laskutus', 'talous', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'graafinen', 'logogeneraattori', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'aanite', 'ohjeet', 'palaute'];
 
 // Default modules for new orgs (viestintaorgit)
 export const DEFAULT_MODULES: Record<string, boolean> = {
@@ -144,6 +146,8 @@ export const LUURI_MODULES: Record<string, boolean> = {
   projects: true,
   tyonjako: true,
   graafinen: true,
+  kasikirjoitus: true,
+  aanite: true,
 };
 
 // Hetki Company — viestintätoimisto.
@@ -159,6 +163,7 @@ export const HETKI_COMPANY_MODULES: Record<string, boolean> = {
   ohjelmisto: false,
   budget: true,           // Rahoitusvuosikello — tuotantoyhtiön rahoittajarekisteri (apurahat)
   budjetti: false,        // vanha (Ihaa-tyylinen) pois — Hetki kayttaa 'talous'
+  kasikirjoitus: true,    // Käsikirjoitusohjelmisto — Hetki Film Companyn tuotantotyökalu
   talous: true,           // Hetki-spesifinen tulot/menot/tulos-budjetti
   vieraat: false,
   ruoka: false,
