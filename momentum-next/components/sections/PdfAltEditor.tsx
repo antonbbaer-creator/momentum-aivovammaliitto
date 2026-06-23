@@ -7,8 +7,9 @@ import { renderFigureThumbnails } from '@/lib/pdf-render';
 import { PdfFigure } from '@/lib/pdf-accessibility-shared';
 
 export default function PdfAltEditor({
-  taggedUrl, filename, onComplete, onCancel,
+  taggedBytes, taggedUrl, filename, onComplete, onCancel,
 }: {
+  taggedBytes?: Uint8Array;
   taggedUrl: string;
   filename: string;
   onComplete: (finalBytes: Uint8Array, figures: PdfFigure[], title: string) => Promise<void>;
@@ -28,7 +29,7 @@ export default function PdfAltEditor({
     let cancelled = false;
     (async () => {
       try {
-        const buf = new Uint8Array(await (await fetch(taggedUrl)).arrayBuffer());
+        const buf = taggedBytes ?? new Uint8Array(await (await fetch(taggedUrl)).arrayBuffer());
         bytesRef.current = buf;
         const figs = await enumerateFigures(buf);
         if (cancelled) return;

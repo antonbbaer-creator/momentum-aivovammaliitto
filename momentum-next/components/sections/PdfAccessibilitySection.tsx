@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
@@ -37,6 +37,9 @@ export default function PdfAccessibilitySection() {
   const [checks, setChecks] = useState<Record<string, { check: SelfCheckSummary; statement: string }>>({});
   const [topErr, setTopErr] = useState<string | null>(null);
   const [upload, setUpload] = useState<{ name: string } | null>(null);
+  // Pidetään PDF:n tavut muistissa, jotta tagaus/editori/tarkistus eivät hae niitä
+  // uudelleen Storagesta (selaimen cross-origin fetch ei toimi ilman bucket-CORSia).
+  const bytesCache = useRef<Map<string, Uint8Array>>(new Map());
 
   const setBusyFor = (id: string, v: boolean) => setBusy(prev => ({ ...prev, [id]: v }));
   const patchDoc = (id: string, patch: Partial<PdfDocument>) =>
@@ -58,6 +61,7 @@ export default function PdfAccessibilitySection() {
     }, 25000);
     try {
       console.log('[pdf] uploadBytes alkaa', path, file.size, 'tavua');
+      bytesCache.current.set(id, new Uint8Array(await file.arrayBuffer()));
       const storageRef = ref(storage, path);
       await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
       const url = await getDownloadURL(storageRef);
@@ -85,21 +89,27 @@ export default function PdfAccessibilitySection() {
     setBusyFor(doc.id, true);
     patchDoc(doc.id, { status: 'tagging', error: undefined });
     try {
-      const original = await (await fetch(doc.storage.originalUrl)).arrayBuffer();
+      // Käytä muistissa olevia tavuja; hae Storagesta vain jos puuttuu (esim. sivun lataus uudelleen)
+      let original = bytesCache.current.get(doc.id);
+      if (!original) {
+        const origRes = await fetch(doc.storage.originalUrl);
+        original = new Uint8Array(await origRes.arrayBuffer());
+      }
       const idToken = await user.getIdToken();
       const res = await fetch('/api/pdf/autotag', {
         method: 'POST',
         headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/pdf' },
-        body: original,
+        body: original as BodyInit,
       });
       if (!res.ok) {
         const msg = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         throw new Error(msg.error || `HTTP ${res.status}`);
       }
-      const tagged = await res.arrayBuffer();
+      const tagged = new Uint8Array(await res.arrayBuffer());
+      bytesCache.current.set(doc.id, tagged); // muistiin alt-editoria varten
       const path = `${storageBase(activeOrg, doc.id)}/tagged.pdf`;
       const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, new Uint8Array(tagged), { contentType: 'application/pdf' });
+      await uploadBytes(storageRef, tagged, { contentType: 'application/pdf' });
       const url = await getDownloadURL(storageRef);
       patchDoc(doc.id, {
         status: 'tagged',
@@ -114,6 +124,7 @@ export default function PdfAccessibilitySection() {
 
   async function handleComplete(doc: PdfDocument, finalBytes: Uint8Array, figures: PdfFigure[], title: string) {
     if (!activeOrg) return;
+    bytesCache.current.set(doc.id, finalBytes); // muistiin tarkistusta varten
     const path = `${storageBase(activeOrg, doc.id)}/final.pdf`;
     const storageRef = ref(storage, path);
     await uploadBytes(storageRef, finalBytes, { contentType: 'application/pdf' });
@@ -130,7 +141,8 @@ export default function PdfAccessibilitySection() {
     if (!doc.storage.finalUrl) return;
     setBusyFor(doc.id, true);
     try {
-      const bytes = new Uint8Array(await (await fetch(doc.storage.finalUrl)).arrayBuffer());
+      const bytes = bytesCache.current.get(doc.id)
+        ?? new Uint8Array(await (await fetch(doc.storage.finalUrl)).arrayBuffer());
       const check = await checkRemediation(bytes);
       const statement = buildAccessibilityStatement({
         title: doc.filename.replace(/\.pdf$/i, ''),
@@ -225,6 +237,7 @@ export default function PdfAccessibilitySection() {
               />
               {editingId === doc.id && doc.storage.taggedUrl && (
                 <PdfAltEditor
+                  taggedBytes={bytesCache.current.get(doc.id)}
                   taggedUrl={doc.storage.taggedUrl}
                   filename={doc.filename}
                   onComplete={(b, f, t) => handleComplete(doc, b, f, t)}
