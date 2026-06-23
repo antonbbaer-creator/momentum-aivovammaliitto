@@ -37,3 +37,8 @@ export const AVL_GUIDE_TOTAL_PAGES = 17;
 // Literaali reitti app/avl/graafinenohje/ — org-layoutin auth-gate ei päde siihen.
 export const AVL_PUBLIC_GUIDE_PATH = '/avl/graafinenohje';
 export const AVL_PUBLIC_GUIDE_PASSWORD = 'AVL2026';
+
+// Julkinen, salasanasuojattu esitesivu (sama salasana kuin ohjeistolla).
+// Literaali reitti app/avl/esitteet/ — listaa valmiit esitteet ladattavaksi.
+export const AVL_PUBLIC_BROCHURES_PATH = '/avl/esitteet';
+export const AVL_PUBLIC_BROCHURES_PASSWORD = AVL_PUBLIC_GUIDE_PASSWORD;
