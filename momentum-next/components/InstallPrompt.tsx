@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/lib/auth';
 
 // Standardi `beforeinstallprompt` ei ole vakio TS-domissa
 interface BeforeInstallPromptEvent extends Event {
@@ -37,6 +38,9 @@ function dismissedRecently(): boolean {
 }
 
 export default function InstallPrompt() {
+  // Asennusehdotus vain kirjautuneille — ei näytetä julkisilla jakelusivuilla
+  // (esim. /avl/graafinenohje, /logogeneraattori) joilla ei ole tunnuksia.
+  const { user } = useAuth();
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [show, setShow] = useState(false);
   const [showIosHint, setShowIosHint] = useState(false);
@@ -88,6 +92,7 @@ export default function InstallPrompt() {
     setShow(false);
   };
 
+  if (!user) return null;
   if (!show && !showIosHint) return null;
 
   return (
