@@ -50,11 +50,12 @@ export default function PdfGuidance() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ ...card, borderLeft: '3px solid var(--pri)' }}>
         <p style={{ margin: 0, color: 'var(--t2)', lineHeight: 1.6 }}>
-          Tähän kerätään kaikki esitteet. Työkalu tekee verkkoon julkaistavasta PDF-esitteestä
-          mahdollisimman saavutettavan (WCAG 2.1 AA / PDF/UA) ja ohjaa loput — kuvien
-          vaihtoehtoiset tekstit — sinun hyväksyttäväksesi. Työkalu <strong>ei takaa</strong>{' '}
-          täydellistä saavutettavuutta: alt-tekstien sisältö ja vaikeat lähde-PDF:n virheet
-          (esim. upottamattomat fontit) vaativat ihmisen arvion.
+          Lisää ei-saavutettava PDF-esite yltä, niin työkalu tekee siitä mahdollisimman
+          saavutettavan (WCAG 2.1 AA / PDF/UA) ja ohjaa loput — kuvien vaihtoehtoiset tekstit
+          — sinun hyväksyttäväksesi. Tai avaa Claude-taito, joka opastaa saavutettavan esitteen
+          tekemisessä. Työkalu <strong>ei takaa</strong> täydellistä saavutettavuutta:
+          alt-tekstien sisältö ja vaikeat lähde-PDF:n virheet (esim. upottamattomat fontit)
+          vaativat ihmisen arvion.
         </p>
         <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <a className="btn btn-primary" href={CLAUDE_DESKTOP_URL}>

@@ -170,53 +170,13 @@ export default function PdfAccessibilitySection() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <PdfGuidance />
-
-      <div>
-        <label
-          className="btn btn-primary"
-          style={{ cursor: canEdit && !upload ? 'pointer' : 'not-allowed', opacity: canEdit && !upload ? 1 : 0.6 }}
-        >
-          <input
-            type="file"
-            accept="application/pdf,.pdf"
-            style={{ display: 'none' }}
-            disabled={!canEdit || !!upload}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleUpload(f);
-              e.target.value = '';
-            }}
-          />
-          {upload ? 'Ladataan…' : 'Lataa PDF-esite'}
-        </label>
-        {!canEdit && (
-          <span style={{ marginLeft: 10, fontSize: 13, color: 'var(--yellow)' }}>
-            Ei muokkausoikeutta — lataus ei ole käytössä.
-          </span>
-        )}
-      </div>
-
-      {upload && (
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 12 }}>
-          <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 8 }}>
-            Ladataan {upload.name}… (älä sulje sivua)
-          </div>
-          <div className="pdf-prog" />
-        </div>
-      )}
-
-      {topErr && (
-        <div style={{ background: 'var(--card)', border: '1px solid var(--red)', borderRadius: 'var(--rl)', padding: 12, color: 'var(--red)', fontSize: 14 }}>
-          {topErr}
-        </div>
-      )}
-
-      {docs.length === 0 ? (
-        <p style={{ color: 'var(--t3)' }}>Ei vielä esitteitä. Lataa ensimmäinen yltä.</p>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {docs.map((doc) => (
+      {/* Valmiit esitteet — kirjasto, helposti ladattavissa yhdessä paikassa */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--t1)' }}>Valmiit esitteet</div>
+        {docs.length === 0 ? (
+          <p style={{ color: 'var(--t3)' }}>Ei vielä esitteitä. Lisää ensimmäinen alta.</p>
+        ) : (
+          docs.map((doc) => (
             <div key={doc.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <DocRow
                 doc={doc}
@@ -238,15 +198,56 @@ export default function PdfAccessibilitySection() {
                 />
               )}
               {checks[doc.id] && (
-                <CheckPanel
-                  check={checks[doc.id].check}
-                  statement={checks[doc.id].statement}
-                />
+                <CheckPanel check={checks[doc.id].check} statement={checks[doc.id].statement} />
               )}
             </div>
-          ))}
+          ))
+        )}
+      </div>
+
+      {upload && (
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 12 }}>
+          <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 8 }}>
+            Ladataan {upload.name}… (älä sulje sivua)
+          </div>
+          <div className="pdf-prog" />
         </div>
       )}
+      {topErr && (
+        <div style={{ background: 'var(--card)', border: '1px solid var(--red)', borderRadius: 'var(--rl)', padding: 12, color: 'var(--red)', fontSize: 14 }}>
+          {topErr}
+        </div>
+      )}
+
+      {/* Tee esitteestä saavutettava — lataus + Claude-ohjaus alhaalla */}
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--t1)' }}>Tee esitteestä saavutettava</div>
+        <div>
+          <label
+            className="btn btn-primary"
+            style={{ cursor: canEdit && !upload ? 'pointer' : 'not-allowed', opacity: canEdit && !upload ? 1 : 0.6 }}
+          >
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              style={{ display: 'none' }}
+              disabled={!canEdit || !!upload}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleUpload(f);
+                e.target.value = '';
+              }}
+            />
+            {upload ? 'Ladataan…' : 'Lisää esite'}
+          </label>
+          {!canEdit && (
+            <span style={{ marginLeft: 10, fontSize: 13, color: 'var(--yellow)' }}>
+              Ei muokkausoikeutta — lataus ei ole käytössä.
+            </span>
+          )}
+        </div>
+        <PdfGuidance />
+      </div>
     </div>
   );
 }
@@ -264,6 +265,7 @@ function DocRow({
   onDelete: () => void;
 }) {
   const tone = statusTone(doc.status);
+  const bestUrl = doc.storage.finalUrl || doc.storage.taggedUrl || doc.storage.originalUrl;
   return (
     <div
       style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}
@@ -284,14 +286,14 @@ function DocRow({
       </div>
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        {doc.storage.originalUrl && (
-          <a className="btn btn-ghost" href={doc.storage.originalUrl} target="_blank" rel="noreferrer">
-            Alkuperäinen
+        {bestUrl && (
+          <a className="btn btn-primary" href={bestUrl} target="_blank" rel="noreferrer">
+            {doc.storage.finalUrl ? 'Lataa (saavutettava)' : 'Lataa'}
           </a>
         )}
-        {doc.storage.finalUrl && (
-          <a className="btn btn-ghost" href={doc.storage.finalUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--green)' }}>
-            Valmis (lataa)
+        {doc.storage.finalUrl && doc.storage.originalUrl && (
+          <a className="btn btn-ghost" href={doc.storage.originalUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13 }}>
+            Alkuperäinen
           </a>
         )}
         {doc.status === 'uploaded' && (
