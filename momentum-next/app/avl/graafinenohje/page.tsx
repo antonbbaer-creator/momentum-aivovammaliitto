@@ -1,18 +1,23 @@
 'use client';
 
 /*
- * Julkinen graafinen ohjeisto Aivovammaliitolle.
+ * Julkinen graafinen ohjeisto Aivovammaliitolle — osoite /avl/graafinenohje.
  * Pääsy salasanalla, ei vaadi kirjautumista Momentumiin — sama idea kuin
  * logogeneraattorissa: sisältöä voi jakaa myös ihmisille joilla ei ole tunnuksia.
  *
- * Huom: salasana on tarkoituksellisesti yksinkertainen porttikontrolli, ei
+ * HUOM reititys: tämä on tarkoituksella literaali reitti (app/avl/...), EI
+ * org-reitti app/[orgSlug]/. Org-reittien layout (app/[orgSlug]/layout.tsx)
+ * ohjaa kirjautumattomat /login-sivulle; literaali reitti välttää sen ja pysyy
+ * julkisena. Muut /avl/* polut resolvoituvat yhä [orgSlug]-puuhun normaalisti.
+ *
+ * Salasana on tarkoituksellisesti yksinkertainen porttikontrolli, ei
  * tietoturva — clientissä oleva merkkijono on luettavissa bundle-koodista.
- * Graafisen ohjeiston sisältö ei ole salaista, vain rajoitettua jakelua varten.
  */
 
 import { useState, useEffect, FormEvent } from 'react';
 import dynamic from 'next/dynamic';
 import { getDefaultBrandGuide } from '@/lib/brand-guide-shared';
+import { AVL_PUBLIC_GUIDE_PASSWORD } from '@/lib/avl-brand-assets';
 
 const BrandGuidePublic = dynamic(() => import('@/components/sections/BrandGuidePublic'), {
   ssr: false,
@@ -23,8 +28,7 @@ const BrandGuidePublic = dynamic(() => import('@/components/sections/BrandGuideP
   ),
 });
 
-const PASSWORD = 'AVL2026';
-const STORAGE_KEY = 'graafinen_ohje_unlocked';
+const STORAGE_KEY = 'graafinenohje_unlocked';
 
 export default function PublicBrandGuidePage() {
   const [unlocked, setUnlocked] = useState(false);
@@ -41,7 +45,7 @@ export default function PublicBrandGuidePage() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (input.trim().toLowerCase() === PASSWORD.toLowerCase()) {
+    if (input.trim().toLowerCase() === AVL_PUBLIC_GUIDE_PASSWORD.toLowerCase()) {
       sessionStorage.setItem(STORAGE_KEY, '1');
       setUnlocked(true);
       setError(false);

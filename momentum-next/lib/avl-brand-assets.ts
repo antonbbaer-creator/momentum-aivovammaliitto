@@ -33,3 +33,8 @@ export const AVL_FONTS: AvlFont[] = [
 
 export const AVL_GUIDE_PDF = '/brand/avl/graafinen-ohjeisto.pdf';
 export const AVL_GUIDE_TOTAL_PAGES = 17;
+
+// Julkinen, salasanasuojattu jakelusivu (ei vaadi kirjautumista).
+// Literaali reitti app/avl/graafinenohje/ — org-layoutin auth-gate ei päde siihen.
+export const AVL_PUBLIC_GUIDE_PATH = '/avl/graafinenohje';
+export const AVL_PUBLIC_GUIDE_PASSWORD = 'AVL2026';
