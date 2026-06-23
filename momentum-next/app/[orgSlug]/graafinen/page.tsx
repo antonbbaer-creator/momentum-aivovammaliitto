@@ -19,6 +19,7 @@ import {
   brandId,
   getDefaultBrandGuide,
 } from '@/lib/brand-guide-shared';
+import { AVL_LOGO_VARIANTS, AVL_FONTS, AVL_GUIDE_PDF, AVL_GUIDE_TOTAL_PAGES } from '@/lib/avl-brand-assets';
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 
@@ -253,35 +254,6 @@ interface LogoCardProps extends AssetCardProps {
   isAvl?: boolean;
 }
 
-type LogoVariant = {
-  id: string;
-  title: string;
-  preview: string;
-  download: string;
-};
-
-const AVL_LOGO_VARIANTS: LogoVariant[] = [
-  { id: 'avl-vaaka', title: 'Vaakalogo', preview: '/brand/avl/logo-vaaka.png', download: '/brand/avl/logo-vaaka.jpg' },
-  { id: 'avl-keskitetty', title: 'Pystylogo (keskitetty)', preview: '/brand/avl/logo-keskitetty.png', download: '/brand/avl/logo-keskitetty.jpg' },
-  { id: 'avl-tunnus', title: 'Tunnus', preview: '/brand/avl/logo-tunnus.png', download: '/brand/avl/logo-tunnus.jpg' },
-];
-
-type AvlFont = { family: string; bundle: string; weights: string[]; note?: string };
-const AVL_FONTS: AvlFont[] = [
-  {
-    family: 'Outfit',
-    bundle: '/brand/avl/fonts/Outfit.zip',
-    weights: ['Light', 'Regular', 'Medium', 'SemiBold', 'Bold', 'Black'],
-  },
-  {
-    family: 'Avenir',
-    bundle: '/brand/avl/fonts/Avenir.zip',
-    weights: ['Light', 'Roman', 'Medium', 'Black', 'Oblique', 'Black Oblique'],
-  },
-];
-
-const AVL_GUIDE_TOTAL_PAGES = 17;
-
 function AvlOriginalPdfCard() {
   const [page, setPage] = useState(1);
   const total = AVL_GUIDE_TOTAL_PAGES;
@@ -303,7 +275,7 @@ function AvlOriginalPdfCard() {
     <div style={card}>
       <div style={headerRow}>
         <h2 style={{ ...sectionHeading, marginBottom: 0 }}>Graafinen ohjeisto</h2>
-        <a className="btn btn-secondary" style={editBtn} href="/brand/avl/graafinen-ohjeisto.pdf" target="_blank" rel="noopener noreferrer" download>Lataa PDF</a>
+        <a className="btn btn-secondary" style={editBtn} href={AVL_GUIDE_PDF} target="_blank" rel="noopener noreferrer" download>Lataa PDF</a>
       </div>
 
       <div
@@ -374,7 +346,7 @@ function AvlLogoVariants() {
     <div style={{ marginTop: '1.75rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
       <div style={{ ...sectionTitle, marginBottom: '0.75rem' }}>Lataa logoversiot</div>
       <p style={{ ...muted, fontSize: '0.88rem', marginBottom: '1rem' }}>
-        Aivovammaliiton viralliset logoversiot. Vaakalogo on ensisijainen versio; pystylogoa käytetään esimerkiksi kapeissa tiloissa kuten käyntikorteissa. Tunnus toimii yksinään erikoissovelluksissa tai graafisena elementtinä.
+        Aivovammaliiton viralliset logoversiot. Vaakalogo on ensisijainen versio; pystylogoa käytetään esimerkiksi kapeissa tiloissa kuten käyntikorteissa. Tunnus toimii yksinään erikoissovelluksissa tai graafisena elementtinä. Lataa vektoriversio (SVG) painotuotteisiin ja skaalautuvaan käyttöön, JPG nopeaan verkkokäyttöön.
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.75rem' }}>
         {AVL_LOGO_VARIANTS.map(v => (
@@ -384,9 +356,14 @@ function AvlLogoVariants() {
               <img src={v.preview} alt={v.title} style={{ maxWidth: '85%', maxHeight: '85%', objectFit: 'contain' }} />
             </div>
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: '0.95rem', color: 'var(--t1)', marginBottom: '0.6rem' }}>{v.title}</div>
-            <a className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.4rem 0.7rem', textAlign: 'center', marginTop: 'auto' }} href={v.download} target="_blank" rel="noopener noreferrer" download>
-              Lataa JPG
-            </a>
+            <div style={{ display: 'flex', gap: '0.4rem', marginTop: 'auto' }}>
+              <a className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '0.4rem 0.7rem', textAlign: 'center', flex: 1 }} href={v.svg} target="_blank" rel="noopener noreferrer" download>
+                SVG
+              </a>
+              <a className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.4rem 0.7rem', textAlign: 'center', flex: 1 }} href={v.jpg} target="_blank" rel="noopener noreferrer" download>
+                JPG
+              </a>
+            </div>
           </div>
         ))}
       </div>
