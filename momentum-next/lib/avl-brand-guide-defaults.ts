@@ -189,9 +189,9 @@ export const AVL_BRAND_GUIDE: BrandGuide = {
   },
 
   contact: {
-    organization: 'Aivovammaliitto ry',
-    phone: '(09) 8366580',
-    email: 'aivovammaliitto@aivovammaliitto.fi',
-    notes: 'Tunnuksen ja logon voi tilata Aivovammaliitosta.',
+    organization: 'Anton Baer, Aivovammaliitto ry',
+    phone: '050 550 0541',
+    email: 'anton.baer@aivovammaliitto.fi',
+    notes: 'Logot, fontit ja muu brändimateriaali sekä tunnuksen ja logon tilaus — ota yhteyttä.',
   },
 };
