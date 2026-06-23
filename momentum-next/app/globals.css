@@ -1090,3 +1090,8 @@
       .sp-titlepage{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:230mm}
       @page{size:A4;margin:0}
     }
+
+/* PDF-saavutettavuus: latauksen indeterministinen edistymispalkki */
+@keyframes pdfIndeterminate { 0% { left: -40%; } 100% { left: 100%; } }
+.pdf-prog { position: relative; height: 8px; background: var(--elev); border-radius: 4px; overflow: hidden; }
+.pdf-prog::after { content: ''; position: absolute; top: 0; left: -40%; height: 100%; width: 40%; background: var(--pri); border-radius: 4px; animation: pdfIndeterminate 1.1s infinite linear; }

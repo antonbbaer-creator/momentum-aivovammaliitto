@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useOrgData } from '@/lib/firestore';
@@ -36,7 +36,7 @@ export default function PdfAccessibilitySection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [checks, setChecks] = useState<Record<string, { check: SelfCheckSummary; statement: string }>>({});
   const [topErr, setTopErr] = useState<string | null>(null);
-  const [upload, setUpload] = useState<{ name: string; pct: number } | null>(null);
+  const [upload, setUpload] = useState<{ name: string } | null>(null);
 
   const setBusyFor = (id: string, v: boolean) => setBusy(prev => ({ ...prev, [id]: v }));
   const patchDoc = (id: string, patch: Partial<PdfDocument>) =>
@@ -52,41 +52,32 @@ export default function PdfAccessibilitySection() {
     if (!isPdf) { setTopErr(`Valitse PDF-tiedosto (sait tyypin "${file.type || 'tuntematon'}").`); return; }
     const id = makePdfId();
     const path = `${storageBase(activeOrg, id)}/original.pdf`;
-    const uid = user.uid;
-    setUpload({ name: file.name, pct: 0 });
-    console.log('[pdf] uploadBytesResumable alkaa', path);
-    const task = uploadBytesResumable(ref(storage, path), file, { contentType: 'application/pdf' });
-    task.on(
-      'state_changed',
-      (snap) => {
-        const pct = snap.totalBytes ? Math.round((snap.bytesTransferred / snap.totalBytes) * 100) : 0;
-        setUpload({ name: file.name, pct });
-      },
-      (e) => {
-        console.error('[pdf] upload epäonnistui', e);
-        setTopErr('Lataus epäonnistui: ' + (e instanceof Error ? e.message : String(e)));
-        setUpload(null);
-      },
-      async () => {
-        try {
-          const url = await getDownloadURL(task.snapshot.ref);
-          console.log('[pdf] upload valmis', url);
-          const doc: PdfDocument = {
-            id,
-            filename: file.name,
-            status: 'uploaded',
-            storage: { original: path, originalUrl: url },
-            uploadedBy: uid,
-            uploadedAt: Date.now(),
-          };
-          setDocs(prev => [doc, ...prev]);
-        } catch (e) {
-          setTopErr('Latauksen viimeistely epäonnistui: ' + (e instanceof Error ? e.message : String(e)));
-        } finally {
-          setUpload(null);
-        }
-      },
-    );
+    setUpload({ name: file.name });
+    const watchdog = setTimeout(() => {
+      setTopErr('Lataus kestää tavallista kauemmin. Jos se ei valmistu, kyseessä voi olla Storage-yhteys tai CORS — tarkista selaimen konsoli (Network-välilehti).');
+    }, 25000);
+    try {
+      console.log('[pdf] uploadBytes alkaa', path, file.size, 'tavua');
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
+      const url = await getDownloadURL(storageRef);
+      console.log('[pdf] upload valmis', url);
+      const doc: PdfDocument = {
+        id,
+        filename: file.name,
+        status: 'uploaded',
+        storage: { original: path, originalUrl: url },
+        uploadedBy: user.uid,
+        uploadedAt: Date.now(),
+      };
+      setDocs(prev => [doc, ...prev]);
+    } catch (e) {
+      console.error('[pdf] upload epäonnistui', e);
+      setTopErr('Lataus epäonnistui: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      clearTimeout(watchdog);
+      setUpload(null);
+    }
   }
 
   async function handleAutotag(doc: PdfDocument) {
@@ -203,12 +194,10 @@ export default function PdfAccessibilitySection() {
 
       {upload && (
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 12 }}>
-          <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 6 }}>
-            Ladataan {upload.name} — {upload.pct} %
+          <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 8 }}>
+            Ladataan {upload.name}… (älä sulje sivua)
           </div>
-          <div style={{ height: 8, background: 'var(--elev)', borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${upload.pct}%`, background: 'var(--pri)', transition: 'width 0.2s' }} />
-          </div>
+          <div className="pdf-prog" />
         </div>
       )}
 
