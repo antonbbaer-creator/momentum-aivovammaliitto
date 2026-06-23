@@ -3,9 +3,15 @@
 // Ohjepaneeli Esitteet-moduulin yläosaan: mitä saavutettava esite vaatii,
 // taito avattavissa Claudessa, ja miten saavutettavuuden tarkistaa.
 
-// Linkki Anton tekemään Claude-taitoon (saavutettavan PDF:n luonti).
-// TODO: vaihda oikeaan taidon URLiin kun se on julkaistu Claudessa.
-const CLAUDE_SKILL_URL = 'https://claude.ai';
+// Avaa Claude valmiilla kehotteella, joka pyytää ohjeet saavutettavan PDF:n tekoon.
+// Kehote laukaisee Claudessa saavutettavuustaidon (accessible-pdf-wcag).
+const SKILL_PROMPT =
+  'Haluan tehdä järjestön PDF-esitteestä saavutettavan (WCAG 2.1 AA / PDF/UA). ' +
+  'Kerro miten saavutettavan PDF:n teko toimii: mitä vaatimuksia esitteen pitää täyttää, ' +
+  'miten tarkistan saavutettavuuden ja miten korjaan puutteet.';
+// claude:// avaa Claude Desktop -sovelluksen; https://claude.ai on selainvaralinkki.
+const CLAUDE_DESKTOP_URL = `claude://claude.ai/new?q=${encodeURIComponent(SKILL_PROMPT)}`;
+const CLAUDE_WEB_URL = `https://claude.ai/new?q=${encodeURIComponent(SKILL_PROMPT)}`;
 
 const card: React.CSSProperties = {
   background: 'var(--card)',
@@ -33,14 +39,17 @@ export default function PdfGuidance() {
           täydellistä saavutettavuutta: alt-tekstien sisältö ja vaikeat lähde-PDF:n virheet
           (esim. upottamattomat fontit) vaativat ihmisen arvion.
         </p>
-        <div style={{ marginTop: 12 }}>
-          <a className="btn btn-primary" href={CLAUDE_SKILL_URL} target="_blank" rel="noreferrer">
+        <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <a className="btn btn-primary" href={CLAUDE_DESKTOP_URL}>
             Avaa taito Claudessa
           </a>
-          <span style={{ marginLeft: 10, fontSize: 13, color: 'var(--t3)' }}>
-            Claude-taito, joka opastaa saavutettavan esitteen luonnissa.
-          </span>
+          <a href={CLAUDE_WEB_URL} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: 'var(--t3)' }}>
+            tai avaa selaimessa
+          </a>
         </div>
+        <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--t3)' }}>
+          Avaa Claude-sovelluksen valmiilla kysymyksellä — Claude opastaa saavutettavan esitteen luonnissa.
+        </p>
       </div>
 
       <details style={card}>
