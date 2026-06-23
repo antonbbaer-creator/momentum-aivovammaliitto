@@ -3,12 +3,29 @@
 // Ohjepaneeli Esitteet-moduulin yläosaan: mitä saavutettava esite vaatii,
 // taito avattavissa Claudessa, ja miten saavutettavuuden tarkistaa.
 
-// Avaa Claude valmiilla kehotteella, joka pyytää ohjeet saavutettavan PDF:n tekoon.
-// Kehote laukaisee Claudessa saavutettavuustaidon (accessible-pdf-wcag).
-const SKILL_PROMPT =
-  'Haluan tehdä järjestön PDF-esitteestä saavutettavan (WCAG 2.1 AA / PDF/UA). ' +
-  'Kerro miten saavutettavan PDF:n teko toimii: mitä vaatimuksia esitteen pitää täyttää, ' +
-  'miten tarkistan saavutettavuuden ja miten korjaan puutteet.';
+// Avaa Claude valmiilla kehotteella, johon on upotettu accessible-pdf-wcag -taidon
+// ydinohjeet. Näin ohjeet kulkevat linkin mukana myös käyttäjälle, jolla taitoa ei
+// ole asennettuna omaan Claudeensa. (Skriptien ajaminen vaatii silti taidon asennuksen
+// tai Momentumin oman työkalun.)
+const SKILL_PROMPT = [
+  'Toimi saavutettavan PDF:n (WCAG 2.1 AA) asiantuntijana ja opasta minua. Noudata tätä taitoa:',
+  '',
+  'PERUSASIA: Saavutettava PDF on tagattu — rakennepuu kertoo ruudunlukijalle otsikkotasot, kappaleet, listat, taulukot, kuvien alt-tekstit ja ennen kaikkea lukujärjestyksen. Taitetussa esitteessä lukujärjestys on erityisen tärkeä, koska palstat eivät noudata yksinkertaista vasen→oikea-järjestystä.',
+  '',
+  'PARAS TAPA: lisää tagit paikallaan ulkoasua muuttamatta. Jos alkuperäinen taitto (InDesign) on saatavilla, saavutettava vienti lähteestä on laadukkain — lukujärjestys ja tagit syntyvät suoraan oikein.',
+  '',
+  'KONE OSAA luotettavasti: dokumentin kieli, otsikko ja DisplayDocTitle, metatiedot, salauksen poisto (luvalla), tekstin valittavuuden tarkistus, puuttuvien alt-tekstien listaus.',
+  '',
+  'IHMINEN TARKISTAA AINA: alt-tekstien sisältö (katso kuvat, ehdota, hyväksy), lukujärjestys monipalstaisessa esitteessä, otsikkotasot.',
+  '',
+  'TYÖNKULKU: (0) Tunnista onko valmis PDF vai onko taitto yhä saatavilla. (1) Audit: tarkista tagit, kieli, otsikko, metatiedot, tekstin valittavuus ja alt-tekstit. (2) Auto-korjaa turvallisesti kieli, otsikko ja metatiedot. (3) Tagita tagaamaton esite paikallaan: ehdota alt-tekstit ja sisällyslinkit chattiin, anna ihmisen korjata, kirjoita sitten lopullinen tiedosto. (4) Tuota WCAG 2.1 AA -raportti korjauslistalla.',
+  '',
+  'ALT-TEKSTI: 1–2 virkettä (enintään noin 250 merkkiä), päätä pisteeseen, älä aloita sanoilla "Kuva/Kuvassa", neutraali kuvaus ilman tulkintaa, koristekuvat merkitään artefaktiksi.',
+  '',
+  'LOPUKSI: ihmistarkastus Adobe Acrobatissa (tagit, lukujärjestys, alt-tekstit, linkit) ja ruudunlukijatesti.',
+  '',
+  'Kerro nyt vaihe vaiheelta, miten teen taitetusta PDF-esitteestäni saavutettavan tämän taidon mukaan, ja mitä minun pitää itse tarkistaa.',
+].join('\n');
 // claude:// avaa Claude Desktop -sovelluksen; https://claude.ai on selainvaralinkki.
 const CLAUDE_DESKTOP_URL = `claude://claude.ai/new?q=${encodeURIComponent(SKILL_PROMPT)}`;
 const CLAUDE_WEB_URL = `https://claude.ai/new?q=${encodeURIComponent(SKILL_PROMPT)}`;
