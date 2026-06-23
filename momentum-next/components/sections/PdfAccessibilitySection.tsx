@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { useState } from 'react';
+import { ref, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useOrgData } from '@/lib/firestore';
@@ -36,7 +36,7 @@ export default function PdfAccessibilitySection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [checks, setChecks] = useState<Record<string, { check: SelfCheckSummary; statement: string }>>({});
   const [topErr, setTopErr] = useState<string | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const [upload, setUpload] = useState<{ name: string; pct: number } | null>(null);
 
   const setBusyFor = (id: string, v: boolean) => setBusy(prev => ({ ...prev, [id]: v }));
   const patchDoc = (id: string, patch: Partial<PdfDocument>) =>
@@ -52,28 +52,41 @@ export default function PdfAccessibilitySection() {
     if (!isPdf) { setTopErr(`Valitse PDF-tiedosto (sait tyypin "${file.type || 'tuntematon'}").`); return; }
     const id = makePdfId();
     const path = `${storageBase(activeOrg, id)}/original.pdf`;
-    setBusyFor(id, true);
-    try {
-      const storageRef = ref(storage, path);
-      console.log('[pdf] uploadBytes alkaa', path);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      console.log('[pdf] upload valmis', url);
-      const doc: PdfDocument = {
-        id,
-        filename: file.name,
-        status: 'uploaded',
-        storage: { original: path, originalUrl: url },
-        uploadedBy: user.uid,
-        uploadedAt: Date.now(),
-      };
-      setDocs(prev => [doc, ...prev]);
-    } catch (e) {
-      console.error('[pdf] upload epäonnistui', e);
-      setTopErr('Lataus epäonnistui: ' + (e instanceof Error ? e.message : String(e)));
-    } finally {
-      setBusyFor(id, false);
-    }
+    const uid = user.uid;
+    setUpload({ name: file.name, pct: 0 });
+    console.log('[pdf] uploadBytesResumable alkaa', path);
+    const task = uploadBytesResumable(ref(storage, path), file, { contentType: 'application/pdf' });
+    task.on(
+      'state_changed',
+      (snap) => {
+        const pct = snap.totalBytes ? Math.round((snap.bytesTransferred / snap.totalBytes) * 100) : 0;
+        setUpload({ name: file.name, pct });
+      },
+      (e) => {
+        console.error('[pdf] upload epäonnistui', e);
+        setTopErr('Lataus epäonnistui: ' + (e instanceof Error ? e.message : String(e)));
+        setUpload(null);
+      },
+      async () => {
+        try {
+          const url = await getDownloadURL(task.snapshot.ref);
+          console.log('[pdf] upload valmis', url);
+          const doc: PdfDocument = {
+            id,
+            filename: file.name,
+            status: 'uploaded',
+            storage: { original: path, originalUrl: url },
+            uploadedBy: uid,
+            uploadedAt: Date.now(),
+          };
+          setDocs(prev => [doc, ...prev]);
+        } catch (e) {
+          setTopErr('Latauksen viimeistely epäonnistui: ' + (e instanceof Error ? e.message : String(e)));
+        } finally {
+          setUpload(null);
+        }
+      },
+    );
   }
 
   async function handleAutotag(doc: PdfDocument) {
@@ -164,30 +177,40 @@ export default function PdfAccessibilitySection() {
       </div>
 
       <div>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="application/pdf"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) handleUpload(f);
-            e.target.value = '';
-          }}
-        />
-        <button
+        <label
           className="btn btn-primary"
-          disabled={!canEdit}
-          onClick={() => fileInput.current?.click()}
+          style={{ cursor: canEdit && !upload ? 'pointer' : 'not-allowed', opacity: canEdit && !upload ? 1 : 0.6 }}
         >
-          Lataa PDF-esite
-        </button>
+          <input
+            type="file"
+            accept="application/pdf,.pdf"
+            style={{ display: 'none' }}
+            disabled={!canEdit || !!upload}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleUpload(f);
+              e.target.value = '';
+            }}
+          />
+          {upload ? 'Ladataan…' : 'Lataa PDF-esite'}
+        </label>
         {!canEdit && (
           <span style={{ marginLeft: 10, fontSize: 13, color: 'var(--yellow)' }}>
             Ei muokkausoikeutta — lataus ei ole käytössä.
           </span>
         )}
       </div>
+
+      {upload && (
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 12 }}>
+          <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 6 }}>
+            Ladataan {upload.name} — {upload.pct} %
+          </div>
+          <div style={{ height: 8, background: 'var(--elev)', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${upload.pct}%`, background: 'var(--pri)', transition: 'width 0.2s' }} />
+          </div>
+        </div>
+      )}
 
       {topErr && (
         <div style={{ background: 'var(--card)', border: '1px solid var(--red)', borderRadius: 'var(--rl)', padding: 12, color: 'var(--red)', fontSize: 14 }}>
