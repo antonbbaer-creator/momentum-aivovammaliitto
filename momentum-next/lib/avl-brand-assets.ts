@@ -5,15 +5,14 @@
 export type AvlLogoVariant = {
   id: string;
   title: string;
-  preview: string; // PNG-esikatselu (läpinäkyvä tausta)
-  svg: string;     // vektori (painotuotteet, skaalautuva käyttö)
-  jpg: string;     // rasteri (nopea verkkokäyttö)
+  pngTransparent: string; // läpinäkyvä tausta
+  pngWhite: string;       // valkoinen tausta
 };
 
 export const AVL_LOGO_VARIANTS: AvlLogoVariant[] = [
-  { id: 'avl-vaaka', title: 'Vaakalogo', preview: '/brand/avl/logo-vaaka.png', svg: '/brand/avl/logo-vaaka.svg', jpg: '/brand/avl/logo-vaaka.jpg' },
-  { id: 'avl-keskitetty', title: 'Pystylogo (keskitetty)', preview: '/brand/avl/logo-keskitetty.png', svg: '/brand/avl/logo-keskitetty.svg', jpg: '/brand/avl/logo-keskitetty.jpg' },
-  { id: 'avl-tunnus', title: 'Tunnus', preview: '/brand/avl/logo-tunnus.png', svg: '/brand/avl/logo-tunnus.svg', jpg: '/brand/avl/logo-tunnus.jpg' },
+  { id: 'avl-vaaka', title: 'Vaakalogo', pngTransparent: '/brand/avl/logo-vaaka.png', pngWhite: '/brand/avl/logo-vaaka-valkoinen.png' },
+  { id: 'avl-keskitetty', title: 'Pystylogo (keskitetty)', pngTransparent: '/brand/avl/logo-keskitetty.png', pngWhite: '/brand/avl/logo-keskitetty-valkoinen.png' },
+  { id: 'avl-tunnus', title: 'Tunnus', pngTransparent: '/brand/avl/logo-tunnus.png', pngWhite: '/brand/avl/logo-tunnus-valkoinen.png' },
 ];
 
 export type AvlFont = { family: string; bundle: string; weights: string[]; note?: string };

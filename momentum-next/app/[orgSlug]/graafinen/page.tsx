@@ -363,22 +363,22 @@ function AvlLogoVariants() {
     <div style={{ marginTop: '1.75rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
       <div style={{ ...sectionTitle, marginBottom: '0.75rem' }}>Lataa logoversiot</div>
       <p style={{ ...muted, fontSize: '0.88rem', marginBottom: '1rem' }}>
-        Aivovammaliiton viralliset logoversiot. Vaakalogo on ensisijainen versio; pystylogoa käytetään esimerkiksi kapeissa tiloissa kuten käyntikorteissa. Tunnus toimii yksinään erikoissovelluksissa tai graafisena elementtinä. Lataa vektoriversio (SVG) painotuotteisiin ja skaalautuvaan käyttöön, JPG nopeaan verkkokäyttöön.
+        Aivovammaliiton viralliset logoversiot PNG-kuvina. Vaakalogo on ensisijainen versio; pystylogoa käytetään esimerkiksi kapeissa tiloissa kuten käyntikorteissa. Tunnus toimii yksinään erikoissovelluksissa tai graafisena elementtinä. Valitse läpinäkyvä tausta esimerkiksi värilliselle pohjalle, valkoinen tausta valmiiksi valkoisena kuvana.
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.75rem' }}>
         {AVL_LOGO_VARIANTS.map(v => (
           <div key={v.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '0.85rem', background: 'var(--paper-l)', display: 'flex', flexDirection: 'column' }}>
             <div style={{ height: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', marginBottom: '0.6rem', borderRadius: 'var(--r)' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={v.preview} alt={v.title} style={{ maxWidth: '85%', maxHeight: '85%', objectFit: 'contain' }} />
+              <img src={v.pngTransparent} alt={v.title} style={{ maxWidth: '85%', maxHeight: '85%', objectFit: 'contain' }} />
             </div>
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: '0.95rem', color: 'var(--t1)', marginBottom: '0.6rem' }}>{v.title}</div>
-            <div style={{ display: 'flex', gap: '0.4rem', marginTop: 'auto' }}>
-              <a className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '0.4rem 0.7rem', textAlign: 'center', flex: 1 }} href={v.svg} target="_blank" rel="noopener noreferrer" download>
-                SVG
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: 'auto' }}>
+              <a className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '0.4rem 0.7rem', textAlign: 'center' }} href={v.pngTransparent} target="_blank" rel="noopener noreferrer" download>
+                Läpinäkyvä tausta (PNG)
               </a>
-              <a className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.4rem 0.7rem', textAlign: 'center', flex: 1 }} href={v.jpg} target="_blank" rel="noopener noreferrer" download>
-                JPG
+              <a className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.4rem 0.7rem', textAlign: 'center' }} href={v.pngWhite} target="_blank" rel="noopener noreferrer" download>
+                Valkoinen tausta (PNG)
               </a>
             </div>
           </div>
