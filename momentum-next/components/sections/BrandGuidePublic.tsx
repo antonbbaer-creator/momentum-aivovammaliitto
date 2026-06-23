@@ -46,9 +46,6 @@ export default function BrandGuidePublic({ guide }: { guide: BrandGuide }) {
       <LogoCard description={guide.logo.description} />
       <ColorsCard colors={guide.colors} />
       <TypographyCard typography={guide.typography} />
-      <ImageryCard imagery={guide.imagery} />
-      <MaterialsCard materials={guide.materials} />
-      <AccessibilityCard accessibility={guide.accessibility} />
       <ContactCard contact={guide.contact} />
     </div>
   );
@@ -262,67 +259,6 @@ function TypographyCard({ typography }: { typography: BrandGuide['typography'] }
           ))}
         </div>
       </div>
-    </div>
-  );
-}
-
-/* ── Kuvamaailma ────────────────────────────────── */
-
-function ImageryCard({ imagery }: { imagery: BrandGuide['imagery'] }) {
-  if (!imagery.length) return null;
-  return (
-    <div style={card}>
-      <div style={sectionTitle}>Kuvamaailma</div>
-      <h2 style={sectionHeading}>Kuvamaailma</h2>
-      <div style={{ display: 'grid', gap: '1rem' }}>
-        {imagery.map(b => (
-          <div key={b.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.25rem', background: 'var(--paper-l)' }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: '1.15rem', color: 'var(--t1)', marginBottom: '0.5rem' }}>{b.title}</div>
-            <p style={muted}>{b.description}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ── Materiaalit ────────────────────────────────── */
-
-function MaterialsCard({ materials }: { materials: BrandGuide['materials'] }) {
-  if (!materials.length) return null;
-  return (
-    <div style={card}>
-      <div style={sectionTitle}>Materiaalit & pohjat</div>
-      <h2 style={sectionHeading}>Materiaalit</h2>
-      <div style={{ display: 'grid', gap: '1rem' }}>
-        {materials.map(m => (
-          <div key={m.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.25rem', background: 'var(--paper-l)' }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: '1.15rem', color: 'var(--t1)', marginBottom: '0.5rem' }}>{m.title}</div>
-            <p style={muted}>{m.description}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ── Saavutettavuus ─────────────────────────────── */
-
-function AccessibilityCard({ accessibility }: { accessibility: BrandGuide['accessibility'] }) {
-  if (!accessibility.description && !accessibility.points.length) return null;
-  return (
-    <div style={card}>
-      <div style={sectionTitle}>Saavutettavuus</div>
-      <h2 style={sectionHeading}>Saavutettavuus</h2>
-      {accessibility.description && <p style={{ ...muted, marginBottom: '1rem' }}>{accessibility.description}</p>}
-      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.5rem' }}>
-        {accessibility.points.map((p, i) => (
-          <li key={i} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', padding: '0.6rem 0.85rem', background: 'var(--paper-l)', borderRadius: 'var(--r)' }}>
-            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, color: 'var(--pri)', minWidth: 24 }}>{i + 1}.</span>
-            <span style={{ flex: 1, color: 'var(--t1)', lineHeight: 1.55 }}>{p}</span>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
