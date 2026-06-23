@@ -39,7 +39,7 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   ohjeet:    { id: 'ohjeet',    label: 'Ohjeet',     icon: '?', path: '/ohjeet',    alwaysOn: false },
   logogeneraattori: { id: 'logogeneraattori', label: 'Logogeneraattori', icon: '✦', path: '/logogeneraattori', alwaysOn: false },
   graafinen: { id: 'graafinen', label: 'Graafinen ohjeisto', icon: '◐', path: '/graafinen', alwaysOn: false },
-  saavutettavuus: { id: 'saavutettavuus', label: 'Saavutettavuus', icon: '✓', path: '/saavutettavuus', alwaysOn: false },
+  saavutettavuus: { id: 'saavutettavuus', label: 'Esitteet', icon: '▤', path: '/saavutettavuus', alwaysOn: false },
   kasikirjoitus: { id: 'kasikirjoitus', label: 'Käsikirjoitus', icon: '✑', path: '/kasikirjoitus', alwaysOn: false },
   aanite:    { id: 'aanite',    label: 'Äänitteet',  icon: '♪', path: '/aanite',    alwaysOn: false },
 };

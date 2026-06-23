@@ -19,6 +19,7 @@ import {
 } from '@/lib/pdf-accessibility-shared';
 import { checkRemediation } from '@/lib/pdf-figures';
 import PdfAltEditor from './PdfAltEditor';
+import PdfGuidance from './PdfGuidance';
 
 const ORG_NAMES: Record<string, string> = { avl: 'Aivovammaliitto ry' };
 
@@ -169,15 +170,7 @@ export default function PdfAccessibilitySection() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderLeft: '3px solid var(--pri)', borderRadius: 'var(--rl)', padding: 16 }}>
-        <p style={{ margin: 0, color: 'var(--t2)', lineHeight: 1.6 }}>
-          Lataa valmis, taitettu PDF-esite. Työkalu tekee siitä mahdollisimman pitkälle
-          saavutettavan (tagaus, lukujärjestys, metatiedot) ja ohjaa loput — kuvien
-          vaihtoehtoiset tekstit — sinun hyväksyttäväksesi. Työkalu <strong>ei takaa</strong>{' '}
-          täydellistä saavutettavuutta: alt-tekstien sisältö ja vaikeat lähde-PDF:n virheet
-          (esim. upottamattomat fontit) vaativat ihmisen arvion.
-        </p>
-      </div>
+      <PdfGuidance />
 
       <div>
         <label
