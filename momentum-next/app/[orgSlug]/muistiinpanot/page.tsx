@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import AppShell from '@/components/AppShell';
-import { useOrgData } from '@/lib/firestore';
+import { useOrgData, writeOrgDataNow } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
@@ -174,6 +174,64 @@ export default function MuistiinpanotPage() {
   const [nContent, setNContent] = useState('');
   const [nRawTranscription, setNRawTranscription] = useState('');
   const [nCleanTranscription, setNCleanTranscription] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // ── Luonnosvarmistus (localStorage) ──
+  // Lomakkeen sisältö talletetaan paikallisesti aina kun se muuttuu, ja
+  // poistetaan vasta kun muistio on varmasti tallentunut Firestoreen asti.
+  // Näin litterointi selviää sivun sulkemisesta, reloadista ja navigoinnista.
+  interface NoteDraft {
+    editId: string | null;
+    nTitle: string;
+    nDate: string;
+    nAttendees: string[];
+    nContent: string;
+    nRawTranscription: string;
+    nCleanTranscription: string;
+    ts: number;
+  }
+  const draftKey = `hetki_note_draft_${activeOrg || ''}`;
+  const [draftFound, setDraftFound] = useState<NoteDraft | null>(null);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearDraft = useCallback(() => {
+    try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
+    setDraftFound(null);
+  }, [draftKey]);
+
+  // Etsi tallentamaton luonnos sivulle tultaessa
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (!raw) return;
+      const d = JSON.parse(raw) as NoteDraft;
+      if (d && (d.nContent || d.nRawTranscription || d.nTitle)) setDraftFound(d);
+    } catch { /* rikkinäinen luonnos — ohitetaan */ }
+  }, [draftKey]);
+
+  // Talleta luonnos (kevyellä viiveellä) kun lomake on auki ja sisältö muuttuu
+  useEffect(() => {
+    if (!showForm) return;
+    if (!nTitle && !nContent && !nRawTranscription) return;
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      const draft: NoteDraft = { editId, nTitle, nDate, nAttendees, nContent, nRawTranscription, nCleanTranscription, ts: Date.now() };
+      try { localStorage.setItem(draftKey, JSON.stringify(draft)); } catch { /* quota täynnä tms. */ }
+    }, 400);
+    return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
+  }, [showForm, editId, nTitle, nDate, nAttendees, nContent, nRawTranscription, nCleanTranscription, draftKey]);
+
+  const restoreDraft = useCallback((d: NoteDraft) => {
+    setEditId(d.editId);
+    setNTitle(d.nTitle);
+    setNDate(d.nDate || new Date().toISOString().split('T')[0]);
+    setNAttendees(Array.isArray(d.nAttendees) ? d.nAttendees : []);
+    setNContent(d.nContent);
+    setNRawTranscription(d.nRawTranscription || '');
+    setNCleanTranscription(d.nCleanTranscription || '');
+    setShowForm(true);
+    setDraftFound(null);
+  }, []);
 
   // Detail-naytton nimen pikamuokkaus
   const [editingTitle, setEditingTitle] = useState(false);
@@ -268,8 +326,8 @@ export default function MuistiinpanotPage() {
     setShowForm(true);
   };
 
-  const save = () => {
-    if (!nTitle.trim() || !nContent.trim()) return;
+  const save = async () => {
+    if (!nTitle.trim() || !nContent.trim() || saving) return;
     const existing = editId ? notes.find(n => n.id === editId) : undefined;
     const note: MeetingNote = {
       id: editId || 'mn_' + Date.now(),
@@ -282,10 +340,25 @@ export default function MuistiinpanotPage() {
       cleanTranscription: nCleanTranscription || existing?.cleanTranscription || undefined,
       createdAt: existing?.createdAt ?? Date.now(),
     };
-    if (editId) setNotes(prev => prev.map(x => x.id === editId ? note : x));
-    else setNotes(prev => [note, ...prev]);
-    setShowForm(false);
-    toast(editId ? 'Muistiinpano päivitetty' : 'Muistiinpano lisätty', 'success');
+    const next = editId ? notes.map(x => x.id === editId ? note : x) : [note, ...notes];
+    setSaving(true);
+    try {
+      // Kirjoita Firestoreen heti ja odota vahvistus — vasta sen jälkeen
+      // siivotaan luonnos ja äänitteen varmuuskopio pois.
+      if (activeOrg && user) {
+        await writeOrgDataNow(activeOrg, 'meetingNotes', next, user.uid);
+      }
+      setNotes(next);
+      setShowForm(false);
+      clearDraft();
+      clearIDB();
+      toast(editId ? 'Muistiinpano päivitetty' : 'Muistiinpano tallennettu', 'success');
+    } catch {
+      // Teksti säilyy lomakkeella, luonnoksessa ja äänite varmuuskopiossa
+      toast('Tallennus epäonnistui — teksti on tallessa luonnoksena, yritä uudelleen', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const remove = (id: string) => {
@@ -807,6 +880,10 @@ ${chunk}`,
 
   const startRecording = useCallback(async () => {
     try {
+      // Älä pyyhi edellisen äänityksen varmuuskopiota kysymättä
+      if (hasRecovery && !window.confirm('Uuden äänityksen aloittaminen poistaa edellisen äänitteen varmuuskopion. Jatketaanko?')) {
+        return;
+      }
       await clearIDB();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -832,7 +909,7 @@ ${chunk}`,
     } catch {
       toast('Mikrofonin kaytto ei onnistunut', 'error');
     }
-  }, [toast, clearIDB, saveChunkToIDB]);
+  }, [toast, clearIDB, saveChunkToIDB, hasRecovery]);
 
   const stopRecording = useCallback(() => {
     const recorder = mediaRecorderRef.current;
@@ -854,13 +931,14 @@ ${chunk}`,
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
 
-  // ── Beforeunload warning during recording ──
+  // ── Beforeunload warning during recording, transcription and unsaved form ──
+  const hasUnsavedForm = showForm && (nContent.trim().length > 0 || nRawTranscription.length > 0);
   useEffect(() => {
-    if (!isRecording) return;
+    if (!isRecording && !transcribing && !hasUnsavedForm) return;
     const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [isRecording]);
+  }, [isRecording, transcribing, hasUnsavedForm]);
 
   // Check for recovery on mount
   useEffect(() => {
@@ -918,9 +996,10 @@ ${chunk}`,
     setNContent(transcription);
     if (!nTitle) setNTitle('Litteroitu ' + new Date().toISOString().split('T')[0]);
     setShowForm(true);
-    clearIDB();
-    toast('Litterointi valmis', 'success');
-  }, [activeOrg, nTitle, toast, clearIDB]);
+    // HUOM: äänitteen varmuuskopiota EI tyhjennetä tässä — se poistetaan
+    // vasta kun muistio on oikeasti tallennettu (save) tai käyttäjä hylkää sen.
+    toast('Litterointi valmis — muista tallentaa muistio', 'success');
+  }, [activeOrg, nTitle, toast]);
 
   // ── Transcription flow (supports large files via audio decoding + WAV chunking) ──
   const transcribeAudio = useCallback(async (audioBlob: Blob) => {
@@ -1787,6 +1866,37 @@ ${chunk}`,
         </div>
       )}
 
+      {/* Luonnos-palkki: tallentamaton muistio löytyi paikallisesta varmistuksesta */}
+      {draftFound && !showForm && !isRecording && !transcribing && (
+        <div style={{
+          background: 'rgba(241,180,52,.06)', border: '1px solid rgba(241,180,52,.25)',
+          borderRadius: 'var(--r)', padding: '1rem 1.2rem', marginBottom: '1rem',
+          display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--t1)' }}>
+            Tallentamaton muistio löydetty{draftFound.nTitle ? `: ${draftFound.nTitle}` : ''}
+            {draftFound.ts ? ` (${new Date(draftFound.ts).toLocaleString('fi-FI', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })})` : ''}.
+            Haluatko jatkaa sen muokkausta?
+          </span>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => restoreDraft(draftFound)}
+            style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}
+          >
+            Palauta luonnos
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => {
+              if (window.confirm('Poistetaanko tallentamaton luonnos pysyvästi?')) clearDraft();
+            }}
+            style={{ color: 'var(--t3)', whiteSpace: 'nowrap' }}
+          >
+            Hylkää
+          </button>
+        </div>
+      )}
+
       {/* Recovery banner */}
       {hasRecovery && !isRecording && !transcribing && (
         <div style={{
@@ -1795,7 +1905,7 @@ ${chunk}`,
           display: 'flex', alignItems: 'center', gap: '.75rem',
         }}>
           <span style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--t1)' }}>
-            Keskeytetty aanite loydetty. Haluatko palauttaa ja litteroida sen?
+            Äänitteen varmuuskopio löydetty. Haluatko litteroida sen?
           </span>
           <button
             className="btn btn-primary btn-sm"
@@ -1805,7 +1915,7 @@ ${chunk}`,
                 setHasRecovery(false);
                 await transcribeAudio(blob);
               } else {
-                toast('Aanitetta ei voitu palauttaa', 'error');
+                toast('Äänitettä ei voitu palauttaa', 'error');
                 clearIDB();
               }
             }}
@@ -1815,10 +1925,12 @@ ${chunk}`,
           </button>
           <button
             className="btn btn-ghost btn-sm"
-            onClick={() => clearIDB()}
+            onClick={() => {
+              if (window.confirm('Poistetaanko äänitteen varmuuskopio pysyvästi?')) clearIDB();
+            }}
             style={{ color: 'var(--t3)', whiteSpace: 'nowrap' }}
           >
-            Hylkaa
+            Hylkää
           </button>
         </div>
       )}
@@ -1993,8 +2105,8 @@ ${chunk}`,
 
             <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
               {editId && <button className="btn btn-ghost btn-sm" onClick={() => { remove(editId); setShowForm(false); }} style={{ color: 'var(--red)', marginRight: 'auto' }}>Poista</button>}
-              <button className="btn btn-ghost" onClick={() => setShowForm(false)}>Peruuta</button>
-              <button className="btn btn-primary" onClick={save} disabled={!nTitle.trim() || !nContent.trim()}>Tallenna</button>
+              <button className="btn btn-ghost" onClick={() => setShowForm(false)} disabled={saving}>Peruuta</button>
+              <button className="btn btn-primary" onClick={save} disabled={!nTitle.trim() || !nContent.trim() || saving}>{saving ? 'Tallennetaan…' : 'Tallenna'}</button>
             </div>
           </div>
         </div>

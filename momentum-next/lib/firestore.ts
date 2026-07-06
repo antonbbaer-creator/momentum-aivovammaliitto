@@ -6,6 +6,33 @@ import { db } from './firebase';
 import { useAuth } from './auth';
 
 /**
+ * writeOrgDataNow — kirjoittaa org-datan heti ja palauttaa vasta kun kirjoitus
+ * on varmasti perillä Firestoressa. Käytä tätä kun tallennuksen onnistuminen
+ * pitää varmistaa käyttäjälle (esim. muistiinpanon tallennus).
+ */
+export async function writeOrgDataNow<T>(orgId: string, key: string, value: T, uid: string): Promise<void> {
+  const docRef = doc(db, 'organizations', orgId, 'data', key);
+  await setDoc(docRef, {
+    v: JSON.stringify(value),
+    ts: Date.now(),
+    updatedBy: uid,
+  });
+}
+
+// Kesken olevien debounced-kirjoitusten flush-funktiot. Kun sivu piilotetaan
+// tai suljetaan, kaikki odottavat kirjoitukset lähetetään heti — muuten
+// 500 ms:n debounce-ikkunaan osunut tallennus katoaisi jäljettömiin.
+const pendingFlushes = new Set<() => void>();
+
+if (typeof window !== 'undefined') {
+  const flushAll = () => { pendingFlushes.forEach(fn => fn()); };
+  window.addEventListener('pagehide', flushAll);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushAll();
+  });
+}
+
+/**
  * useOrgData — reads/writes org-scoped data from Firestore
  * Path: /organizations/{orgId}/data/{key}
  * Document format: { v: JSON.stringify(value), ts: number, updatedBy: uid }
@@ -16,6 +43,9 @@ export function useOrgData<T>(key: string, defaultValue: T): [T, (val: T | ((pre
   const [loading, setLoading] = useState(true);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const isLocalUpdate = useRef(false);
+  // Odottava kirjoitus talteen refiin, jotta se voidaan lähettää heti
+  // unmountissa / sivun piiloutuessa sen sijaan että se hylätään
+  const pendingWriteRef = useRef<{ orgId: string; key: string; value: T; uid: string } | null>(null);
   // Pidetään default-arvoa refissä jotta useEffect voi käyttää sitä muuttamatta dep-listaa
   const defaultValueRef = useRef(defaultValue);
   defaultValueRef.current = defaultValue;
@@ -23,14 +53,38 @@ export function useOrgData<T>(key: string, defaultValue: T): [T, (val: T | ((pre
   const snapshotThrottleRef = useRef<NodeJS.Timeout | null>(null);
   const pendingSnapshotRef = useRef<T | null>(null);
 
-  // Subscribe to real-time updates. Kun key tai org muuttuu,
-  // nollataan tila default-arvoon jotta edellisen avaimen data ei vuoda uuteen.
-  useEffect(() => {
-    // Peruuta mahdollinen kesken oleva debounced kirjoitus — se kuului edelliseen avaimeen
+  // Lähetä odottava debounced-kirjoitus heti. Kutsutaan kun key/org vaihtuu,
+  // komponentti unmountataan tai sivu piiloutuu — kirjoitus menee alkuperäiseen
+  // polkuunsa (orgId ja key talletettu payloadiin), joten se ei voi kadota
+  // eikä mennä väärään dokumenttiin.
+  const flushPendingWrite = useCallback(() => {
+    const pending = pendingWriteRef.current;
+    if (!pending) return;
+    pendingWriteRef.current = null;
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
       debounceRef.current = null;
     }
+    writeOrgDataNow(pending.orgId, pending.key, pending.value, pending.uid)
+      .catch(e => console.error(`Failed to flush ${pending.key}:`, e));
+  }, []);
+
+  // Rekisteröi flush sivunlaajuiseen pagehide/visibilitychange-käsittelyyn
+  // ja aja se myös unmountissa.
+  useEffect(() => {
+    pendingFlushes.add(flushPendingWrite);
+    return () => {
+      pendingFlushes.delete(flushPendingWrite);
+      flushPendingWrite();
+    };
+  }, [flushPendingWrite]);
+
+  // Subscribe to real-time updates. Kun key tai org muuttuu,
+  // nollataan tila default-arvoon jotta edellisen avaimen data ei vuoda uuteen.
+  useEffect(() => {
+    // Lähetä mahdollinen kesken oleva debounced kirjoitus heti —
+    // se kuului edelliseen avaimeen eikä saa hävitä
+    flushPendingWrite();
     if (snapshotThrottleRef.current) {
       clearTimeout(snapshotThrottleRef.current);
       snapshotThrottleRef.current = null;
@@ -107,21 +161,21 @@ export function useOrgData<T>(key: string, defaultValue: T): [T, (val: T | ((pre
         snapshotThrottleRef.current = null;
       }
     };
-  }, [activeOrg, user, key]);
+  }, [activeOrg, user, key, flushPendingWrite]);
 
   // Debounced write to Firestore (blocked for visitors)
   const writeToFirestore = useCallback((newVal: T) => {
     if (!activeOrg || !user || !canEdit) return;
 
+    pendingWriteRef.current = { orgId: activeOrg, key, value: newVal, uid: user.uid };
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
+      debounceRef.current = null;
+      const pending = pendingWriteRef.current;
+      pendingWriteRef.current = null;
+      if (!pending) return;
       try {
-        const docRef = doc(db, 'organizations', activeOrg, 'data', key);
-        await setDoc(docRef, {
-          v: JSON.stringify(newVal),
-          ts: Date.now(),
-          updatedBy: user.uid,
-        });
+        await writeOrgDataNow(pending.orgId, pending.key, pending.value, pending.uid);
       } catch (e) {
         console.error(`Failed to write ${key}:`, e);
       }
