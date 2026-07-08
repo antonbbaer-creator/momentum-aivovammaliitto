@@ -340,7 +340,22 @@ export default function MuistiinpanotPage() {
       cleanTranscription: nCleanTranscription || existing?.cleanTranscription || undefined,
       createdAt: existing?.createdAt ?? Date.now(),
     };
-    const next = editId ? notes.map(x => x.id === editId ? note : x) : [note, ...notes];
+    // Älä tallenna raakalitterointia kahteen kertaan: jos se on identtinen
+    // sisällön kanssa, content riittää. Ilman tätä muistiodokumentti paisuu
+    // kaksinkertaiseksi ja törmää Firestoren 1 Mt:n dokumenttirajaan.
+    const slim = (x: MeetingNote): MeetingNote =>
+      x.rawTranscription && x.rawTranscription === x.content ? { ...x, rawTranscription: undefined } : x;
+    const next = (editId ? notes.map(x => x.id === editId ? note : x) : [note, ...notes]).map(slim);
+
+    // Kokovahti: Firestore-dokumentin kova raja on 1 048 576 tavua.
+    const bytes = new TextEncoder().encode(JSON.stringify(next)).length;
+    if (bytes > 1_000_000) {
+      toast('Muistiot eivät mahdu tallennusrajaan (1 Mt). Poista vanhoja muistioita pysyvästi roskakorin kautta ja yritä uudelleen — teksti säilyy luonnoksena.', 'error');
+      return;
+    }
+    if (bytes > 850_000) {
+      toast('Muistioarkisto lähestyy tallennusrajaa — vanhoja muistioita kannattaa siivota', 'error');
+    }
     setSaving(true);
     try {
       // Kirjoita Firestoreen heti ja odota vahvistus — vasta sen jälkeen
@@ -1957,7 +1972,7 @@ ${chunk}`,
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.25rem' }}>
                 <span style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--pri-l)' }}>{formatDate(note.date)}</span>
-                {note.rawTranscription && (
+                {(note.rawTranscription || note.cleanTranscription) && (
                   <span style={{ fontSize: '.58rem', padding: '.1rem .35rem', borderRadius: 9999, background: 'rgba(5,107,159,.1)', color: 'var(--pri)', fontWeight: 700 }}>Litteroitu</span>
                 )}
                 {note.summary && (
