@@ -19,7 +19,7 @@ import {
   brandId,
   getDefaultBrandGuide,
 } from '@/lib/brand-guide-shared';
-import { AVL_LOGO_VARIANTS, AVL_FONTS, AVL_TEMPLATES, AVL_GUIDE_PDF, AVL_GUIDE_TOTAL_PAGES, AVL_PUBLIC_GUIDE_PATH, AVL_PUBLIC_GUIDE_PASSWORD } from '@/lib/avl-brand-assets';
+import { AVL_LOGO_VARIANTS, AVL_FONTS, AVL_TEMPLATES, AVL_GUIDE_PDF, AVL_GUIDE_TOTAL_PAGES, AVL_PUBLIC_GUIDE_PATH, AVL_PUBLIC_GUIDE_PASSWORD, AVL_PUBLIC_BROCHURES_PATH, AVL_PUBLIC_BROCHURES_PASSWORD } from '@/lib/avl-brand-assets';
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 
@@ -277,6 +277,19 @@ function AvlOriginalPdfCard() {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  // Jaa julkinen esitesivu: sama kaava kuin ohjeistolla — linkki + salasana
+  // leikepöydälle ja sivu uuteen välilehteen.
+  const shareBrochures = async () => {
+    const url = `${window.location.origin}${AVL_PUBLIC_BROCHURES_PATH}`;
+    try {
+      await navigator.clipboard.writeText(`Aivovammaliiton esitteet:\n${url}\nSalasana: ${AVL_PUBLIC_BROCHURES_PASSWORD}`);
+      toast('Esitesivun linkki ja salasana kopioitu', 'success');
+    } catch {
+      toast(`Esitesivun osoite: ${url} (salasana ${AVL_PUBLIC_BROCHURES_PASSWORD})`, 'success');
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') goPrev();
@@ -294,6 +307,7 @@ function AvlOriginalPdfCard() {
         <h2 style={{ ...sectionHeading, marginBottom: 0 }}>Graafinen ohjeisto</h2>
         <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
           <button className="btn btn-primary" style={editBtn} onClick={sharePublic} title="Jaa julkinen ohjeisto ilman tunnuksia">Jaa julkinen ohjeisto</button>
+          <button className="btn btn-primary" style={editBtn} onClick={shareBrochures} title="Jaa julkinen esitesivu ilman tunnuksia">Jaa esitesivu</button>
           <a className="btn btn-secondary" style={editBtn} href={AVL_GUIDE_PDF} target="_blank" rel="noopener noreferrer" download>Lataa PDF</a>
         </div>
       </div>
