@@ -79,6 +79,7 @@ export const AVL_BROCHURES: AvlBrochure[] = [
     id: 'avl-esite-afasia',
     title: 'Perustietoa afasiasta',
     webPdf: '/brand/avl/esitteet/perustietoa-afasiasta-netti.pdf',
+    printPdf: '/brand/avl/esitteet/perustietoa-afasiasta-paino.pdf',
   },
 ];
 
