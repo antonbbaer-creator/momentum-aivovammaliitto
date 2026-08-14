@@ -49,6 +49,14 @@ export const AVL_TEMPLATES: AvlTemplate[] = [
     sizeLabel: '70 Mt',
   },
   {
+    id: 'avl-some-pohja',
+    title: 'Somepohja (Instagram)',
+    description: 'Aivovammaliiton ilmeen mukaiset somejulkaisupohjat Instagramiin (24 diaa). Avaa PowerPointissa tai tuo Canvaan PPTX-tiedostona (Canvassa: Luo uusi → Tuo tiedosto).',
+    file: '/brand/avl/pohjat/some-pohja.pptx',
+    format: 'PPTX',
+    sizeLabel: '10 Mt',
+  },
+  {
     id: 'avl-kirjelomake',
     title: 'Kirjelomake',
     description: 'Aivovammaliiton virallinen kirjelomakepohja (2026) kirjeisiin, lausuntoihin ja muihin asiakirjoihin. Word-tiedosto, jossa liiton tunnus ja yhteystiedot valmiina.',
