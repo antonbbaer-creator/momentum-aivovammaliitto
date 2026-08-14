@@ -89,6 +89,12 @@ export const AVL_BROCHURES: AvlBrochure[] = [
     webPdf: '/brand/avl/esitteet/perustietoa-afasiasta-netti.pdf',
     printPdf: '/brand/avl/esitteet/perustietoa-afasiasta-paino.pdf',
   },
+  {
+    id: 'avl-esite-seksuaalisuus',
+    title: 'Seksuaalisuus, seksielämä ja parisuhde aivovamman jälkeen',
+    webPdf: '/brand/avl/esitteet/seksuaalisuus-netti.pdf',
+    printPdf: '/brand/avl/esitteet/seksuaalisuus-paino.pdf',
+  },
 ];
 
 export const AVL_GUIDE_PDF = '/brand/avl/graafinen-ohjeisto.pdf';
