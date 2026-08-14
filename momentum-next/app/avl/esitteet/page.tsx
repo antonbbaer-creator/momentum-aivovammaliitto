@@ -3,7 +3,10 @@
 /*
  * Julkinen esitesivu Aivovammaliitolle — osoite /avl/esitteet.
  * Pääsy salasanalla (sama kuin graafisella ohjeistolla), ei vaadi kirjautumista.
- * Listaa valmiit esitteet helposti ladattaviksi yhdestä paikasta.
+ *
+ * Sivu on valmiiden esitteiden säilö: jokaisesta esitteestä saavutettava
+ * nettiversio ja painoversio samassa paikassa. Lista tulee staattisena
+ * AVL_BROCHURES-datasta (lib/avl-brand-assets.ts), tiedostot public/brand/avl/esitteet/.
  *
  * Reititys: literaali reitti app/avl/... (EI org-reitti [orgSlug]), jotta
  * org-layoutin auth-gate ei ohjaa kirjautumattomia /login-sivulle.
@@ -12,23 +15,15 @@
  */
 
 import { useState, useEffect, FormEvent } from 'react';
-import { AVL_PUBLIC_BROCHURES_PASSWORD } from '@/lib/avl-brand-assets';
+import { AVL_BROCHURES, AVL_PUBLIC_BROCHURES_PASSWORD } from '@/lib/avl-brand-assets';
 
 const STORAGE_KEY = 'esitteet_unlocked';
-
-interface PublicBrochure {
-  filename: string;
-  url: string;
-  accessible: boolean;
-  uploadedAt?: number;
-}
 
 export default function PublicBrochuresPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [input, setInput] = useState('');
   const [error, setError] = useState(false);
-  const [brochures, setBrochures] = useState<PublicBrochure[] | null>(null);
 
   useEffect(() => {
     setHydrated(true);
@@ -36,14 +31,6 @@ export default function PublicBrochuresPage() {
       setUnlocked(true);
     }
   }, []);
-
-  useEffect(() => {
-    if (!unlocked) return;
-    fetch('/api/avl/esitteet')
-      .then((r) => r.json())
-      .then((d) => setBrochures(Array.isArray(d.brochures) ? d.brochures : []))
-      .catch(() => setBrochures([]));
-  }, [unlocked]);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -100,29 +87,41 @@ export default function PublicBrochuresPage() {
           Aivovammaliiton esitteet
         </h1>
         <p style={{ fontSize: '.78rem', color: 'var(--t3)', margin: '.25rem 0 0' }}>
-          Lataa esitteet alta. Saavutettavat versiot on merkitty.
+          Valmiit esitteet — saavutettava nettiversio ja painoversio samassa paikassa.
         </p>
       </header>
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {brochures === null ? (
-          <p style={{ color: 'var(--t3)' }}>Ladataan esitteitä…</p>
-        ) : brochures.length === 0 ? (
+        {AVL_BROCHURES.length === 0 ? (
           <p style={{ color: 'var(--t3)' }}>Ei vielä esitteitä.</p>
         ) : (
-          brochures.map((b, i) => (
+          AVL_BROCHURES.map((b) => (
             <div
-              key={i}
+              key={b.id}
               style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}
             >
               <div style={{ flex: 1, minWidth: 200 }}>
-                <div style={{ fontWeight: 600, color: 'var(--t1)' }}>{b.filename}</div>
-                {b.accessible && (
-                  <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 2 }}>Saavutettava (WCAG 2.1 AA)</div>
+                <div style={{ fontWeight: 600, color: 'var(--t1)' }}>{b.title}</div>
+                {b.description && (
+                  <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 2 }}>{b.description}</div>
+                )}
+                {b.webPdf && (
+                  <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 2 }}>Nettiversio on saavutettava (WCAG 2.1 AA)</div>
                 )}
               </div>
-              <a className="btn btn-primary" href={b.url} target="_blank" rel="noreferrer">
-                Lataa
-              </a>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {b.webPdf && (
+                  <a className="btn btn-primary" href={b.webPdf} target="_blank" rel="noreferrer">
+                    Nettiversio (PDF)
+                  </a>
+                )}
+                {b.printPdf ? (
+                  <a className="btn btn-secondary" href={b.printPdf} target="_blank" rel="noreferrer">
+                    Painoversio (PDF)
+                  </a>
+                ) : (
+                  <span style={{ fontSize: 12, color: 'var(--t3)', alignSelf: 'center' }}>Painoversio tulossa</span>
+                )}
+              </div>
             </div>
           ))
         )}

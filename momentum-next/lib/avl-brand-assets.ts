@@ -58,6 +58,30 @@ export const AVL_TEMPLATES: AvlTemplate[] = [
   },
 ];
 
+// Valmiit esitteet — saavutettava nettiversio ja painoversio samassa paikassa.
+// Tiedostot public/brand/avl/esitteet/. Uusi esite = uusi rivi tähän listaan.
+export type AvlBrochure = {
+  id: string;
+  title: string;
+  description?: string;
+  webPdf?: string;   // saavutettava nettiversio
+  printPdf?: string; // painoversio
+};
+
+export const AVL_BROCHURES: AvlBrochure[] = [
+  {
+    id: 'avl-esite-avh',
+    title: 'Perustietoa aivoverenkiertohäiriöistä',
+    webPdf: '/brand/avl/esitteet/perustietoa-aivoverenkiertohairioista-netti.pdf',
+    printPdf: '/brand/avl/esitteet/perustietoa-aivoverenkiertohairioista-paino.pdf',
+  },
+  {
+    id: 'avl-esite-afasia',
+    title: 'Perustietoa afasiasta',
+    webPdf: '/brand/avl/esitteet/perustietoa-afasiasta-netti.pdf',
+  },
+];
+
 export const AVL_GUIDE_PDF = '/brand/avl/graafinen-ohjeisto.pdf';
 export const AVL_GUIDE_TOTAL_PAGES = 17;
 
