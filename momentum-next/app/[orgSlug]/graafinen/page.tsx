@@ -19,7 +19,7 @@ import {
   brandId,
   getDefaultBrandGuide,
 } from '@/lib/brand-guide-shared';
-import { AVL_LOGO_VARIANTS, AVL_FONTS, AVL_GUIDE_PDF, AVL_GUIDE_TOTAL_PAGES, AVL_PUBLIC_GUIDE_PATH, AVL_PUBLIC_GUIDE_PASSWORD } from '@/lib/avl-brand-assets';
+import { AVL_LOGO_VARIANTS, AVL_FONTS, AVL_TEMPLATES, AVL_GUIDE_PDF, AVL_GUIDE_TOTAL_PAGES, AVL_PUBLIC_GUIDE_PATH, AVL_PUBLIC_GUIDE_PASSWORD } from '@/lib/avl-brand-assets';
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 
@@ -139,6 +139,9 @@ export default function GraafinenOhjeistoPage() {
 
         {/* AVL — alkuperäinen PDF luettavissa kokonaisuudessaan */}
         {isAvl && <AvlOriginalPdfCard />}
+
+        {/* AVL — ladattavat pohjat ja valmiit aineistot */}
+        {isAvl && <AvlAineistotCard />}
 
         {/* LOGO */}
         <LogoCard
@@ -381,6 +384,38 @@ function AvlLogoVariants() {
                 Valkoinen tausta (PNG)
               </a>
             </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AvlAineistotCard() {
+  return (
+    <div style={card}>
+      <div style={headerRow}>
+        <div>
+          <div style={sectionTitle}>Aineistot</div>
+          <h2 style={sectionHeading}>Pohjat ja valmiit aineistot</h2>
+        </div>
+      </div>
+      <p style={{ ...muted, marginBottom: '1rem' }}>
+        Aivovammaliiton graafisen ilmeen mukaiset valmiit pohjat esityksiin ja muihin materiaaleihin. Lataa pohja ja tallenna siitä oma kopio ennen muokkausta.
+      </p>
+      <div style={{ display: 'grid', gap: '1rem' }}>
+        {AVL_TEMPLATES.map(t => (
+          <div key={t.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1rem', background: 'var(--paper-l)', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ flex: '1 1 240px' }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: '1.1rem', color: 'var(--t1)', marginBottom: '0.25rem' }}>{t.title}</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--t3)', marginBottom: '0.4rem' }}>
+                {t.format}{t.sizeLabel ? ` · ${t.sizeLabel}` : ''}
+              </div>
+              <p style={{ ...muted, fontSize: '0.82rem', margin: 0 }}>{t.description}</p>
+            </div>
+            <a className="btn btn-primary" style={{ fontSize: '0.78rem', padding: '0.45rem 0.9rem' }} href={t.file} download>
+              Lataa ({t.format})
+            </a>
           </div>
         ))}
       </div>

@@ -30,6 +30,34 @@ export const AVL_FONTS: AvlFont[] = [
   },
 ];
 
+export type AvlTemplate = {
+  id: string;
+  title: string;
+  description: string;
+  file: string;
+  format: string; // esim. 'PPTX'
+  sizeLabel?: string; // esim. '70 Mt'
+};
+
+export const AVL_TEMPLATES: AvlTemplate[] = [
+  {
+    id: 'avl-ppt-pohja',
+    title: 'PowerPoint-esityspohja',
+    description: 'Aivovammaliiton graafisen ilmeen mukainen esityspohja valmiine diamalleineen. Sisältää mm. kansi-, sisältö- ja teemadiat liiton väreissä ja fonteissa.',
+    file: '/brand/avl/pohjat/powerpoint-pohja.pptx',
+    format: 'PPTX',
+    sizeLabel: '70 Mt',
+  },
+  {
+    id: 'avl-kirjelomake',
+    title: 'Kirjelomake',
+    description: 'Aivovammaliiton virallinen kirjelomakepohja (2026) kirjeisiin, lausuntoihin ja muihin asiakirjoihin. Word-tiedosto, jossa liiton tunnus ja yhteystiedot valmiina.',
+    file: '/brand/avl/pohjat/kirjelomake.docx',
+    format: 'DOCX',
+    sizeLabel: '140 kt',
+  },
+];
+
 export const AVL_GUIDE_PDF = '/brand/avl/graafinen-ohjeisto.pdf';
 export const AVL_GUIDE_TOTAL_PAGES = 17;
 
