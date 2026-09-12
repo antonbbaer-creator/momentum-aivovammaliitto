@@ -1,3 +1,5 @@
+'use client';
+
 // Hetki Companyn asiakashankinta-agentit — jaettu tietomalli Momentumille.
 //
 // Agentit pyörivät Mac minillä Claude Code -sessiossa (repo hetki-myynti).
@@ -9,6 +11,8 @@
 // Firestore-avaimet (organizations/hetki-company/data/*):
 //   hetkiAgentRuns     AgentRun[]     uusin ensin, enintään MAX_RUNS
 //   hetkiAgentMetrics  AgentMetrics   strategi päivittää viikkokierroksella
+
+import { useEffect, useState } from 'react';
 
 export type AgentId =
   | 'myyntipaallikko'
@@ -370,4 +374,14 @@ export function fmtDateTime(iso: string): string {
 
 export function fmtEurShort(n: number): string {
   return `${Math.round(n).toLocaleString('fi-FI')} €`;
+}
+
+/** Nykyhetki renderiin puhtaasti: alkuarvo kerran, päivitys minuutin välein. */
+export function useNow(intervalMs = 60000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(t);
+  }, [intervalMs]);
+  return now;
 }

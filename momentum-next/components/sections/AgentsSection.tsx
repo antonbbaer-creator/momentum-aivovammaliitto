@@ -15,7 +15,7 @@ import {
   AGENT_DEFS, AGENT_BY_ID, SUB_AGENT_IDS, DATA_STORES, RUN_TYPE_META, RUN_STATUS_META,
   RESULT_KEYS, RESULT_LABELS, RUNS_KEY, METRICS_KEY, EMPTY_RUNS, DEFAULT_METRICS, MAX_RUNS,
   activeRuns, runsSince, sumResults, pendingDecisions, lastRunOfAgent, nextScheduledRuns,
-  normalizeRun, toneVar, fmtRelative, fmtDateTime, fmtEurShort,
+  normalizeRun, toneVar, fmtRelative, fmtDateTime, fmtEurShort, useNow,
   type AgentId, type AgentRun, type AgentMetrics, type AgentRunResults, type RunType, type RunStatus, type DataStoreId,
 } from '@/lib/agents-shared';
 
@@ -372,7 +372,7 @@ export default function AgentsSection() {
   const [showAll, setShowAll] = useState(false);
 
   const runs = useMemo(() => activeRuns(rawRuns || []), [rawRuns]);
-  const now = Date.now();
+  const now = useNow();
   const last7 = useMemo(() => runsSince(runs, 7, now), [runs, now]);
   const last30 = useMemo(() => runsSince(runs, 30, now), [runs, now]);
   const sums30 = useMemo(() => sumResults(last30), [last30]);
@@ -486,7 +486,7 @@ export default function AgentsSection() {
                 <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 14, lineHeight: 1.5 }}>
                   {r.decisions!.map((d, i) => <li key={i}>{d}</li>)}
                 </ul>
-                <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 8 }}>Vastaa myyntipäällikölle puhelimesta tai claude.ai:sta. Se ei lähetä mitään ennen erillistä "kyllä, lähetä".</div>
+                <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 8 }}>Vastaa myyntipäällikölle puhelimesta tai claude.ai:sta. Se ei lähetä mitään ennen erillistä &quot;kyllä, lähetä&quot;.</div>
               </div>
             ))}
           </div>
@@ -592,7 +592,7 @@ export default function AgentsSection() {
           })}
         </div>
         <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 10 }}>
-          Ajastus elää Mac minin sessiossa (/loop 1h tuntiajo). Jos "Mac mini" näyttää hiljaista yli kolme tuntia, sessio on todennäköisesti pysähtynyt.
+          Ajastus elää Mac minin sessiossa (/loop 1h tuntiajo). Jos &quot;Mac mini&quot; näyttää hiljaista yli kolme tuntia, sessio on todennäköisesti pysähtynyt.
         </div>
       </section>
 

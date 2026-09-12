@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
 import {
   RUNS_KEY, EMPTY_RUNS, RUN_TYPE_META, AGENT_BY_ID,
-  activeRuns, runsSince, sumResults, pendingDecisions, nextScheduledRuns, fmtRelative, fmtDateTime,
+  activeRuns, runsSince, sumResults, pendingDecisions, nextScheduledRuns, fmtRelative, fmtDateTime, useNow,
   type AgentRun,
 } from '@/lib/agents-shared';
 
@@ -17,7 +17,7 @@ export default function HetkiAgentsWidget() {
   const orgSlug = (useParams().orgSlug as string) || '';
   const [rawRuns] = useOrgData<AgentRun[]>(RUNS_KEY, EMPTY_RUNS);
   const runs = useMemo(() => activeRuns(rawRuns || []), [rawRuns]);
-  const now = Date.now();
+  const now = useNow();
   const last = runs[0];
   const pending = useMemo(() => pendingDecisions(runs), [runs]);
   const sums7 = useMemo(() => sumResults(runsSince(runs, 7, now)), [runs, now]);
