@@ -1,8 +1,9 @@
 // Cloud Function: vastaanottaa Hetki Companyn asiakashankinta-agenttien ajot.
 //
 // Kutsuja: hetki-myynti/bin/kirjaa-ajo.sh Mac minillä (curl POST).
-// Tunnistus: otsake x-agent-token, verrataan salaisuuteen AGENT_LOG_TOKEN.
-//   firebase functions:secrets:set AGENT_LOG_TOKEN
+// Tunnistus: otsake x-agent-token, verrataan parametriin AGENT_LOG_TOKEN.
+//   Arvo tiedostossa firebase/functions/.env (ei repossa): AGENT_LOG_TOKEN=<satunnainen>
+//   Secret Manager vaatisi Blaze-laskutuksen, siksi tavallinen ympäristöparametri.
 // Kirjoittaa:
 //   organizations/{orgId}/data/hetkiAgentRuns     { v: JSON(AgentRun[]), ts, updatedBy }
 //   organizations/{orgId}/data/hetkiAgentMetrics  { v: JSON(AgentMetrics), ts, updatedBy }
@@ -12,13 +13,13 @@
 
 import * as admin from 'firebase-admin';
 import { onRequest } from 'firebase-functions/v2/https';
-import { defineSecret } from 'firebase-functions/params';
+import { defineString } from 'firebase-functions/params';
 import { timingSafeEqual } from 'crypto';
 
 if (admin.apps.length === 0) admin.initializeApp();
 const db = admin.firestore();
 
-const AGENT_LOG_TOKEN = defineSecret('AGENT_LOG_TOKEN');
+const AGENT_LOG_TOKEN = defineString('AGENT_LOG_TOKEN', { default: '' });
 
 const ALLOWED_ORGS = ['hetki-company'];
 const RUNS_KEY = 'hetkiAgentRuns';
@@ -115,7 +116,7 @@ function parseV(data: FirebaseFirestore.DocumentData | undefined): unknown {
 }
 
 export const logAgentRun = onRequest(
-  { region: 'europe-west1', secrets: [AGENT_LOG_TOKEN], cors: false, maxInstances: 2 },
+  { region: 'europe-west1', cors: false, maxInstances: 2 },
   async (req, res) => {
     if (req.method !== 'POST') {
       res.status(405).json({ ok: false, error: 'POST only' });

@@ -23,3 +23,6 @@ docs/~$*
 
 # Claude
 .claude/
+
+# Cloud Functions -parametrit (token), ei repoon
+firebase/functions/.env
