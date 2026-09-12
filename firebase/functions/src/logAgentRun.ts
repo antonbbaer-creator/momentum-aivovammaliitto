@@ -24,6 +24,9 @@ const AGENT_LOG_TOKEN = defineString('AGENT_LOG_TOKEN', { default: '' });
 const ALLOWED_ORGS = ['hetki-company'];
 const RUNS_KEY = 'hetkiAgentRuns';
 const METRICS_KEY = 'hetkiAgentMetrics';
+const PIPELINE_KEY = 'hetkiPipeline';
+const MAX_PROSPECTS = 600;
+const VALID_STAGES = ['idea', 'tutkittu', 'luonnos', 'lahetetty', 'keskustelu', 'tarjous', 'voitettu', 'havitetty'];
 const MAX_RUNS = 500;
 const MAX_EVENTS = 200;
 
@@ -110,6 +113,51 @@ function normalizeMetrics(raw: Dict, prev: Dict): Dict {
   return out;
 }
 
+const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : undefined);
+
+/** Pipeline-peili: vain kentät, jotka Momentumin näkymä tarvitsee; loki tiivistetään viimeiseen riviin. */
+function normalizePipeline(raw: Dict): Dict {
+  const prospectsRaw = Array.isArray(raw.prospects) ? raw.prospects : [];
+  const prospects = prospectsRaw.map(pr => {
+    const p = (pr && typeof pr === 'object' ? pr : {}) as Dict;
+    const log = Array.isArray(p.log) ? (p.log as Dict[]) : [];
+    const last = log.length ? log[log.length - 1] : null;
+    const out: Dict = {
+      id: str(p.id, 120) || str(p.name, 60) || 'x',
+      name: str(p.name, 200) || String(p.id || ''),
+      stage: VALID_STAGES.includes(String(p.stage)) ? String(p.stage) : 'idea',
+    };
+    for (const k of ['segment', 'contact', 'email', 'phone', 'source', 'sentDate', 'nextAction', 'nextDate', 'createdAt', 'updatedAt']) {
+      const v = str(p[k], 300); if (v) out[k] = v;
+    }
+    const angle = str(p.angle, 600); if (angle) out.angle = angle;
+    const value = Number(p.value); if (Number.isFinite(value) && value > 0) out.value = Math.round(value);
+    if (last) out.lastLog = { date: str(last.date, 20) || '', text: str(last.text, 400) || '' };
+    if (log.length) out.logCount = log.length;
+    return out;
+  }).slice(0, MAX_PROSPECTS);
+  const out: Dict = { prospects, syncedAt: Date.now(), syncedBy: 'agent:myyntipaallikko' };
+  if (raw.goal && typeof raw.goal === 'object') {
+    const g = raw.goal as Dict;
+    out.goal = { name: str(g.name, 120), target: Number(g.target) || undefined, deadline: str(g.deadline, 20), note: str(g.note, 400) };
+  }
+  if (raw.strategy && typeof raw.strategy === 'object') {
+    const st = raw.strategy as Dict;
+    out.strategy = {
+      kampanja: str(st.kampanja, 300),
+      mittarit: st.mittarit && typeof st.mittarit === 'object' ? st.mittarit : undefined,
+      hypoteesit: (Array.isArray(st.hypoteesit) ? st.hypoteesit : []).slice(0, 20).map(h => {
+        const o = (h && typeof h === 'object' ? h : {}) as Dict;
+        return { id: str(o.id, 20), vaite: str(o.vaite, 400), tila: str(o.tila, 40), data: str(o.data, 600), paatos: str(o.paatos, 400) ?? null };
+      }),
+      kokeilujono: (Array.isArray(st.kokeilujono) ? st.kokeilujono : []).slice(0, 30).map(x => String(x).slice(0, 600)),
+      opit: (Array.isArray(st.opit) ? st.opit : []).slice(-30).map(x => String(x).slice(0, 800)),
+      viimeksiRaportoitu: str(st.viimeksiRaportoitu, 40),
+    };
+  }
+  return JSON.parse(JSON.stringify(out)); // poistaa undefined-kentät
+}
+
 function parseV(data: FirebaseFirestore.DocumentData | undefined): unknown {
   if (!data || typeof data.v !== 'string') return undefined;
   try { return JSON.parse(data.v); } catch { return undefined; }
@@ -141,8 +189,9 @@ export const logAgentRun = onRequest(
     const eventRaw = body.event && typeof body.event === 'object' ? (body.event as Dict) : null;
     const eventRunId = String(body.runId || (hasRun ? (body.run as Dict).id || '' : '')).slice(0, 80);
     const hasEvent = !!eventRaw && !!eventRunId && !!String(eventRaw.text || '').trim();
-    if (!hasRun && !hasMetrics && !hasEvent) {
-      res.status(400).json({ ok: false, error: 'run, event or metrics required' });
+    const hasPipeline = !!body.pipeline && typeof body.pipeline === 'object' && Array.isArray((body.pipeline as Dict).prospects);
+    if (!hasRun && !hasMetrics && !hasEvent && !hasPipeline) {
+      res.status(400).json({ ok: false, error: 'run, event, metrics or pipeline required' });
       return;
     }
 
@@ -209,6 +258,11 @@ export const logAgentRun = onRequest(
         list = list.slice(0, MAX_RUNS);
         tx.set(ref, { v: JSON.stringify(list), ts: Date.now(), updatedBy });
       }
+      if (hasPipeline) {
+        const ref = db.doc(`organizations/${orgId}/data/${PIPELINE_KEY}`);
+        const mirror = normalizePipeline(body.pipeline as Dict);
+        tx.set(ref, { v: JSON.stringify(mirror), ts: Date.now(), updatedBy });
+      }
       if (hasMetrics) {
         const ref = db.doc(`organizations/${orgId}/data/${METRICS_KEY}`);
         const snap = await tx.get(ref);
@@ -218,6 +272,6 @@ export const logAgentRun = onRequest(
       }
     });
 
-    res.status(200).json({ ok: true, id: runId });
+    res.status(200).json({ ok: true, id: runId, pipeline: hasPipeline ? ((body.pipeline as Dict).prospects as unknown[]).length : undefined });
   },
 );

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.logAgentRun = exports.sendTaskNotification = exports.sendChatNotification = exports.syncAssignedTasks = void 0;
+exports.agentQueue = exports.logAgentRun = exports.sendTaskNotification = exports.sendChatNotification = exports.syncAssignedTasks = void 0;
 var syncAssignedTasks_1 = require("./syncAssignedTasks");
 Object.defineProperty(exports, "syncAssignedTasks", { enumerable: true, get: function () { return syncAssignedTasks_1.syncAssignedTasks; } });
 var sendChatNotification_1 = require("./notifications/sendChatNotification");
@@ -9,3 +9,5 @@ var sendTaskNotification_1 = require("./notifications/sendTaskNotification");
 Object.defineProperty(exports, "sendTaskNotification", { enumerable: true, get: function () { return sendTaskNotification_1.sendTaskNotification; } });
 var logAgentRun_1 = require("./logAgentRun");
 Object.defineProperty(exports, "logAgentRun", { enumerable: true, get: function () { return logAgentRun_1.logAgentRun; } });
+var agentQueue_1 = require("./agentQueue");
+Object.defineProperty(exports, "agentQueue", { enumerable: true, get: function () { return agentQueue_1.agentQueue; } });

@@ -4,7 +4,7 @@
 // Näyttää miten agentit toimivat (kartta), mitä ne saavat aikaan (ajot ja mittarit)
 // ja mitä Anton päättää seuraavaksi. Agentit itse pyörivät Mac minillä (repo hetki-myynti).
 
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useOrgData } from '@/lib/firestore';
@@ -14,9 +14,13 @@ import TabSwitcher from '@/components/TabSwitcher';
 import {
   AGENT_DEFS, AGENT_BY_ID, SUB_AGENT_IDS, DATA_STORES, RUN_TYPE_META, RUN_STATUS_META,
   RESULT_KEYS, RESULT_LABELS, RUNS_KEY, METRICS_KEY, EMPTY_RUNS, DEFAULT_METRICS, MAX_RUNS,
-  activeRuns, runsSince, sumResults, pendingDecisions, lastRunOfAgent, nextScheduledRuns,
+  REQUESTS_KEY, FOCUS_KEY, PIPELINE_KEY, EMPTY_REQUESTS, DEFAULT_FOCUS, EMPTY_PIPELINE, MAX_REQUESTS,
+  REQUEST_STATUS_META, STAGE_ORDER, STAGE_META,
+  activeRuns, runsSince, sumResults, pendingDecisions, lastRunOfAgent,
   normalizeRun, toneVar, fmtRelative, fmtDateTime, fmtEurShort, useNow, runningRun, activeAgentOf, fmtClock, fmtDuration,
+  activeRequests, openRequests, newRequestId, stageCounts, callList, fmtDay,
   type AgentId, type AgentRun, type AgentMetrics, type AgentRunResults, type RunType, type RunStatus, type DataStoreId, type AgentEvent,
+  type AgentRequest, type AgentFocus, type PipelineMirror, type ProspectStage,
 } from '@/lib/agents-shared';
 
 const card: React.CSSProperties = {
@@ -399,9 +403,19 @@ export default function AgentsSection() {
   const orgSlug = (useParams().orgSlug as string) || '';
   const { canEdit } = useAuth();
   const isMobile = useIsMobile();
+  const [reqType, setReqType] = useState<RunType>('tuntiajo');
+  const [reqText, setReqText] = useState('');
+  const [editFocus, setEditFocus] = useState(false);
+  const [focusDraft, setFocusDraft] = useState('');
+  const [stageFilter, setStageFilter] = useState<'all' | 'soita' | ProspectStage>('all');
+  const [openProspect, setOpenProspect] = useState<string | null>(null);
   const { toast } = useToast();
   const [rawRuns, setRuns, runsLoading] = useOrgData<AgentRun[]>(RUNS_KEY, EMPTY_RUNS);
   const [metrics, setMetrics] = useOrgData<AgentMetrics>(METRICS_KEY, DEFAULT_METRICS);
+  const [rawRequests, setRequests] = useOrgData<AgentRequest[]>(REQUESTS_KEY, EMPTY_REQUESTS);
+  const [focus, setFocus] = useOrgData<AgentFocus>(FOCUS_KEY, DEFAULT_FOCUS);
+  const [pipeline] = useOrgData<PipelineMirror>(PIPELINE_KEY, EMPTY_PIPELINE);
+  const { user } = useAuth();
 
   const [selected, setSelected] = useState<AgentId | null>(null);
   const [typeFilter, setTypeFilter] = useState<'all' | RunType>('all');
@@ -426,7 +440,15 @@ export default function AgentsSection() {
     for (const a of AGENT_DEFS) out[a.id] = lastRunOfAgent(runs, a.id);
     return out;
   }, [runs]);
-  const nextRuns = useMemo(() => nextScheduledRuns(new Date(now)), [now]);
+  const requests = useMemo(() => activeRequests(rawRequests || []), [rawRequests]);
+  const open = useMemo(() => openRequests(requests), [requests]);
+  const counts = useMemo(() => stageCounts(pipeline || EMPTY_PIPELINE), [pipeline]);
+  const calls = useMemo(() => callList(pipeline || EMPTY_PIPELINE, now), [pipeline, now]);
+  const prospects = useMemo(() => {
+    const list = (pipeline?.prospects || []);
+    const f = stageFilter === 'all' ? list : stageFilter === 'soita' ? calls : list.filter(p => p.stage === stageFilter);
+    return [...f].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  }, [pipeline, stageFilter, calls]);
 
   const filtered = useMemo(() => runs.filter(r =>
     (typeFilter === 'all' || r.type === typeFilter) &&
@@ -461,10 +483,30 @@ export default function AgentsSection() {
     if (!window.confirm('Poistetaanko tämä ajo listalta?')) return;
     setRuns(prev => (prev || []).map(r => r.id === id ? { ...r, deletedAt: Date.now() } : r));
   };
+  const sendRequest = () => {
+    const r: AgentRequest = {
+      id: newRequestId(), createdAt: Date.now(), createdBy: user?.displayName || user?.email || 'Anton',
+      type: reqType, instructions: reqText.trim().slice(0, 4000), status: 'jonossa',
+    };
+    setRequests(prev => [r, ...(prev || [])].slice(0, MAX_REQUESTS));
+    setReqText('');
+    toast('Pyyntö jonossa. Mac mini aloittaa minuutin sisällä.', 'success');
+  };
+  const cancelRequest = (id: string) => {
+    setRequests(prev => (prev || []).map(r => r.id === id && r.status === 'jonossa' ? { ...r, status: 'peruttu', finishedAt: Date.now() } : r));
+  };
+  const saveFocus = () => {
+    setFocus({ kulma: focusDraft.trim().slice(0, 4000), updatedAt: Date.now(), updatedBy: user?.displayName || user?.email || 'Anton' });
+    setEditFocus(false);
+    toast('Kulma tallennettu. Seuraava ajo käyttää sitä.', 'success');
+  };
   const resolveRun = (id: string) => {
     setRuns(prev => (prev || []).map(r => r.id === id ? { ...r, resolved: true, status: r.status === 'paatos' ? 'ok' : r.status } : r));
     toast('Merkitty käsitellyksi', 'success');
   };
+
+  let secNo = 0;
+  const num = () => String(++secNo).padStart(2, '0');
 
   if (orgSlug !== 'hetki-company') {
     return (
@@ -499,12 +541,12 @@ export default function AgentsSection() {
           </div>
         </div>
         <div style={card}>
-          <div style={lbl}>Seuraava ajo</div>
+          <div style={lbl}>Ajopyynnöt</div>
           <div style={{ ...disp, fontSize: 15, marginTop: 6 }}>
-            {RUN_TYPE_META[nextRuns[0].type].label} {new Intl.DateTimeFormat('fi-FI', { hour: '2-digit', minute: '2-digit' }).format(nextRuns[0].at)}
+            {open.length ? `${open.filter(r => r.status === 'jonossa').length} jonossa, ${open.filter(r => r.status === 'kaynnissa').length} käynnissä` : 'Ei odottavia'}
           </div>
           <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 4 }}>
-            Sitten {RUN_TYPE_META[nextRuns[1].type].label.toLowerCase()} {fmtDateTime(nextRuns[1].at.toISOString())}
+            Ajot käynnistetään tältä sivulta. Ei automaattista tuntiajoa.
           </div>
         </div>
       </div>
@@ -550,7 +592,7 @@ export default function AgentsSection() {
       {/* Päätökset */}
       {pending.length > 0 && (
         <section>
-          <div className="sec-h"><span className="t"><span className="n">01</span>Päätökset</span><span className="meta"><b>{pending.length}</b> avoinna</span></div>
+          <div className="sec-h"><span className="t"><span className="n">{num()}</span>Päätökset</span><span className="meta"><b>{pending.length}</b> avoinna</span></div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {pending.map(r => (
               <div key={r.id} style={{ ...card, borderLeft: '4px solid var(--pink)' }}>
@@ -568,9 +610,185 @@ export default function AgentsSection() {
         </section>
       )}
 
+      {/* Aja agentti */}
+      <section>
+        <div className="sec-h">
+          <span className="t"><span className="n">{num()}</span>Aja agentti</span>
+          <span className="meta">{canEdit ? 'pyyntö menee Mac minille' : 'vain luku'}</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '3fr 2fr', gap: 12 }}>
+          <div style={card}>
+            <div style={{ ...lbl, marginBottom: 8 }}>Ajotyyppi</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+              {(Object.keys(RUN_TYPE_META) as RunType[]).map(t => (
+                <button key={t} type="button" className="btn btn-sm" onClick={() => setReqType(t)}
+                  style={{ background: reqType === t ? 'var(--pri)' : 'var(--elev)', color: reqType === t ? '#fff' : 'var(--t2)', border: '1px solid var(--border)' }}>
+                  {RUN_TYPE_META[t].label}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 12, lineHeight: 1.5 }}>{RUN_TYPE_META[reqType].detail}</div>
+            <div className="field" style={{ marginBottom: 12 }}>
+              <label>Kulma ja ohjeet tälle ajolle</label>
+              <textarea className="input textarea" rows={3} value={reqText} onChange={e => setReqText(e.target.value)}
+                placeholder="Esimerkiksi: keskity Itävallan ja Saksan paviljonkeihin, ei uusia segmenttejä. Tyhjä = pysyvä kulma riittää." />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, color: 'var(--t3)' }}>Mitään ei lähetetä. Luonnokset jäävät Gmailiin sinulle.</span>
+              <button type="button" className="btn btn-primary btn-sm" disabled={!canEdit} onClick={sendRequest}>Käynnistä {RUN_TYPE_META[reqType].label.toLowerCase()}</button>
+            </div>
+          </div>
+          <div style={card}>
+            <div style={{ ...lbl, marginBottom: 8 }}>Viimeisimmät pyynnöt</div>
+            {requests.length === 0 ? (
+              <div style={{ fontSize: 13, color: 'var(--t3)' }}>Ei pyyntöjä vielä.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {requests.slice(0, 8).map(r => {
+                  const m = REQUEST_STATUS_META[r.status];
+                  return (
+                    <div key={r.id} style={{ borderLeft: `3px solid ${m.color}`, paddingLeft: 10, fontSize: 12.5, lineHeight: 1.45 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ ...disp, fontSize: 11 }}>{RUN_TYPE_META[r.type].label}</span>
+                        <Pill text={m.label} color={m.color} />
+                        <span style={{ color: 'var(--t3)' }}>{fmtRelative(r.createdAt, now)}</span>
+                        {r.status === 'jonossa' && canEdit && (
+                          <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '.1rem .4rem', marginLeft: 'auto' }} onClick={() => cancelRequest(r.id)}>Peru</button>
+                        )}
+                      </div>
+                      {r.instructions && <div style={{ color: 'var(--t2)', marginTop: 2 }}>{r.instructions.length > 160 ? r.instructions.slice(0, 158) + '…' : r.instructions}</div>}
+                      {r.note && <div style={{ color: r.status === 'virhe' ? 'var(--red)' : 'var(--t3)', marginTop: 2 }}>{r.note}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Kulma */}
+      <section>
+        <div className="sec-h">
+          <span className="t"><span className="n">{num()}</span>Kulma ja ohjeet</span>
+          <span className="meta">{focus.updatedAt ? <>päivitetty <b>{fmtRelative(focus.updatedAt, now)}</b></> : 'oletus'}</span>
+        </div>
+        <div style={{ ...card, borderColor: editFocus ? 'var(--pri)' : 'var(--border)' }}>
+          {editFocus ? (
+            <>
+              <textarea className="input textarea" rows={6} value={focusDraft} onChange={e => setFocusDraft(e.target.value)} />
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditFocus(false)}>Peru</button>
+                <button type="button" className="btn btn-primary btn-sm" onClick={saveFocus}>Tallenna kulma</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{focus.kulma || DEFAULT_FOCUS.kulma}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, color: 'var(--t3)' }}>Myyntipäällikkö lukee tämän jokaisen ajon alussa. Ajokohtainen ohje täydentää, ei korvaa.</span>
+                {canEdit && <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setFocusDraft(focus.kulma || DEFAULT_FOCUS.kulma); setEditFocus(true); }}>Muokkaa</button>}
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+
+      {/* Pipeline */}
+      <section>
+        <div className="sec-h">
+          <span className="t"><span className="n">{num()}</span>Pipeline</span>
+          <span className="meta">
+            {pipeline?.syncedAt ? <><b>{pipeline.prospects.length}</b> prospektia · päivitetty <b>{fmtRelative(pipeline.syncedAt, now)}</b></> : 'ei vielä peilattu'}
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(9, 1fr)', gap: 8, marginBottom: 12 }}>
+          <button type="button" onClick={() => setStageFilter('soita')} style={{ ...card, padding: '.7rem .8rem', textAlign: 'left', cursor: 'pointer', borderColor: stageFilter === 'soita' ? 'var(--pri)' : calls.length ? 'var(--hetki-yellow)' : 'var(--border)' }}>
+            <div style={{ ...disp, fontSize: 20 }}>{calls.length}</div>
+            <div style={{ fontSize: 11, color: 'var(--t3)' }}>soita tänään</div>
+          </button>
+          {STAGE_ORDER.map(st => (
+            <button key={st} type="button" onClick={() => setStageFilter(stageFilter === st ? 'all' : st)} style={{ ...card, padding: '.7rem .8rem', textAlign: 'left', cursor: 'pointer', borderColor: stageFilter === st ? 'var(--pri)' : 'var(--border)', borderTop: `3px solid ${STAGE_META[st].color}` }}>
+              <div style={{ ...disp, fontSize: 20 }}>{counts[st]}</div>
+              <div style={{ fontSize: 11, color: 'var(--t3)' }}>{STAGE_META[st].label.toLowerCase()}</div>
+            </button>
+          ))}
+        </div>
+        {stageFilter !== 'all' && (
+          <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 8 }}>
+            {stageFilter === 'soita' ? 'Lähetetyt, joiden soittopäivä on tänään tai aiemmin.' : STAGE_META[stageFilter].detail}{' '}
+            <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '.1rem .4rem' }} onClick={() => setStageFilter('all')}>Näytä kaikki</button>
+          </div>
+        )}
+        {prospects.length === 0 ? (
+          <div style={{ ...card, fontSize: 13, color: 'var(--t3)' }}>
+            {pipeline?.prospects?.length ? 'Ei prospekteja tällä suodatuksella.' : 'Pipeline peilataan tänne, kun myyntipäällikkö ajaa seuraavan kerran. Totuuden lähde on Hetki Pipeline -artifact.'}
+          </div>
+        ) : (
+          <div style={{ ...card, padding: 0, overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ textAlign: 'left' }}>
+                  {['Organisaatio', 'Vaihe', 'Kontakti', 'Lähetetty', 'Seuraava', 'Arvo'].map(h => (
+                    <th key={h} style={{ ...lbl, padding: '10px 12px', borderBottom: '1px solid var(--border)', fontWeight: 500 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {prospects.map(p => {
+                  const isOpen = openProspect === p.id;
+                  const due = p.nextDate && Date.parse(p.nextDate + 'T00:00:00') <= now;
+                  return (
+                    <React.Fragment key={p.id}>
+                      <tr onClick={() => setOpenProspect(isOpen ? null : p.id)} style={{ cursor: 'pointer', background: isOpen ? 'var(--elev)' : undefined }}>
+                        <td style={{ padding: '9px 12px', borderBottom: '1px solid var(--border-l)', maxWidth: 320 }}>
+                          <div style={{ fontWeight: 500 }}>{p.name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--t3)' }}>{p.segment}</div>
+                        </td>
+                        <td style={{ padding: '9px 12px', borderBottom: '1px solid var(--border-l)' }}><Pill text={STAGE_META[p.stage].label} color={STAGE_META[p.stage].color} /></td>
+                        <td style={{ padding: '9px 12px', borderBottom: '1px solid var(--border-l)', maxWidth: 260 }}>
+                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.contact || <span style={{ color: 'var(--t3)' }}>ei kontaktia</span>}</div>
+                          {p.email && <div style={{ fontSize: 11, color: 'var(--t3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.email}</div>}
+                        </td>
+                        <td style={{ padding: '9px 12px', borderBottom: '1px solid var(--border-l)', whiteSpace: 'nowrap' }}>{fmtDay(p.sentDate)}</td>
+                        <td style={{ padding: '9px 12px', borderBottom: '1px solid var(--border-l)', maxWidth: 280 }}>
+                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: due ? 'var(--red)' : undefined }}>{p.nextDate ? `${fmtDay(p.nextDate)} ` : ''}{p.nextAction}</div>
+                        </td>
+                        <td style={{ padding: '9px 12px', borderBottom: '1px solid var(--border-l)', whiteSpace: 'nowrap' }}>{p.value ? fmtEurShort(p.value) : ''}</td>
+                      </tr>
+                      {isOpen && (
+                        <tr>
+                          <td colSpan={6} style={{ padding: '10px 12px 14px', borderBottom: '1px solid var(--border-l)', background: 'var(--elev)', fontSize: 13, lineHeight: 1.55 }}>
+                            {p.angle && <div style={{ marginBottom: 6 }}><span style={lbl}>Kulma</span> {p.angle}</div>}
+                            {p.lastLog && <div style={{ marginBottom: 6 }}><span style={lbl}>Viimeisin merkintä {p.lastLog.date}</span> {p.lastLog.text}{p.logCount && p.logCount > 1 ? <span style={{ color: 'var(--t3)' }}> ({p.logCount} merkintää)</span> : null}</div>}
+                            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12, color: 'var(--t3)' }}>
+                              {p.phone && <span>{p.phone}</span>}
+                              {p.source && <a href={p.source} target="_blank" rel="noreferrer" style={{ color: 'var(--pri)' }}>lähde</a>}
+                              {p.updatedAt && <span>päivitetty {fmtDay(p.updatedAt)}</span>}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {pipeline?.strategy?.kokeilujono && pipeline.strategy.kokeilujono.length > 0 && (
+          <div style={{ ...card, marginTop: 12 }}>
+            <div style={{ ...lbl, marginBottom: 8 }}>Strategin kokeilujono</div>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
+              {pipeline.strategy.kokeilujono.slice(0, 6).map((k, i) => <li key={i}>{k}</li>)}
+            </ul>
+          </div>
+        )}
+      </section>
+
       {/* Kartta */}
       <section>
-        <div className="sec-h"><span className="t"><span className="n">{pending.length ? '02' : '01'}</span>Näin ne toimivat</span><span className="meta">{activeAgent ? <><b>{AGENT_BY_ID[activeAgent].label}</b> työskentelee</> : selected ? <b>{AGENT_BY_ID[selected].label}</b> : 'yksi koordinaattori, viisi tekijää'}</span></div>
+        <div className="sec-h"><span className="t"><span className="n">{num()}</span>Näin ne toimivat</span><span className="meta">{activeAgent ? <><b>{AGENT_BY_ID[activeAgent].label}</b> työskentelee</> : selected ? <b>{AGENT_BY_ID[selected].label}</b> : 'yksi koordinaattori, viisi tekijää'}</span></div>
         {!isMobile ? (
           <div style={{ ...card, padding: '1rem' }}>
             <AgentMap selected={selected} onSelect={setSelected} lastRuns={lastRuns} activeAgent={activeAgent} />
@@ -592,7 +810,7 @@ export default function AgentsSection() {
 
       {/* Agenttikortit */}
       <section>
-        <div className="sec-h"><span className="t"><span className="n">{pending.length ? '03' : '02'}</span>Agentit</span><span className="meta"><b>{AGENT_DEFS.length}</b> agenttia</span></div>
+        <div className="sec-h"><span className="t"><span className="n">{num()}</span>Agentit</span><span className="meta"><b>{AGENT_DEFS.length}</b> agenttia</span></div>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
           {AGENT_DEFS.map(a => {
             const sel = selected === a.id;
@@ -646,35 +864,10 @@ export default function AgentsSection() {
         </div>
       </section>
 
-      {/* Aikataulu */}
-      <section>
-        <div className="sec-h"><span className="t"><span className="n">{pending.length ? '04' : '03'}</span>Aikataulu</span><span className="meta">Helsingin aikaa</span></div>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: 12 }}>
-          {nextRuns.map(n => {
-            const m = RUN_TYPE_META[n.type];
-            return (
-              <div key={n.type} style={card}>
-                <div style={{ ...disp, fontSize: 13 }}>{m.label}</div>
-                <div style={{ fontSize: 12, color: 'var(--pri)', marginTop: 4, fontWeight: 600 }}>seuraava {fmtDateTime(n.at.toISOString())}</div>
-                <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 8, lineHeight: 1.5 }}>{m.detail}</div>
-                <div style={{ display: 'flex', gap: 4, marginTop: 10, flexWrap: 'wrap' }}>
-                  {m.agents.filter(a => a !== 'myyntipaallikko').map(a => (
-                    <span key={a} title={AGENT_BY_ID[a].label} aria-label={AGENT_BY_ID[a].label}><Glyph id={a} size={20} /></span>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 10 }}>
-          Ajastus elää Mac minin sessiossa (/loop 1h tuntiajo). Jos &quot;Mac mini&quot; näyttää hiljaista yli kolme tuntia, sessio on todennäköisesti pysähtynyt.
-        </div>
-      </section>
-
       {/* Mittarit */}
       <section>
         <div className="sec-h">
-          <span className="t"><span className="n">{pending.length ? '05' : '04'}</span>Pipeline-mittarit</span>
+          <span className="t"><span className="n">{num()}</span>Pipeline-mittarit</span>
           <span className="meta">{metrics.updatedAt ? <>päivitetty <b>{fmtRelative(metrics.updatedAt, now)}</b></> : 'strategi päivittää viikkokierroksella'}</span>
         </div>
         {editMetrics ? (
@@ -717,7 +910,7 @@ export default function AgentsSection() {
       {/* Ajot */}
       <section>
         <div className="sec-h">
-          <span className="t"><span className="n">{pending.length ? '06' : '05'}</span>Ajot</span>
+          <span className="t"><span className="n">{num()}</span>Ajot</span>
           <span className="meta"><b>{filtered.length}</b> {filtered.length === 1 ? 'ajo' : 'ajoa'}{runsLoading ? ' · ladataan' : ''}</span>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
@@ -800,13 +993,13 @@ export default function AgentsSection() {
 
       {/* Miten data tulee tänne */}
       <section>
-        <div className="sec-h"><span className="t"><span className="n">{pending.length ? '07' : '06'}</span>Miten tämä sivu saa tietonsa</span></div>
+        <div className="sec-h"><span className="t"><span className="n">{num()}</span>Miten tämä sivu saa tietonsa</span></div>
         <div style={{ ...card, fontSize: 13, lineHeight: 1.6, color: 'var(--t2)' }}>
           <p style={{ margin: '0 0 8px' }}>
-            Myyntipäällikkö ajaa jokaisen kierroksen lopuksi skriptin <code>bin/kirjaa-ajo.sh</code> hetki-myynti-repossa. Skripti lähettää ajon yhteenvedon Momentumin Cloud Functionille <code>logAgentRun</code>, joka kirjoittaa sen tämän työtilan tietoihin.
+            Kun painat Käynnistä, pyyntö tallentuu tähän työtilaan. Mac minin vahti (<code>bin/vahti.sh</code>) hakee sen minuutin välein Cloud Functionilta <code>agentQueue</code>, lukee pysyvän kulman ja käynnistää myyntipäällikön. Ajon aikana myyntipäällikkö kirjaa tapahtumat skriptillä <code>bin/kirjaa-ajo.sh</code> funktiolle <code>logAgentRun</code>, ja lopuksi se peilaa Hetki Pipelinen sisällön tänne.
           </p>
           <p style={{ margin: '0 0 8px' }}>
-            Strategi päivittää samalla reitillä pipeline-mittarit viikkokierroksella. Prospektit ja kierrokset itse pysyvät Hetki Pipeline -artifactissa, tämä sivu ei kopioi niitä.
+            Prospektien totuuden lähde on Hetki Pipeline -artifact. Tämän sivun Pipeline-osio on peili, joka päivittyy jokaisen ajon lopuksi. Muokkaukset tehdään artifactissa tai pyytämällä agenttia.
           </p>
           <p style={{ margin: 0 }}>
             Mitään ei lähde kenellekään tältä sivulta eikä agenteilta. Lähetys tapahtuu aina niin, että Anton avaa Gmail-luonnoksen ja lähettää sen itse.

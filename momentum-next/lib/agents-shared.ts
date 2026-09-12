@@ -80,8 +80,136 @@ export interface AgentMetrics {
 
 export const MAX_RUNS = 500;
 export const MAX_EVENTS = 200;
+export const MAX_REQUESTS = 200;
 export const RUNS_KEY = 'hetkiAgentRuns';
 export const METRICS_KEY = 'hetkiAgentMetrics';
+export const REQUESTS_KEY = 'hetkiAgentRequests';
+export const FOCUS_KEY = 'hetkiAgentFocus';
+export const PIPELINE_KEY = 'hetkiPipeline';
+
+// ── Pipeline-peili ──────────────────────────────────────────────
+// Hetki Pipeline -artifact on totuuden lähde. Myyntipäällikkö vie sen sisällön
+// jokaisen ajon lopuksi tänne (kirjaa-ajo.sh --pipeline-dir), jotta Anton näkee
+// prospektit, lähetetyt ja luonnokset Momentumissa. Tämä on vain luku.
+
+export type ProspectStage = 'idea' | 'tutkittu' | 'luonnos' | 'lahetetty' | 'keskustelu' | 'tarjous' | 'voitettu' | 'havitetty';
+
+export interface PipelineProspect {
+  id: string;
+  name: string;
+  segment?: string;
+  contact?: string;
+  email?: string;
+  phone?: string;
+  stage: ProspectStage;
+  angle?: string;
+  source?: string;
+  sentDate?: string;          // YYYY-MM-DD
+  nextAction?: string;
+  nextDate?: string;          // YYYY-MM-DD
+  value?: number;
+  lastLog?: { date: string; text: string };
+  logCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PipelineMirror {
+  prospects: PipelineProspect[];
+  goal?: { name?: string; target?: number; deadline?: string; note?: string };
+  strategy?: {
+    kampanja?: string;
+    mittarit?: Record<string, unknown>;
+    hypoteesit?: { id?: string; vaite?: string; tila?: string; data?: string; paatos?: string | null }[];
+    kokeilujono?: string[];
+    opit?: string[];
+    viimeksiRaportoitu?: string;
+  };
+  syncedAt?: number;
+  syncedBy?: string;
+}
+
+export const EMPTY_PIPELINE: PipelineMirror = { prospects: [] };
+
+export const STAGE_ORDER: ProspectStage[] = ['idea', 'tutkittu', 'luonnos', 'lahetetty', 'keskustelu', 'tarjous', 'voitettu', 'havitetty'];
+
+export const STAGE_META: Record<ProspectStage, { label: string; color: string; detail: string }> = {
+  idea: { label: 'Idea', color: 'var(--t3)', detail: 'Ehdotettu, ei vielä tutkittu' },
+  tutkittu: { label: 'Tutkittu', color: 'var(--hetki-green)', detail: 'Kontakti ja kulma selvillä, odottaa luonnosta' },
+  luonnos: { label: 'Luonnos', color: 'var(--hetki-pink)', detail: 'Gmail-luonnos valmis, Anton lähettää' },
+  lahetetty: { label: 'Lähetetty', color: 'var(--hetki-blue)', detail: 'Anton lähetti, odottaa vastausta tai soittoa' },
+  keskustelu: { label: 'Keskustelu', color: 'var(--hetki-yellow)', detail: 'Vastaus tuli, keskustelu käynnissä' },
+  tarjous: { label: 'Tarjous', color: 'var(--hetki-yellow)', detail: 'Tarjous annettu' },
+  voitettu: { label: 'Voitettu', color: 'var(--hetki-green)', detail: 'Kauppa sovittu' },
+  havitetty: { label: 'Hävitetty', color: 'var(--t3)', detail: 'Ei tällä kertaa' },
+};
+
+export function stageCounts(p: PipelineMirror): Record<ProspectStage, number> {
+  const out = Object.fromEntries(STAGE_ORDER.map(s => [s, 0])) as Record<ProspectStage, number>;
+  for (const x of p.prospects) if (out[x.stage] !== undefined) out[x.stage]++;
+  return out;
+}
+
+/** Soittolista: lähetetyt, joiden soittopäivä on tänään tai aiemmin (nextDate, muuten sentDate + 3 arkipäivää). */
+export function callList(p: PipelineMirror, now = Date.now()): PipelineProspect[] {
+  const today = new Date(now); today.setHours(0, 0, 0, 0);
+  return p.prospects.filter(x => {
+    if (x.stage !== 'lahetetty') return false;
+    let due: Date | null = null;
+    if (x.nextDate && /^\d{4}-\d{2}-\d{2}$/.test(x.nextDate) && (x.nextAction || '').toLowerCase().startsWith('soita')) due = new Date(x.nextDate + 'T00:00:00');
+    else if (x.sentDate && /^\d{4}-\d{2}-\d{2}$/.test(x.sentDate)) {
+      due = new Date(x.sentDate + 'T00:00:00');
+      let add = 3;
+      while (add > 0) { due.setDate(due.getDate() + 1); if (due.getDay() !== 0 && due.getDay() !== 6) add--; }
+    }
+    return !!due && due.getTime() <= today.getTime();
+  });
+}
+
+export function fmtDay(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat('fi-FI', { day: 'numeric', month: 'numeric' }).format(d);
+}
+
+// Ajopyyntö Momentumista Mac minille. Vahti (hetki-myynti/bin/vahti.sh) noutaa jonossa
+// olevat, merkitsee käynnissä ja lopuksi valmis. Anton voi perua jonossa olevan.
+export type RequestStatus = 'jonossa' | 'kaynnissa' | 'valmis' | 'virhe' | 'peruttu';
+
+export interface AgentRequest {
+  id: string;
+  createdAt: number;
+  createdBy?: string;         // nimi tai sähköposti
+  type: RunType;
+  instructions: string;       // kulma ja ohjeet juuri tälle ajolle, vapaa teksti
+  status: RequestStatus;
+  claimedAt?: number;
+  finishedAt?: number;
+  runId?: string;             // linkki ajoon hetkiAgentRuns-listassa
+  note?: string;              // vahdin tai agentin viesti (esim. virhe)
+}
+
+// Pysyvä kulma: mitä agentit painottavat, kunnes Anton muuttaa sitä.
+// Myyntipäällikkö lukee tämän jokaisen ajon alussa.
+export interface AgentFocus {
+  kulma: string;              // 1–10 riviä: segmentit, viestin kärki, mitä välttää
+  updatedAt?: number;
+  updatedBy?: string;
+}
+
+export const EMPTY_REQUESTS: AgentRequest[] = [];
+export const DEFAULT_FOCUS: AgentFocus = {
+  kulma: 'Slush 2026 (18. ja 19.11.): maapaviljongit ja delegaatiot ensin, sitten suomalaiset Slush-partnerit, ekosysteemi ja sivutapahtumat, viimeisenä startupit. Kärki: kuvaamme Slushissa joka tapauksessa, tarjoamme samaa teille. Ei hintoja luonnoksiin. Ei kylmää avausta, jos yhteys on jo olemassa.',
+};
+
+export const REQUEST_STATUS_META: Record<RequestStatus, { label: string; color: string }> = {
+  jonossa: { label: 'Jonossa', color: 'var(--t3)' },
+  kaynnissa: { label: 'Käynnissä', color: 'var(--green)' },
+  valmis: { label: 'Valmis', color: 'var(--green)' },
+  virhe: { label: 'Virhe', color: 'var(--red)' },
+  peruttu: { label: 'Peruttu', color: 'var(--t3)' },
+};
 
 // Stabiilit oletukset (ei uusia objekteja renderissä, kts. org-defaults.ts)
 export const EMPTY_RUNS: AgentRun[] = [];
@@ -217,33 +345,33 @@ export const SUB_AGENT_IDS: AgentId[] = ['prospektoija', 'viestiluonnostelija', 
 
 export const RUN_TYPE_META: Record<RunType, { label: string; short: string; detail: string; agents: AgentId[] }> = {
   tuntiajo: {
-    label: 'Tuntiajo',
-    short: 'Tunti',
-    detail: 'Joka tunti. Yksi tehtävä kiertäen, yksi aliagentti. Raportoi vain jos tarvitaan päätös tai jotain merkittävää tapahtui.',
+    label: 'Pikakierros',
+    short: 'Pika',
+    detail: 'Yksi rajattu tehtävä yhdellä aliagentilla, noin 5–10 minuuttia. Hyvä kun haluat yhden asian selville.',
     agents: ['myyntipaallikko'],
   },
   paivatarkistus: {
     label: 'Päivätarkistus',
     short: 'Päivä',
-    detail: 'Tiistai–perjantai klo 9. Vain vastausseuraaja: lähteneet, vastaukset, soittolista. Korkeintaan 10 riviä.',
+    detail: 'Vain vastausseuraaja: lähteneet luonnokset, uudet vastaukset, soittolista ja follow-upit. Korkeintaan 10 riviä.',
     agents: ['myyntipaallikko', 'vastausseuraaja'],
   },
   viikkokierros: {
     label: 'Viikkokierros',
     short: 'Viikko',
-    detail: 'Maanantai klo 8. Kaikki aliagentit, strategi viimeisenä. Tutkii, luonnostelee, seuraa, laskee mittarit.',
+    detail: 'Kaikki aliagentit, strategi viimeisenä: tutkii, luonnostelee, seuraa vastaukset ja laskee mittarit. 20–40 minuuttia.',
     agents: ['myyntipaallikko', 'prospektoija', 'viestiluonnostelija', 'vastausseuraaja', 'kilpailutusvahti', 'strategi'],
   },
   kartoitus: {
     label: 'Kartoitus',
     short: 'Kartoitus',
-    detail: 'Torstai klo 9. Kilpailutusvahti ja prospektoija rinnakkain: uudet haut ja segmentit.',
+    detail: 'Kilpailutusvahti ja prospektoija rinnakkain: uudet haut, uudet segmentit ja prospektit idea-vaiheeseen.',
     agents: ['myyntipaallikko', 'kilpailutusvahti', 'prospektoija'],
   },
   muu: {
-    label: 'Muu ajo',
-    short: 'Muu',
-    detail: 'Vapaamuotoinen pyyntö Antonilta.',
+    label: 'Vapaa tehtävä',
+    short: 'Vapaa',
+    detail: 'Kirjoita ohjeeseen mitä haluat. Myyntipäällikkö päättää, kenelle aliagentille tehtävä kuuluu.',
     agents: ['myyntipaallikko'],
   },
 };
@@ -375,30 +503,6 @@ export function lastRunOfAgent(runs: AgentRun[], id: AgentId): AgentRun | undefi
   return runs.find(r => r.agents.includes(id));
 }
 
-/** Seuraava ajastettu ajo Helsingin aikataulun mukaan (selaimen paikallisaika). */
-export function nextScheduledRuns(now = new Date()): { type: RunType; at: Date }[] {
-  const out: { type: RunType; at: Date }[] = [];
-  // tuntiajo: seuraava tasatunti
-  const hour = new Date(now);
-  hour.setMinutes(0, 0, 0);
-  hour.setHours(hour.getHours() + 1);
-  out.push({ type: 'tuntiajo', at: hour });
-
-  const findNext = (weekdays: number[], h: number): Date => {
-    for (let d = 0; d < 8; d++) {
-      const c = new Date(now);
-      c.setDate(c.getDate() + d);
-      c.setHours(h, 0, 0, 0);
-      if (weekdays.includes(c.getDay()) && c.getTime() > now.getTime()) return c;
-    }
-    return now;
-  };
-  out.push({ type: 'viikkokierros', at: findNext([1], 8) });
-  out.push({ type: 'paivatarkistus', at: findNext([2, 3, 4, 5], 9) });
-  out.push({ type: 'kartoitus', at: findNext([4], 9) });
-  return out.sort((a, b) => a.at.getTime() - b.at.getTime());
-}
-
 export function fmtRelative(ts: number, now = Date.now()): string {
   const diff = Math.max(0, now - ts);
   const min = Math.round(diff / 60000);
@@ -429,4 +533,16 @@ export function useNow(intervalMs = 60000): number {
     return () => clearInterval(t);
   }, [intervalMs]);
   return now;
+}
+
+export function activeRequests(reqs: AgentRequest[]): AgentRequest[] {
+  return [...reqs].sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export function openRequests(reqs: AgentRequest[]): AgentRequest[] {
+  return reqs.filter(r => r.status === 'jonossa' || r.status === 'kaynnissa');
+}
+
+export function newRequestId(): string {
+  return `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }

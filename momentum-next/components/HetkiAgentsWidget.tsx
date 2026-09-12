@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
 import {
-  RUNS_KEY, EMPTY_RUNS, RUN_TYPE_META, AGENT_BY_ID,
-  activeRuns, runsSince, sumResults, pendingDecisions, nextScheduledRuns, fmtRelative, fmtDateTime, useNow, runningRun, activeAgentOf, fmtDuration,
-  type AgentRun,
+  RUNS_KEY, EMPTY_RUNS, RUN_TYPE_META, AGENT_BY_ID, REQUESTS_KEY, EMPTY_REQUESTS, PIPELINE_KEY, EMPTY_PIPELINE,
+  activeRuns, runsSince, sumResults, pendingDecisions, fmtRelative, useNow, runningRun, activeAgentOf, fmtDuration, openRequests, callList, stageCounts,
+  type AgentRun, type AgentRequest, type PipelineMirror,
 } from '@/lib/agents-shared';
 
 // Etusivun pikanäkymä Hetki Companylle: mitä asiakashankinta-agentit tekivät viimeksi,
@@ -16,6 +16,8 @@ import {
 export default function HetkiAgentsWidget() {
   const orgSlug = (useParams().orgSlug as string) || '';
   const [rawRuns] = useOrgData<AgentRun[]>(RUNS_KEY, EMPTY_RUNS);
+  const [rawRequests] = useOrgData<AgentRequest[]>(REQUESTS_KEY, EMPTY_REQUESTS);
+  const [pipeline] = useOrgData<PipelineMirror>(PIPELINE_KEY, EMPTY_PIPELINE);
   const runs = useMemo(() => activeRuns(rawRuns || []), [rawRuns]);
   const anyRunning = useMemo(() => (rawRuns || []).some(r => r.status === 'kesken' && !r.deletedAt), [rawRuns]);
   const now = useNow(anyRunning ? 1000 : 60000);
@@ -24,7 +26,9 @@ export default function HetkiAgentsWidget() {
   const last = runs[0];
   const pending = useMemo(() => pendingDecisions(runs), [runs]);
   const sums7 = useMemo(() => sumResults(runsSince(runs, 7, now)), [runs, now]);
-  const next = nextScheduledRuns(new Date(now))[0];
+  const open = useMemo(() => openRequests(rawRequests || []), [rawRequests]);
+  const calls = useMemo(() => callList(pipeline || EMPTY_PIPELINE, now), [pipeline, now]);
+  const counts = useMemo(() => stageCounts(pipeline || EMPTY_PIPELINE), [pipeline]);
 
   if (orgSlug !== 'hetki-company') return null;
 
@@ -74,7 +78,7 @@ export default function HetkiAgentsWidget() {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '.6rem', fontSize: '.72rem', color: 'var(--t3)', flexWrap: 'wrap', gap: '.5rem' }}>
           <span>7 pv: <b style={{ color: 'var(--t2)' }}>{sums7.luonnokset}</b> luonnosta, <b style={{ color: 'var(--t2)' }}>{sums7.vastaukset}</b> vastausta, <b style={{ color: 'var(--t2)' }}>{sums7.uudetProspektit + sums7.tutkitut}</b> prospektia</span>
-          <span>Seuraava: {RUN_TYPE_META[next.type].label.toLowerCase()} {fmtDateTime(next.at.toISOString())}</span>
+          <span>{open.length ? `${open.length} pyyntöä odottaa` : 'Ei pyyntöjä jonossa'} · soita tänään <b style={{ color: calls.length ? 'var(--red)' : 'var(--t2)' }}>{calls.length}</b> · lähetetty <b style={{ color: 'var(--t2)' }}>{counts.lahetetty}</b>, luonnoksia <b style={{ color: 'var(--t2)' }}>{counts.luonnos}</b></span>
         </div>
       </div>
     </Link>
