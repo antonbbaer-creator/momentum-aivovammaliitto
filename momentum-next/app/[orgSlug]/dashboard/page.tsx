@@ -25,6 +25,7 @@ import type { Meeting } from '@/lib/meetings-shared';
 import { YearPhase, parseLocalDate, normalizePhase } from '@/lib/yearwheel-shared';
 import QuickLinksSection from '@/components/sections/QuickLinksSection';
 import HetkiInvoiceTargetWidget from '@/components/HetkiInvoiceTargetWidget';
+import HetkiAgentsWidget from '@/components/HetkiAgentsWidget';
 
 const TONES = ['blue', 'green', 'yellow', 'pink', 'black'] as const;
 type Tone = typeof TONES[number];
@@ -670,6 +671,13 @@ export default function DashboardPage() {
           {orgSlug === 'hetki-company' && (
             <section style={{ marginBottom: 8 }}>
               <HetkiInvoiceTargetWidget />
+            </section>
+          )}
+
+          {/* Asiakashankinta-agentit (Mac mini) — vain hetki-companyssa */}
+          {orgSlug === 'hetki-company' && (
+            <section style={{ marginBottom: 8 }}>
+              <HetkiAgentsWidget />
             </section>
           )}
 

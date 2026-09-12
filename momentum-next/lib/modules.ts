@@ -32,6 +32,7 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   palaverit: { id: 'palaverit', label: 'Palaverit', icon: '⊞', path: '/palaverit', alwaysOn: false },
   projects:  { id: 'projects',  label: 'Projektit',  icon: '▣', path: '/projects',  alwaysOn: false },
   asiakkuudet: { id: 'asiakkuudet', label: 'Asiakkuudet', icon: '◆', path: '/asiakkuudet', alwaysOn: false },
+  agentit:   { id: 'agentit',   label: 'Agentit',    icon: '◭', path: '/agentit',   alwaysOn: false },
   laskutus:  { id: 'laskutus',  label: 'Laskutus',   icon: '€', path: '/laskutus',  alwaysOn: false },
   talous:    { id: 'talous',    label: 'Budjetti',   icon: '◇', path: '/talous',    alwaysOn: false },
   tyonjako:  { id: 'tyonjako',  label: 'Työnjako',   icon: '≈', path: '/tyonjako',  alwaysOn: false },
@@ -46,7 +47,7 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'kasikirjoitus', 'asiakkuudet', 'laskutus', 'talous', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'graafinen', 'esitteet', 'saavutettavuus', 'logogeneraattori', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'aanite', 'ohjeet', 'palaute'];
+export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'kasikirjoitus', 'asiakkuudet', 'agentit', 'laskutus', 'talous', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'graafinen', 'esitteet', 'saavutettavuus', 'logogeneraattori', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'aanite', 'ohjeet', 'palaute'];
 
 // Default modules for new orgs (viestintaorgit)
 export const DEFAULT_MODULES: Record<string, boolean> = {
@@ -180,6 +181,7 @@ export const HETKI_COMPANY_MODULES: Record<string, boolean> = {
   palaverit: true,
   projects: true,
   asiakkuudet: true,
+  agentit: true,          // Asiakashankinta-agentit (hetki-myynti, Mac mini): ajot ja tulokset
   laskutus: true,
   tyonjako: true,
   palaute: true,
