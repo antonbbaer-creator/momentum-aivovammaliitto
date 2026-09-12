@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { useOrgData } from '@/lib/firestore';
 import {
   RUNS_KEY, EMPTY_RUNS, RUN_TYPE_META, AGENT_BY_ID,
-  activeRuns, runsSince, sumResults, pendingDecisions, nextScheduledRuns, fmtRelative, fmtDateTime, useNow,
+  activeRuns, runsSince, sumResults, pendingDecisions, nextScheduledRuns, fmtRelative, fmtDateTime, useNow, runningRun, activeAgentOf, fmtDuration,
   type AgentRun,
 } from '@/lib/agents-shared';
 
@@ -17,7 +17,10 @@ export default function HetkiAgentsWidget() {
   const orgSlug = (useParams().orgSlug as string) || '';
   const [rawRuns] = useOrgData<AgentRun[]>(RUNS_KEY, EMPTY_RUNS);
   const runs = useMemo(() => activeRuns(rawRuns || []), [rawRuns]);
-  const now = useNow();
+  const anyRunning = useMemo(() => (rawRuns || []).some(r => r.status === 'kesken' && !r.deletedAt), [rawRuns]);
+  const now = useNow(anyRunning ? 1000 : 60000);
+  const live = runningRun(runs, now);
+  const activeAgent = activeAgentOf(live);
   const last = runs[0];
   const pending = useMemo(() => pendingDecisions(runs), [runs]);
   const sums7 = useMemo(() => sumResults(runsSince(runs, 7, now)), [runs, now]);
@@ -26,7 +29,8 @@ export default function HetkiAgentsWidget() {
   if (orgSlug !== 'hetki-company') return null;
 
   const silentHours = last ? (now - Date.parse(last.date)) / 3600000 : Infinity;
-  const dot = !last ? 'var(--t3)' : silentHours > 3 ? 'var(--yellow)' : 'var(--green)';
+  const dot = live ? 'var(--green)' : !last ? 'var(--t3)' : silentHours > 3 ? 'var(--yellow)' : 'var(--green)';
+  const lastEvent = live?.events && live.events.length ? live.events[live.events.length - 1] : undefined;
 
   return (
     <Link href={`/${orgSlug}/agentit`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
@@ -39,11 +43,19 @@ export default function HetkiAgentsWidget() {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '.5rem', flexWrap: 'wrap', gap: '.5rem' }}>
           <div style={{ fontSize: '.72rem', fontWeight: 600, color: 'var(--t2)', textTransform: 'uppercase', letterSpacing: '.05em', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span aria-hidden style={{ width: 8, height: 8, borderRadius: '50%', background: dot }} />
+            <span aria-hidden className={live ? 'ag-live' : undefined} style={{ width: 8, height: 8, borderRadius: '50%', background: dot }} />
             Asiakashankinta-agentit
           </div>
           <span style={{ fontSize: '.66rem', color: 'var(--t3)' }}>Avaa agentit →</span>
         </div>
+
+        {live && (
+          <div style={{ fontSize: '.85rem', lineHeight: 1.5, marginBottom: '.4rem' }}>
+            <b style={{ fontWeight: 600, color: 'var(--green)' }}>{RUN_TYPE_META[live.type].label} käynnissä</b>
+            <span style={{ color: 'var(--t3)' }}> {fmtDuration(now - Date.parse(live.date))}</span>
+            {lastEvent && <span className="ag-fade" key={lastEvent.t}>{' · '}{activeAgent ? AGENT_BY_ID[activeAgent].label : ''} {lastEvent.text}</span>}
+          </div>
+        )}
 
         {pending.length > 0 && (
           <div style={{ fontSize: '.85rem', color: 'var(--pink)', fontWeight: 600, marginBottom: '.4rem' }}>

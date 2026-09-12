@@ -24,6 +24,7 @@ const ALLOWED_ORGS = ['hetki-company'];
 const RUNS_KEY = 'hetkiAgentRuns';
 const METRICS_KEY = 'hetkiAgentMetrics';
 const MAX_RUNS = 500;
+const MAX_EVENTS = 200;
 
 const VALID_TYPES = ['tuntiajo', 'paivatarkistus', 'viikkokierros', 'kartoitus', 'muu'];
 const VALID_STATUS = ['ok', 'kesken', 'virhe', 'paatos'];
@@ -60,6 +61,7 @@ function normalizeRun(raw: Dict): Dict {
     ? raw.date
     : new Date(now).toISOString();
   const duration = Number(raw.durationMin);
+  const events = normalizeEvents(Array.isArray(raw.events) ? raw.events : []);
   const out: Dict = {
     id: typeof raw.id === 'string' && raw.id ? raw.id.slice(0, 80) : `run-${now}-${Math.random().toString(36).slice(2, 7)}`,
     date: dateStr,
@@ -73,7 +75,24 @@ function normalizeRun(raw: Dict): Dict {
   if (Object.keys(results).length) out.results = results;
   if (decisions.length) out.decisions = decisions;
   if (Number.isFinite(duration) && duration > 0) out.durationMin = Math.round(duration);
+  if (events.length) out.events = events;
   return out;
+}
+
+function normalizeEvents(raw: unknown[]): Dict[] {
+  const now = Date.now();
+  return raw
+    .map(e => {
+      const o = (e && typeof e === 'object' ? e : {}) as Dict;
+      const text = String(o.text || '').trim().slice(0, 300);
+      const agent = VALID_AGENTS.includes(String(o.agent)) ? String(o.agent) : undefined;
+      const t = Number.isFinite(Number(o.t)) ? Number(o.t) : now;
+      const out: Dict = { t, text };
+      if (agent) out.agent = agent;
+      return out;
+    })
+    .filter(e => e.text)
+    .slice(-MAX_EVENTS);
 }
 
 function normalizeMetrics(raw: Dict, prev: Dict): Dict {
@@ -117,8 +136,12 @@ export const logAgentRun = onRequest(
     }
     const hasRun = body.run && typeof body.run === 'object';
     const hasMetrics = body.metrics && typeof body.metrics === 'object';
-    if (!hasRun && !hasMetrics) {
-      res.status(400).json({ ok: false, error: 'run or metrics required' });
+    // Tapahtuma ajon sisällä: { runId, event: { agent?, text } }
+    const eventRaw = body.event && typeof body.event === 'object' ? (body.event as Dict) : null;
+    const eventRunId = String(body.runId || (hasRun ? (body.run as Dict).id || '' : '')).slice(0, 80);
+    const hasEvent = !!eventRaw && !!eventRunId && !!String(eventRaw.text || '').trim();
+    if (!hasRun && !hasMetrics && !hasEvent) {
+      res.status(400).json({ ok: false, error: 'run, event or metrics required' });
       return;
     }
 
@@ -126,24 +149,64 @@ export const logAgentRun = onRequest(
     let runId: string | undefined;
 
     await db.runTransaction(async tx => {
-      if (hasRun) {
-        const run = normalizeRun(body.run as Dict);
-        runId = run.id as string;
+      if (hasRun || hasEvent) {
         const ref = db.doc(`organizations/${orgId}/data/${RUNS_KEY}`);
         const snap = await tx.get(ref);
         const prev = parseV(snap.data());
-        const list = (Array.isArray(prev) ? prev : []) as Dict[];
-        // Sama id päivittää olemassa olevan (esim. kesken -> ok)
-        const idx = list.findIndex(r => r && r.id === run.id);
-        let next: Dict[];
-        if (idx >= 0) {
-          next = [...list];
-          next[idx] = { ...list[idx], ...run, createdAt: list[idx].createdAt ?? run.createdAt };
-        } else {
-          next = [run, ...list];
+        let list = (Array.isArray(prev) ? prev : []) as Dict[];
+
+        if (hasRun) {
+          const rawRun = body.run as Dict;
+          const run = normalizeRun(rawRun);
+          runId = run.id as string;
+          // Sama id päivittää olemassa olevan (esim. kesken -> ok). Vain annetut kentät
+          // korvataan: loppukirjaus ilman --type tai --agents ei nollaa alkukirjausta.
+          const idx = list.findIndex(r => r && r.id === run.id);
+          if (idx >= 0) {
+            const patch: Dict = { ...run };
+            for (const k of ['type', 'agents', 'date', 'status', 'events']) {
+              if (rawRun[k] === undefined) delete patch[k];
+            }
+            if (!String(rawRun.summary || '').trim()) delete patch.summary;
+            delete patch.createdAt;
+            delete patch.source;
+            const merged: Dict = { ...list[idx], ...patch };
+            // Uudet agentit lisätään vanhojen jatkoksi, ei korvata
+            if (rawRun.agents !== undefined) {
+              const oldAgents = (Array.isArray(list[idx].agents) ? list[idx].agents : []) as string[];
+              merged.agents = Array.from(new Set([...oldAgents, ...(run.agents as string[])]));
+            }
+            list = [...list];
+            list[idx] = merged;
+          } else {
+            list = [run, ...list];
+          }
         }
-        next = next.slice(0, MAX_RUNS);
-        tx.set(ref, { v: JSON.stringify(next), ts: Date.now(), updatedBy });
+
+        if (hasEvent) {
+          const ev = normalizeEvents([{ ...eventRaw, t: Date.now() }])[0];
+          if (ev) {
+            const idx = list.findIndex(r => r && r.id === eventRunId);
+            let target: Dict;
+            if (idx >= 0) {
+              target = { ...list[idx] };
+              list = [...list];
+            } else {
+              // Tapahtuma ennen aloituskirjausta: luodaan kesken-ajo
+              target = normalizeRun({ id: eventRunId, status: 'kesken', type: (body.type as string) || 'muu', agents: ev.agent ? [ev.agent] : [] });
+              list = [target, ...list];
+            }
+            const events = (Array.isArray(target.events) ? target.events : []) as Dict[];
+            target.events = [...events, ev].slice(-MAX_EVENTS);
+            const agents = (Array.isArray(target.agents) ? target.agents : []) as string[];
+            if (ev.agent && !agents.includes(ev.agent as string)) target.agents = [...agents, ev.agent];
+            if (idx >= 0) list[idx] = target; else list[0] = target;
+            runId = eventRunId;
+          }
+        }
+
+        list = list.slice(0, MAX_RUNS);
+        tx.set(ref, { v: JSON.stringify(list), ts: Date.now(), updatedBy });
       }
       if (hasMetrics) {
         const ref = db.doc(`organizations/${orgId}/data/${METRICS_KEY}`);

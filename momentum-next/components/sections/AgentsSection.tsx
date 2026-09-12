@@ -15,8 +15,8 @@ import {
   AGENT_DEFS, AGENT_BY_ID, SUB_AGENT_IDS, DATA_STORES, RUN_TYPE_META, RUN_STATUS_META,
   RESULT_KEYS, RESULT_LABELS, RUNS_KEY, METRICS_KEY, EMPTY_RUNS, DEFAULT_METRICS, MAX_RUNS,
   activeRuns, runsSince, sumResults, pendingDecisions, lastRunOfAgent, nextScheduledRuns,
-  normalizeRun, toneVar, fmtRelative, fmtDateTime, fmtEurShort, useNow,
-  type AgentId, type AgentRun, type AgentMetrics, type AgentRunResults, type RunType, type RunStatus, type DataStoreId,
+  normalizeRun, toneVar, fmtRelative, fmtDateTime, fmtEurShort, useNow, runningRun, activeAgentOf, fmtClock, fmtDuration,
+  type AgentId, type AgentRun, type AgentMetrics, type AgentRunResults, type RunType, type RunStatus, type DataStoreId, type AgentEvent,
 } from '@/lib/agents-shared';
 
 const card: React.CSSProperties = {
@@ -64,6 +64,28 @@ function ResultChips({ results }: { results?: AgentRunResults }) {
   );
 }
 
+function EventList({ events, newestFirst = false, animate = false }: { events: AgentEvent[]; newestFirst?: boolean; animate?: boolean }) {
+  const list = newestFirst ? [...events].reverse() : events;
+  return (
+    <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {list.map((e, i) => {
+        const a = e.agent ? AGENT_BY_ID[e.agent] : null;
+        const isLatest = newestFirst ? i === 0 : i === list.length - 1;
+        return (
+          <li key={`${e.t}-${i}`} className={animate ? 'ag-fade' : undefined}
+            style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.45, animationDelay: animate ? `${Math.min(i, 8) * 40}ms` : undefined, opacity: animate && !isLatest ? 0.75 : 1 }}>
+            <span style={{ ...lbl, fontSize: 10, letterSpacing: '.06em', color: 'var(--t3)', minWidth: 58, paddingTop: 2, fontVariantNumeric: 'tabular-nums' }}>{fmtClock(e.t)}</span>
+            {a ? <span title={a.label}><Glyph id={a.id} size={18} /></span> : <span style={{ width: 18, height: 18, flex: 'none' }} />}
+            <span style={{ color: isLatest && animate ? 'var(--t1)' : 'var(--t2)' }}>
+              {a && <b style={{ fontWeight: 600, color: 'var(--t1)' }}>{a.label} </b>}{e.text}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 // ── Kartta ──────────────────────────────────────────────────────
 
 const MAP_W = 980;
@@ -78,13 +100,15 @@ function curve(x1: number, y1: number, x2: number, y2: number): string {
   return `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
 }
 
-function AgentMap({ selected, onSelect, lastRuns }: {
+function AgentMap({ selected, onSelect, lastRuns, activeAgent }: {
   selected: AgentId | null;
   onSelect: (id: AgentId | null) => void;
   lastRuns: Partial<Record<AgentId, AgentRun>>;
+  activeAgent: AgentId | null;    // agentti, joka työskentelee juuri nyt (käynnissä oleva ajo)
 }) {
   const dim = (ids: AgentId[]) => selected && !ids.includes(selected) ? 0.14 : 1;
-  const edgeColor = (id: AgentId) => selected === id ? toneVar(AGENT_BY_ID[id].tone) : 'var(--ink3)';
+  const edgeColor = (id: AgentId) => (selected === id || activeAgent === id) ? toneVar(AGENT_BY_ID[id].tone) : 'var(--ink3)';
+  const flowing = (id: AgentId) => activeAgent === id;
 
   return (
     <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} width="100%" role="img" aria-label="Agenttien työnjako ja datavirrat"
@@ -112,7 +136,8 @@ function AgentMap({ selected, onSelect, lastRuns }: {
         const cy = AG.ys[i] + AG.h / 2;
         return (
           <path key={`mp-${id}`} d={curve(MP.x + MP.w, MP.y + MP.h / 2, AG.x, cy)} fill="none"
-            stroke={edgeColor(id)} strokeWidth={selected === id ? 2 : 1.2} markerEnd="url(#ag-arr)" opacity={dim([id, 'myyntipaallikko'])} />
+            className={flowing(id) ? 'ag-flow' : undefined}
+            stroke={edgeColor(id)} strokeWidth={selected === id || flowing(id) ? 2 : 1.2} markerEnd="url(#ag-arr)" opacity={dim([id, 'myyntipaallikko'])} />
         );
       })}
 
@@ -127,10 +152,11 @@ function AgentMap({ selected, onSelect, lastRuns }: {
           const sy = ST.ys[e.store] + ST.h / 2;
           return (
             <path key={`${id}-${e.store}`} d={curve(AG.x + AG.w, cy, ST.x, sy)} fill="none"
-              stroke={edgeColor(id)} strokeWidth={selected === id ? 2 : 1}
+              className={flowing(id) && e.write ? 'ag-flow' : undefined}
+              stroke={edgeColor(id)} strokeWidth={selected === id || flowing(id) ? 2 : 1}
               strokeDasharray={e.write ? undefined : '3 4'}
               markerEnd={e.write ? 'url(#ag-arr)' : undefined}
-              opacity={dim([id]) * (selected === id ? 1 : 0.55)} />
+              opacity={dim([id]) * (selected === id || flowing(id) ? 1 : 0.55)} />
           );
         });
       })}
@@ -146,6 +172,12 @@ function AgentMap({ selected, onSelect, lastRuns }: {
       <g onClick={() => onSelect(selected === 'myyntipaallikko' ? null : 'myyntipaallikko')} style={{ cursor: 'pointer' }} opacity={dim(['myyntipaallikko', ...SUB_AGENT_IDS])}>
         <rect x={MP.x} y={MP.y} width={MP.w} height={MP.h} fill="var(--card)" stroke={selected === 'myyntipaallikko' ? toneVar('blue') : 'var(--rule)'} strokeWidth={selected === 'myyntipaallikko' ? 2 : 1} />
         <rect x={MP.x} y={MP.y} width={6} height={MP.h} fill={toneVar('blue')} />
+        {activeAgent === 'myyntipaallikko' && (
+          <>
+            <circle className="ag-pulse" cx={MP.x + MP.w - 16} cy={MP.y + 16} r={6} fill={toneVar('blue')} />
+            <circle cx={MP.x + MP.w - 16} cy={MP.y + 16} r={4} fill={toneVar('blue')} />
+          </>
+        )}
         <text x={MP.x + 18} y={MP.y + 28} fill="var(--t1)" fontSize={13} style={disp}>Myyntipäällikkö</text>
         <text x={MP.x + 18} y={MP.y + 46} fill="var(--t3)" fontSize={10.5}>Mac mini, Remote Control</text>
         <text x={MP.x + 18} y={MP.y + 62} fill="var(--t3)" fontSize={10.5}>jakaa työn, kokoaa, raportoi</text>
@@ -159,14 +191,21 @@ function AgentMap({ selected, onSelect, lastRuns }: {
         const a = AGENT_BY_ID[id];
         const y = AG.ys[i];
         const sel = selected === id;
+        const act = activeAgent === id;
         const last = lastRuns[id];
         return (
           <g key={id} onClick={() => onSelect(sel ? null : id)} style={{ cursor: 'pointer' }} opacity={dim([id])}>
-            <rect x={AG.x} y={y} width={AG.w} height={AG.h} fill="var(--card)" stroke={sel ? toneVar(a.tone) : 'var(--rule)'} strokeWidth={sel ? 2 : 1} />
+            <rect x={AG.x} y={y} width={AG.w} height={AG.h} fill="var(--card)" stroke={sel || act ? toneVar(a.tone) : 'var(--rule)'} strokeWidth={sel || act ? 2 : 1} />
             <rect x={AG.x} y={y} width={6} height={AG.h} fill={toneVar(a.tone)} />
+            {act && (
+              <>
+                <circle className="ag-pulse" cx={AG.x + AG.w - 16} cy={y + 14} r={6} fill={toneVar(a.tone)} />
+                <circle cx={AG.x + AG.w - 16} cy={y + 14} r={4} fill={toneVar(a.tone)} />
+              </>
+            )}
             <text x={AG.x + 18} y={y + 22} fill="var(--t1)" fontSize={12} style={disp}>{a.label}</text>
-            <text x={AG.x + 18} y={y + 40} fill="var(--t3)" fontSize={10.5}>
-              {last ? `ajoi ${fmtRelative(Date.parse(last.date))}` : a.role.length > 34 ? a.role.slice(0, 32) + '…' : a.role}
+            <text x={AG.x + 18} y={y + 40} fill={act ? 'var(--t1)' : 'var(--t3)'} fontSize={10.5}>
+              {act ? 'työskentelee nyt' : last ? `ajoi ${fmtRelative(Date.parse(last.date))}` : a.role.length > 34 ? a.role.slice(0, 32) + '…' : a.role}
             </text>
           </g>
         );
@@ -372,7 +411,11 @@ export default function AgentsSection() {
   const [showAll, setShowAll] = useState(false);
 
   const runs = useMemo(() => activeRuns(rawRuns || []), [rawRuns]);
-  const now = useNow();
+  const anyRunning = useMemo(() => (rawRuns || []).some(r => r.status === 'kesken' && !r.deletedAt), [rawRuns]);
+  const now = useNow(anyRunning ? 1000 : 60000);
+  const live = useMemo(() => runningRun(runs, now), [runs, now]);
+  const activeAgent = activeAgentOf(live);
+  const [openEvents, setOpenEvents] = useState<Record<string, boolean>>({});
   const last7 = useMemo(() => runsSince(runs, 7, now), [runs, now]);
   const last30 = useMemo(() => runsSince(runs, 30, now), [runs, now]);
   const sums30 = useMemo(() => sumResults(last30), [last30]);
@@ -392,7 +435,9 @@ export default function AgentsSection() {
   const shown = showAll ? filtered : filtered.slice(0, 20);
 
   const silentHours = lastRun ? (now - Date.parse(lastRun.date)) / 3600000 : Infinity;
-  const macState = !lastRun
+  const macState = live
+    ? { text: 'Ajo käynnissä', color: 'var(--green)' }
+    : !lastRun
     ? { text: 'Ei ajoja vielä', color: 'var(--t3)' }
     : silentHours > 3
       ? { text: `Hiljaista ${Math.round(silentHours)} h`, color: 'var(--yellow)' }
@@ -437,7 +482,7 @@ export default function AgentsSection() {
         <div style={card}>
           <div style={lbl}>Mac mini</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-            <span aria-hidden style={{ width: 9, height: 9, borderRadius: '50%', background: macState.color, flex: 'none' }} />
+            <span aria-hidden className={live ? 'ag-live' : undefined} style={{ width: 9, height: 9, borderRadius: '50%', background: macState.color, flex: 'none' }} />
             <span style={{ ...disp, fontSize: 15 }}>{macState.text}</span>
           </div>
           <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 4 }}>
@@ -463,6 +508,36 @@ export default function AgentsSection() {
           </div>
         </div>
       </div>
+
+      {/* Nyt käynnissä */}
+      {live && (
+        <section>
+          <div className="sec-h">
+            <span className="t"><span className="n" style={{ color: 'var(--green)' }}>●</span>Nyt käynnissä</span>
+            <span className="meta">{RUN_TYPE_META[live.type].label} · alkoi <b>{fmtClock(Date.parse(live.date))}</b> · <b>{fmtDuration(now - Date.parse(live.date))}</b></span>
+          </div>
+          <div className="ag-glow" style={{ ...card, borderColor: 'var(--pri)' }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+              {AGENT_DEFS.filter(a => live.agents.includes(a.id) || a.id === activeAgent).map(a => {
+                const act = a.id === activeAgent;
+                return (
+                  <span key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px 4px 4px', border: `1px solid ${act ? toneVar(a.tone) : 'var(--border-l)'}`, borderRadius: 'var(--r)', opacity: act ? 1 : 0.6, transition: 'all .3s cubic-bezier(.16,1,.3,1)' }}>
+                    <Glyph id={a.id} size={22} />
+                    <span style={{ ...disp, fontSize: 11 }}>{a.label}</span>
+                    {act && <span aria-hidden className="ag-live" style={{ width: 6, height: 6, borderRadius: '50%', background: toneVar(a.tone) }} />}
+                  </span>
+                );
+              })}
+            </div>
+            {live.summary && <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 10 }}>{live.summary}</div>}
+            {live.events && live.events.length > 0 ? (
+              <EventList events={live.events} newestFirst animate />
+            ) : (
+              <div style={{ fontSize: 13, color: 'var(--t3)' }}>Odottaa ensimmäistä tapahtumaa.</div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Luvut */}
       <div className="stats" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12 }}>
@@ -495,10 +570,10 @@ export default function AgentsSection() {
 
       {/* Kartta */}
       <section>
-        <div className="sec-h"><span className="t"><span className="n">{pending.length ? '02' : '01'}</span>Näin ne toimivat</span><span className="meta">{selected ? <b>{AGENT_BY_ID[selected].label}</b> : 'yksi koordinaattori, viisi tekijää'}</span></div>
+        <div className="sec-h"><span className="t"><span className="n">{pending.length ? '02' : '01'}</span>Näin ne toimivat</span><span className="meta">{activeAgent ? <><b>{AGENT_BY_ID[activeAgent].label}</b> työskentelee</> : selected ? <b>{AGENT_BY_ID[selected].label}</b> : 'yksi koordinaattori, viisi tekijää'}</span></div>
         {!isMobile ? (
           <div style={{ ...card, padding: '1rem' }}>
-            <AgentMap selected={selected} onSelect={setSelected} lastRuns={lastRuns} />
+            <AgentMap selected={selected} onSelect={setSelected} lastRuns={lastRuns} activeAgent={activeAgent} />
           </div>
         ) : (
           <div style={{ ...card, fontSize: 13, lineHeight: 1.6, color: 'var(--t2)' }}>
@@ -678,7 +753,7 @@ export default function AgentsSection() {
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span style={{ ...disp, fontSize: 12 }}>{fmtDateTime(r.date)}</span>
                     <Pill text={RUN_TYPE_META[r.type].label} />
-                    <Pill text={st.label} color={st.color} />
+                    <Pill text={r.status === 'kesken' && live?.id === r.id ? `${st.label} · ${fmtDuration(now - Date.parse(r.date))}` : st.label} color={st.color} />
                     {r.durationMin ? <span style={{ fontSize: 11, color: 'var(--t3)' }}>{r.durationMin} min</span> : null}
                     {r.source === 'manual' && <span style={{ fontSize: 11, color: 'var(--t3)' }}>käsin kirjattu</span>}
                     <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
@@ -687,6 +762,19 @@ export default function AgentsSection() {
                   </div>
                   <div style={{ fontSize: 13.5, lineHeight: 1.55, marginTop: 8, whiteSpace: 'pre-wrap' }}>{r.summary}</div>
                   <ResultChips results={r.results} />
+                  {r.events && r.events.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '.2rem .4rem' }}
+                        onClick={e => { e.stopPropagation(); setOpenEvents(p => ({ ...p, [r.id]: !p[r.id] })); }}>
+                        {openEvents[r.id] ? 'Piilota tapahtumat' : `Tapahtumat (${r.events.length})`}
+                      </button>
+                      {openEvents[r.id] && (
+                        <div style={{ marginTop: 8, paddingLeft: 4, borderLeft: '2px solid var(--border-l)' }}>
+                          <EventList events={r.events} />
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {r.decisions && r.decisions.length > 0 && (
                     <div style={{ marginTop: 8, fontSize: 12, color: r.resolved ? 'var(--t3)' : 'var(--pink)' }}>
                       {r.resolved ? 'Päätetty: ' : 'Päätettävää: '}{r.decisions.join(' · ')}

@@ -39,6 +39,13 @@ export interface AgentRunResults {
   hypoteesit?: number;        // päivitetyt hypoteesit strategy/active
 }
 
+// Yksi tapahtuma ajon sisällä: "prospektoija tutkii NRW.Global Business"
+export interface AgentEvent {
+  t: number;                  // aikaleima ms
+  agent?: AgentId;            // kuka teki; puuttuu jos koordinaattorin yleinen huomio
+  text: string;
+}
+
 export interface AgentRun {
   id: string;
   date: string;               // ISO 8601, ajon alkuhetki
@@ -50,6 +57,7 @@ export interface AgentRun {
   decisions?: string[];       // mitä Anton päättää; tyhjä jos ei mitään
   resolved?: boolean;         // Anton merkitsi päätökset käsitellyiksi
   durationMin?: number;
+  events?: AgentEvent[];      // tapahtumavirta ajon aikana, vanhin ensin
   source?: 'mac-mini' | 'manual';
   createdAt: number;
   deletedAt?: number;
@@ -71,6 +79,7 @@ export interface AgentMetrics {
 }
 
 export const MAX_RUNS = 500;
+export const MAX_EVENTS = 200;
 export const RUNS_KEY = 'hetkiAgentRuns';
 export const METRICS_KEY = 'hetkiAgentMetrics';
 
@@ -288,6 +297,16 @@ export function normalizeRun(raw: Partial<AgentRun> & Record<string, unknown>): 
   const dateStr = typeof raw.date === 'string' && !Number.isNaN(Date.parse(raw.date))
     ? raw.date
     : new Date(now).toISOString();
+  const events: AgentEvent[] = (Array.isArray(raw.events) ? raw.events : [])
+    .map((e: unknown) => {
+      const o = (e && typeof e === 'object' ? e : {}) as Record<string, unknown>;
+      const text = String(o.text || '').trim().slice(0, 300);
+      const agent = VALID_AGENTS.includes(o.agent as AgentId) ? (o.agent as AgentId) : undefined;
+      const t = Number.isFinite(Number(o.t)) ? Number(o.t) : now;
+      return { t, agent, text };
+    })
+    .filter(e => e.text)
+    .slice(-MAX_EVENTS);
   return {
     id: typeof raw.id === 'string' && raw.id ? raw.id : `run-${now}-${Math.random().toString(36).slice(2, 7)}`,
     date: dateStr,
@@ -299,6 +318,7 @@ export function normalizeRun(raw: Partial<AgentRun> & Record<string, unknown>): 
     decisions: decisions.length ? decisions : undefined,
     resolved: raw.resolved === true,
     durationMin: Number.isFinite(Number(raw.durationMin)) && Number(raw.durationMin) > 0 ? Math.round(Number(raw.durationMin)) : undefined,
+    events: events.length ? events : undefined,
     source: raw.source === 'manual' ? 'manual' : 'mac-mini',
     createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : now,
   };
@@ -324,6 +344,31 @@ export function runsSince(runs: AgentRun[], days: number, now = Date.now()): Age
 
 export function pendingDecisions(runs: AgentRun[]): AgentRun[] {
   return runs.filter(r => r.status === 'paatos' && !r.resolved && (r.decisions?.length || 0) > 0);
+}
+
+/** Käynnissä oleva ajo: uusin, jonka status on kesken ja joka on alkanut alle 6 h sitten. */
+export function runningRun(runs: AgentRun[], now = Date.now()): AgentRun | undefined {
+  return runs.find(r => r.status === 'kesken' && now - Date.parse(r.date) < 6 * 3600000);
+}
+
+/** Agentti, joka teki viimeisimmän tapahtuman (tai koordinaattori). */
+export function activeAgentOf(run: AgentRun | undefined): AgentId | null {
+  if (!run) return null;
+  const ev = run.events && run.events.length ? run.events[run.events.length - 1] : undefined;
+  return ev?.agent || 'myyntipaallikko';
+}
+
+export function fmtClock(ts: number): string {
+  return new Intl.DateTimeFormat('fi-FI', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(ts));
+}
+
+export function fmtDuration(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+  if (h > 0) return `${h} h ${m % 60} min`;
+  if (m > 0) return `${m} min ${s % 60} s`;
+  return `${s} s`;
 }
 
 export function lastRunOfAgent(runs: AgentRun[], id: AgentId): AgentRun | undefined {
