@@ -33,15 +33,19 @@ import {
   DEFAULT_HETKI_COMPANY_YEARWHEEL,
 } from './hetki-company-defaults';
 import {
+  DEFAULT_AI_HETKI_TEAMS, DEFAULT_AI_HETKI_TEAM_MEMBERS,
+  DEFAULT_AI_HETKI_COMMS_PLAN, DEFAULT_AI_HETKI_YEARWHEEL,
+} from './ai-hetki-defaults';
+import {
+  DEFAULT_ENLIGHTENEDBITS_TEAMS, DEFAULT_ENLIGHTENEDBITS_TEAM_MEMBERS,
+  DEFAULT_ENLIGHTENEDBITS_COMMS_PLAN, DEFAULT_ENLIGHTENEDBITS_YEARWHEEL,
+} from './enlightenedbits-defaults';
+import {
   DEFAULT_LOISTOSETLEMENTTI_TEAMS,
   DEFAULT_LOISTOSETLEMENTTI_TEAM_MEMBERS,
   DEFAULT_LOISTOSETLEMENTTI_COMMS_PLAN,
   DEFAULT_LOISTOSETLEMENTTI_YEARWHEEL,
 } from './loistosetlementti-defaults';
-import {
-  DEFAULT_ENLIGHTENEDBITS_TEAMS, DEFAULT_ENLIGHTENEDBITS_TEAM_MEMBERS,
-  DEFAULT_ENLIGHTENEDBITS_COMMS_PLAN, DEFAULT_ENLIGHTENEDBITS_YEARWHEEL,
-} from './enlightenedbits-defaults';
 
 // ── Stabiilit fallback-vakiot (ei luoda uusia objekteja funktiokutsussa) ──
 
@@ -74,8 +78,9 @@ export function getOrgTeams(orgSlug: string): OrgTeam[] {
   if (orgSlug === 'avl') return DEFAULT_AVL_TEAMS;
   if (orgSlug === 'juhlatoimikunta') return DEFAULT_JUHLATOIMIKUNTA_TEAMS;
   if (orgSlug === 'hetki-company') return DEFAULT_HETKI_COMPANY_TEAMS;
-  if (orgSlug === 'loistosetlementti') return DEFAULT_LOISTOSETLEMENTTI_TEAMS;
+  if (orgSlug === 'ai-hetki') return DEFAULT_AI_HETKI_TEAMS;
   if (orgSlug === 'enlightenedbits') return DEFAULT_ENLIGHTENEDBITS_TEAMS;
+  if (orgSlug === 'loistosetlementti') return DEFAULT_LOISTOSETLEMENTTI_TEAMS;
   return EMPTY_TEAMS;
 }
 
@@ -84,8 +89,9 @@ export function getOrgTeamMembers(orgSlug: string): OrgTeamMember[] {
   if (orgSlug === 'avl') return DEFAULT_AVL_TEAM_MEMBERS;
   if (orgSlug === 'juhlatoimikunta') return DEFAULT_JUHLATOIMIKUNTA_TEAM_MEMBERS;
   if (orgSlug === 'hetki-company') return DEFAULT_HETKI_COMPANY_TEAM_MEMBERS;
-  if (orgSlug === 'loistosetlementti') return DEFAULT_LOISTOSETLEMENTTI_TEAM_MEMBERS;
+  if (orgSlug === 'ai-hetki') return DEFAULT_AI_HETKI_TEAM_MEMBERS;
   if (orgSlug === 'enlightenedbits') return DEFAULT_ENLIGHTENEDBITS_TEAM_MEMBERS;
+  if (orgSlug === 'loistosetlementti') return DEFAULT_LOISTOSETLEMENTTI_TEAM_MEMBERS;
   return EMPTY_MEMBERS;
 }
 
@@ -110,8 +116,9 @@ export function getOrgCommsPlan(orgSlug: string): CommsPlan {
   if (orgSlug === 'avl') return DEFAULT_AVL_COMMS_PLAN;
   if (orgSlug === 'juhlatoimikunta') return DEFAULT_JUHLATOIMIKUNTA_COMMS_PLAN;
   if (orgSlug === 'hetki-company') return DEFAULT_HETKI_COMPANY_COMMS_PLAN;
-  if (orgSlug === 'loistosetlementti') return DEFAULT_LOISTOSETLEMENTTI_COMMS_PLAN;
+  if (orgSlug === 'ai-hetki') return DEFAULT_AI_HETKI_COMMS_PLAN;
   if (orgSlug === 'enlightenedbits') return DEFAULT_ENLIGHTENEDBITS_COMMS_PLAN;
+  if (orgSlug === 'loistosetlementti') return DEFAULT_LOISTOSETLEMENTTI_COMMS_PLAN;
   return EMPTY_COMMS_PLAN;
 }
 
@@ -122,8 +129,9 @@ export function getOrgYearwheel(orgSlug: string): YearPhase[] {
   if (orgSlug === 'avl') return DEFAULT_AVL_YEARWHEEL;
   if (orgSlug === 'juhlatoimikunta') return DEFAULT_JUHLATOIMIKUNTA_YEARWHEEL;
   if (orgSlug === 'hetki-company') return DEFAULT_HETKI_COMPANY_YEARWHEEL;
-  if (orgSlug === 'loistosetlementti') return DEFAULT_LOISTOSETLEMENTTI_YEARWHEEL;
+  if (orgSlug === 'ai-hetki') return DEFAULT_AI_HETKI_YEARWHEEL;
   if (orgSlug === 'enlightenedbits') return DEFAULT_ENLIGHTENEDBITS_YEARWHEEL;
+  if (orgSlug === 'loistosetlementti') return DEFAULT_LOISTOSETLEMENTTI_YEARWHEEL;
   return EMPTY_YEARWHEEL;
 }
 
@@ -146,8 +154,9 @@ const ORG_DISPLAY_NAMES: Record<string, string> = {
   luuri: 'Luuri.net',
   ihaa: 'Ihaa — venekunnostus',
   'hetki-company': 'Hetki Company',
-  loistosetlementti: 'Loisto',
+  'ai-hetki': 'AI-Hetki',
   enlightenedbits: 'EnlightenedBits',
+  loistosetlementti: 'Loisto',
 };
 
 export function getOrgDisplayName(orgSlug: string): string {
@@ -161,8 +170,9 @@ const ORG_CHANNELS: Record<string, string[]> = {
   avl: ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Nettisivut', 'Uutiskirje', 'Jäsenkirje', 'Aivoitus-lehti', 'Lehdistötiedotteet', 'Esitteet'],
   juhlatoimikunta: ['WhatsApp', 'Sähköposti'],
   'hetki-company': ['LinkedIn', 'Instagram', 'Nettisivut', 'Uutiskirje'],
-  loistosetlementti: ['Facebook', 'Instagram', 'LinkedIn', 'Nettisivut', 'Uutiskirje'],
+  'ai-hetki': [],
   enlightenedbits: ['LinkedIn', 'Nettisivut'],
+  loistosetlementti: ['Facebook', 'Instagram', 'LinkedIn', 'Nettisivut', 'Uutiskirje'],
 };
 
 export function getOrgChannels(orgSlug: string): string[] {

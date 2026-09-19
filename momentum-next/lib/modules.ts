@@ -46,6 +46,7 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   esitteet: { id: 'esitteet', label: 'Esitteet', icon: '▥', path: '/esitepankki', alwaysOn: false },
   kasikirjoitus: { id: 'kasikirjoitus', label: 'Käsikirjoitus', icon: '✑', path: '/kasikirjoitus', alwaysOn: false },
   aanite:    { id: 'aanite',    label: 'Äänitteet',  icon: '♪', path: '/aanite',    alwaysOn: false },
+  aihetki:   { id: 'aihetki',   label: 'Studio',     icon: '✶', path: '/studio',    alwaysOn: false },
 };
 
 // Module order in sidebar
@@ -60,7 +61,7 @@ export function isModuleAllowed(moduleId: string, orgSlug: string): boolean {
   return !allowed || allowed.includes(orgSlug);
 }
 
-export const MODULE_ORDER = ['dashboard', 'aivot', 'strategy', 'team', 'tyonjako', 'projects', 'kasikirjoitus', 'asiakkuudet', 'agentit', 'laskutus', 'talous', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'graafinen', 'esitteet', 'saavutettavuus', 'logogeneraattori', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'aanite', 'ohjeet', 'palaute'];
+export const MODULE_ORDER = ['dashboard', 'aihetki', 'aivot', 'strategy', 'team', 'tyonjako', 'projects', 'kasikirjoitus', 'asiakkuudet', 'agentit', 'laskutus', 'talous', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'graafinen', 'esitteet', 'saavutettavuus', 'logogeneraattori', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'aanite', 'ohjeet', 'palaute'];
 
 // Default modules for new orgs (viestintaorgit)
 export const DEFAULT_MODULES: Record<string, boolean> = {
@@ -234,6 +235,34 @@ export const IHAA_MODULES: Record<string, boolean> = {
 // Loistosetlementti ry — jarjestotoiminta, sama profiili kuin AVL:lla.
 export const LOISTOSETLEMENTTI_MODULES: Record<string, boolean> = AVL_MODULES;
 
+// AI-Hetki — agenttistudio: Studio-moduuli, käsikirjoitukset ja tiimi (agentit).
+export const AI_HETKI_MODULES: Record<string, boolean> = {
+  dashboard: true,
+  aihetki: true,
+  kasikirjoitus: true,
+  team: true,
+  strategy: false,
+  viestit: false,
+  aikataulut: false,
+  viestinta: false,
+  ohjelmisto: false,
+  budget: false,
+  budjetti: false,
+  vieraat: false,
+  ruoka: false,
+  tehtavat: false,
+  tila: false,
+  ohjelma: false,
+  muistiinpanot: false,
+  muistiinpanotProjekti: false,
+  ohjeet: false,
+  palaverit: false,
+  projects: false,
+  tyonjako: false,
+  palaute: false,
+  graafinen: false,
+};
+
 // EnlightenedBits — yritys-/tuoteprojekti: projektit, työnjako, palaverit,
 // strategia ja tiimi. Ei viestintätoimiston asiakkuus-/laskutusmoduuleja.
 export const ENLIGHTENEDBITS_MODULES: Record<string, boolean> = {
@@ -266,6 +295,7 @@ export const ENLIGHTENEDBITS_MODULES: Record<string, boolean> = {
 };
 
 export function getDefaultModules(orgSlug: string): Record<string, boolean> {
+  if (orgSlug === 'ai-hetki') return AI_HETKI_MODULES;
   if (orgSlug === 'enlightenedbits') return ENLIGHTENEDBITS_MODULES;
   if (orgSlug === 'avl') return AVL_MODULES;
   if (orgSlug === 'juhlatoimikunta') return JUHLATOIMIKUNTA_MODULES;
