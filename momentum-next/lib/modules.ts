@@ -220,7 +220,39 @@ export const IHAA_MODULES: Record<string, boolean> = {
 // Loistosetlementti ry — jarjestotoiminta, sama profiili kuin AVL:lla.
 export const LOISTOSETLEMENTTI_MODULES: Record<string, boolean> = AVL_MODULES;
 
+// EnlightenedBits — yritys-/tuoteprojekti: projektit, työnjako, palaverit,
+// strategia ja tiimi. Ei viestintätoimiston asiakkuus-/laskutusmoduuleja.
+export const ENLIGHTENEDBITS_MODULES: Record<string, boolean> = {
+  dashboard: true,
+  strategy: true,
+  team: true,
+  viestit: true,
+  aikataulut: true,
+  viestinta: false,
+  ohjelmisto: false,
+  budget: false,
+  budjetti: false,
+  talous: true,
+  vieraat: false,
+  ruoka: false,
+  tehtavat: true,
+  tila: false,
+  ohjelma: false,
+  muistiinpanot: true,
+  muistiinpanotProjekti: true,
+  ohjeet: false,
+  palaverit: true,
+  projects: true,
+  asiakkuudet: false,
+  laskutus: false,
+  tyonjako: true,
+  palaute: false,
+  logogeneraattori: false,
+  graafinen: false,
+};
+
 export function getDefaultModules(orgSlug: string): Record<string, boolean> {
+  if (orgSlug === 'enlightenedbits') return ENLIGHTENEDBITS_MODULES;
   if (orgSlug === 'avl') return AVL_MODULES;
   if (orgSlug === 'juhlatoimikunta') return JUHLATOIMIKUNTA_MODULES;
   if (orgSlug === 'luuri') return LUURI_MODULES;

@@ -14,6 +14,7 @@ import { isSuperAdminEmail } from './super-admins';
 const SUPER_ADMIN_AUTO_PROVISION_ORGS: { orgId: string; name: string }[] = [
   { orgId: 'hetki-company', name: 'Hetki Company' },
   { orgId: 'loistosetlementti', name: 'Loisto' },
+  { orgId: 'enlightenedbits', name: 'EnlightenedBits' },
 ];
 
 export type OrgRole = 'owner' | 'admin' | 'member' | 'visitor';
