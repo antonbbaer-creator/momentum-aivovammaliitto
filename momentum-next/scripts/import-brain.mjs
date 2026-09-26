@@ -22,7 +22,7 @@ import { basename } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { initializeApp, cert, applicationDefault, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { nameKey, computeLinks } from '../lib/brain-core.mjs';
+import { computeLinks } from '../lib/brain-core.mjs';
 import {
   normalizeSeed, normalizeGoals, planNote, planProposal, planDoc, compareCounts, unresolvedSummary, stableJson,
   IMPORT_ACTOR,
@@ -392,6 +392,3 @@ main().then(
     process.exit(1);
   },
 );
-
-// nameKey tuodaan, jotta skripti ja kirjasto käyttävät samaa avainta (tarkistus alla ei muuta dataa)
-void nameKey;

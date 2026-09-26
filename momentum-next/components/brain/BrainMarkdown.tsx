@@ -98,6 +98,7 @@ function InlineView({ n, resolve }: { n: Inline; resolve: Props['resolve'] }) {
     case 'link':
       return /^https?:/i.test(n.href)
         ? <a href={n.href} target="_blank" rel="noopener noreferrer"><Inlines nodes={n.c} resolve={resolve} /></a>
+        : n.href.startsWith('/') ? <Link href={n.href}><Inlines nodes={n.c} resolve={resolve} /></Link>
         : <a href={n.href}><Inlines nodes={n.c} resolve={resolve} /></a>;
     case 'wikilink': {
       const t = resolve(n.target, n.heading);

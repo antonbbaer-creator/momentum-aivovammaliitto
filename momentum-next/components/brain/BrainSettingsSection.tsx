@@ -359,7 +359,7 @@ function AgentGuide() {
                 <li>URL: <code style={{ overflowWrap: 'anywhere' }}>{AGENT_URL}</code></li>
                 <li>Menetelmä: <strong>POST</strong></li>
                 <li>Otsakkeet: avain <code>Authorization</code>, arvo <code>Bearer &lt;TOKEN&gt;</code></li>
-                <li>Pyynnön runko: <strong>JSON</strong>, kentät <code>type</code> = <code>inbox</code>, <code>channel</code> = <code>siri</code> ja <code>text</code> = muuttuja <strong>Sanottu teksti</strong></li>
+                <li>Pyynnön runko: <strong>JSON</strong>, kentät <code>type</code> = <code>inbox</code>, <code>channel</code> = <code>siri</code> ja <code>text</code> = muuttuja <strong>Saneltu teksti</strong></li>
               </ul>
             </li>
             <li>Lisää toiminto <strong>Näytä ilmoitus</strong>, esimerkiksi tekstillä &quot;Kirjattu aivoihin&quot;.</li>
@@ -454,7 +454,7 @@ function PrivacyPanel() {
         </p>
         <p style={{ margin: 0 }}>
           Puheentunnistus: kun kirjaat puheella, ääni käsitellään tällä hetkellä Yhdysvalloissa (OpenAI Whisper).
-          Äänitiedosto poistetaan litteroinnin jälkeen.
+          Äänitiedosto poistetaan oletuksena heti litteroinnin jälkeen.
         </p>
       </div>
     </section>
