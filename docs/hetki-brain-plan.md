@@ -1,6 +1,6 @@
 # Aivot (Hetki Brain) Momentumissa – suunnitelma
 
-Tila: **luonnos, odottaa Antonin hyväksyntää.** Mitään tietomallia, sääntöjä tai tuontia ei toteuteta ennen hyväksyntää.
+Tila: **toteutettu 26.9.2026** (Anton: "Rakenna aivot"). Odottaa käyttöönottoa: ks. `docs/aivot-kaytto.md` ja hyväksymiskriteerit alla.
 Pohjana on ohje "Hetki Brain Momentumiin – ohje Claude Codelle". Tässä dokumentissa ei ole liiketoimintadataa (luvut, asiakkaat, hinnat); ne tulevat vain paikallisesta tuontipaketista.
 
 ---
@@ -127,3 +127,24 @@ Ratkaistu toteutuksen alussa (Anton: "Rakenna aivot", 26.9.2026):
 | 6 | Haara | Session haara `claude/agenttinen-momentumi-systeemi-q7bm7m`, jokainen vaihe omana committinaan. |
 | 7 | Tuonti | Ajetaan Antonin koneella paikallisesta polusta (`scripts/import-brain.mjs`). |
 | 8 | Sijainti | Vielä tarkistamatta. Tarkista Firestoren sijainti konsolista ennen tuontia. |
+
+---
+
+## 7. Hyväksymiskriteerit (tilanne 26.9.2026)
+
+| Kriteeri | Tila |
+|---|---|
+| Suunnitelma hyväksytty ennen toteutusta | ✓ |
+| Kuivaharjoitus ja tuonti, määrät vastaavat seedin metaa | Skripti valmis ja testattu keksityllä datalla (`scripts/import-brain.mjs`, 15 testiä). **Ajetaan Antonin koneella.** |
+| Osiot ja muistiinpanot näkyvät, wikilinkit ja takaisinlinkit | ✓ (tarkistettava oikealla datalla) |
+| Päätösloki, ehdotukset, pohjat ja tavoitteet tuotu | Tuonti tukee kaikkia; tavoitteet paikallisesta goals.json-tiedostosta |
+| ⚠️-kohdat muistiinpanoissa ja koontinäkymässä | ✓ |
+| Kirjaa tekstillä ja äänellä, ei kirjoitusta ilman hyväksyntää | ✓ (ääni Whisperillä, tarkistettava selaimessa) |
+| Ehdotuksen hyväksyntä lisää tehtävän Kehityssuunnitelmaan | ✓ |
+| Kysy vastaa lähteineen | ✓ (vaatii ANTHROPIC_API_KEY:n Netlifyssä) |
+| Agenttitokenilla luku, kirjaus ja ehdotus, audit-loki | ✓ |
+| Org-eristystesti (RLS-vastine) | ✓ `firebase/rules-tests/brain.test.mjs`, CI:ssä |
+| Vienti aukeaa Obsidianissa | Toteutettu, tarkistettava oikealla datalla |
+| Olemassa olevat toiminnot toimivat kuten ennen | CI vihreä (tyypit, lint, säännöt); selaintesti puuttuu |
+
+Katselmointi (tarkastaja, tietoturva, saavutettavuus) tehty ja löydökset korjattu. Avoimet: B-5 (koko sovelluksen kontrasti), B-6 (ääniteiden tallennussäännöt) `agentit/BACKLOG.md`:ssä.
