@@ -95,6 +95,17 @@ export default function TaskNetworkGraph({
 
   // Viewport (pan/zoom)
   const viewRef = useRef({ tx: 0, ty: 0, scale: 1 });
+  // Refit esitellään ennen niitä käyttäviä funktioita (React Compiler tunnistaa ne silloin refeiksi)
+  const drawRef = useRef<() => void>(() => {});
+  const panRef = useRef<{ startClientX: number; startClientY: number; baseTx: number; baseTy: number } | null>(null);
+  const draggingTaskRef = useRef<{
+    task: UnifiedTask;
+    sourceX: number; sourceY: number;
+    startClientX: number; startClientY: number;
+    worldX?: number; worldY?: number;
+    moved?: boolean;
+  } | null>(null);
+  const pendingClickRef = useRef<{ id: string; x: number; y: number } | null>(null);
   const [viewTick, setViewTick] = useState(0); // pakottaa uudelleenrenderin labelille
 
   // Tila
@@ -337,7 +348,6 @@ export default function TaskNetworkGraph({
   }, [nodes, links, size.w, size.h, centerStrength, repelStrength, linkStrength, linkDistance]);
 
   // --- Piirto ---
-  const drawRef = useRef<() => void>(() => {});
   const draw = useCallback(() => {
     const c = canvasRef.current;
     if (!c) return;
@@ -527,19 +537,9 @@ export default function TaskNetworkGraph({
     ctx.restore();
   }, [size, nodes, links, nodesById, adjacency, hoveredId, selectedNode, textFadeZoom]);
 
-  // eslint-disable-next-line react-hooks/immutability -- drawRef on useRef-ref; sen päivitys effektissä on sallittu, mutta React Compiler ei päättele sitä refiksi
   useEffect(() => { drawRef.current = draw; draw(); }, [draw, viewTick]);
 
   // --- Hiiri / interaktiot ---
-  const panRef = useRef<{ startClientX: number; startClientY: number; baseTx: number; baseTy: number } | null>(null);
-  const draggingTaskRef = useRef<{
-    task: UnifiedTask;
-    sourceX: number; sourceY: number;
-    startClientX: number; startClientY: number;
-    worldX?: number; worldY?: number;
-    moved?: boolean;
-  } | null>(null);
-  const pendingClickRef = useRef<{ id: string; x: number; y: number } | null>(null);
 
   const screenToWorld = (sx: number, sy: number) => {
     const { tx, ty, scale } = viewRef.current;
@@ -569,7 +569,6 @@ export default function TaskNetworkGraph({
     const { x: wx, y: wy } = screenToWorld(x, y);
     const hit = hitTest(wx, wy);
     if (hit && hit.kind === 'task' && canEdit && hit.task) {
-      // eslint-disable-next-line react-hooks/immutability -- draggingTaskRef on useRef-ref, jota muutetaan vain hiiren tapahtumakäsittelijässä
       draggingTaskRef.current = {
         task: hit.task,
         sourceX: hit.x!, sourceY: hit.y!,
@@ -593,7 +592,6 @@ export default function TaskNetworkGraph({
     if (draggingTaskRef.current) {
       const dx = e.clientX - draggingTaskRef.current.startClientX;
       const dy = e.clientY - draggingTaskRef.current.startClientY;
-      // eslint-disable-next-line react-hooks/immutability -- ref-objektin mutaatio hiiren käsittelijässä, ei renderissä; kääntäjä ei tunnista refiä, koska draw viittaa siihen ennen määrittelyä
       if (Math.abs(dx) > 2 || Math.abs(dy) > 2) draggingTaskRef.current.moved = true;
       draggingTaskRef.current.worldX = wx;
       draggingTaskRef.current.worldY = wy;
@@ -615,7 +613,6 @@ export default function TaskNetworkGraph({
   const onMouseUp = (e: React.MouseEvent) => {
     if (draggingTaskRef.current) {
       const d = draggingTaskRef.current;
-      // eslint-disable-next-line react-hooks/immutability -- draggingTaskRef on useRef-ref, jota muutetaan vain hiiren tapahtumakäsittelijässä
       draggingTaskRef.current = null;
       const { x, y } = getRelPos(e);
       const { x: wx, y: wy } = screenToWorld(x, y);
@@ -669,7 +666,6 @@ export default function TaskNetworkGraph({
   };
 
   const onMouseLeave = () => {
-    // eslint-disable-next-line react-hooks/immutability -- ref-objektin nollaus hiiren käsittelijässä, ei renderissä; kääntäjä ei tunnista refiä, koska draw viittaa siihen ennen määrittelyä
     if (draggingTaskRef.current) draggingTaskRef.current = null;
     if (panRef.current) panRef.current = null;
     pendingClickRef.current = null;
