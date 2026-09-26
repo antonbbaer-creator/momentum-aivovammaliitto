@@ -33,6 +33,7 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
   projects:  { id: 'projects',  label: 'Projektit',  icon: '▣', path: '/projects',  alwaysOn: false },
   asiakkuudet: { id: 'asiakkuudet', label: 'Asiakkuudet', icon: '◆', path: '/asiakkuudet', alwaysOn: false },
   agentit:   { id: 'agentit',   label: 'Agentit',    icon: '◭', path: '/agentit',   alwaysOn: false },
+  aivot:     { id: 'aivot',     label: 'Aivot',      icon: '◍', path: '/aivot',     alwaysOn: false },
   laskutus:  { id: 'laskutus',  label: 'Laskutus',   icon: '€', path: '/laskutus',  alwaysOn: false },
   talous:    { id: 'talous',    label: 'Budjetti',   icon: '◇', path: '/talous',    alwaysOn: false },
   tyonjako:  { id: 'tyonjako',  label: 'Työnjako',   icon: '≈', path: '/tyonjako',  alwaysOn: false },
@@ -47,7 +48,7 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
 };
 
 // Module order in sidebar
-export const MODULE_ORDER = ['dashboard', 'strategy', 'team', 'tyonjako', 'projects', 'kasikirjoitus', 'asiakkuudet', 'agentit', 'laskutus', 'talous', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'graafinen', 'esitteet', 'saavutettavuus', 'logogeneraattori', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'aanite', 'ohjeet', 'palaute'];
+export const MODULE_ORDER = ['dashboard', 'aivot', 'strategy', 'team', 'tyonjako', 'projects', 'kasikirjoitus', 'asiakkuudet', 'agentit', 'laskutus', 'talous', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'graafinen', 'esitteet', 'saavutettavuus', 'logogeneraattori', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'aanite', 'ohjeet', 'palaute'];
 
 // Default modules for new orgs (viestintaorgit)
 export const DEFAULT_MODULES: Record<string, boolean> = {
@@ -182,6 +183,7 @@ export const HETKI_COMPANY_MODULES: Record<string, boolean> = {
   projects: true,
   asiakkuudet: true,
   agentit: true,          // Asiakashankinta-agentit (hetki-myynti, Mac mini): ajot ja tulokset
+  aivot: true,            // Organisaation aivot: tietopohja, kirjaukset, ehdotukset (docs/hetki-brain-plan.md)
   laskutus: true,
   tyonjako: true,
   palaute: true,
