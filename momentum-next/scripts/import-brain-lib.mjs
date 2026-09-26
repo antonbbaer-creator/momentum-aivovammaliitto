@@ -500,6 +500,7 @@ const num = v => {
  * @returns {{ goals: any[], errors: string[] }}
  */
 export function normalizeGoals(json) {
+  /** @type {any[]} */
   const list = Array.isArray(json) ? json : Array.isArray(json?.goals) ? json.goals : [];
   /** @type {string[]} */
   const errors = [];
