@@ -30,6 +30,7 @@ before(async () => {
     }
     await setDoc(doc(db, `organizations/${ORG}/brainNotes/x/revisions/1`), { bodyMd: 'vanha' });
     await setDoc(doc(db, 'brainAgentTokens/abc'), { orgId: ORG, scopes: ['read'] });
+    await setDoc(doc(db, `organizations/${ORG}/brainUsage/org-1`), { n: 3 });
   });
 });
 
@@ -85,4 +86,9 @@ test('agenttitokenit eivät näy kenellekään selaimessa', async () => {
     await assertFails(getDocs(collection(as(uid), 'brainAgentTokens')));
     await assertFails(setDoc(doc(as(uid), 'brainAgentTokens/uusi'), { orgId: ORG }));
   }
+});
+
+test('tekoälyn käyttölaskurit eivät näy eivätkä muutu selaimessa', async () => {
+  await assertFails(getDoc(doc(as('omistaja'), `organizations/${ORG}/brainUsage/org-1`)));
+  await assertFails(setDoc(doc(as('jasen'), `organizations/${ORG}/brainUsage/org-1`), { n: 0 }));
 });

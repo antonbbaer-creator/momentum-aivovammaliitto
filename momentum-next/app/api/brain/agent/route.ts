@@ -84,7 +84,7 @@ export async function POST(req: Request) {
     }
     if (type === 'proposal') {
       const actor = await requireAgent(req, 'proposals:write');
-      const operation = body.operation ? parseOperation(body.operation) : null;
+      const operation = body.operation ? parseOperation(body.operation, 'agent') : null;
       if (body.operation && !operation) throw new BrainError(400, 'operation ei kelpaa');
       const id = await createProposal(actor, {
         title: str(body.title, 300), bodyMd: str(body.bodyMd, 50_000), area: str(body.area, 200) || undefined,

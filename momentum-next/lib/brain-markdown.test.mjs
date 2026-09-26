@@ -57,6 +57,10 @@ test('turvallisuus: raaka HTML on tekstiä, vaaralliset linkit hylätään', () 
   assert.equal(safeHref('//evil.com'), null);
   assert.equal(safeHref('https://ok.fi'), 'https://ok.fi');
   assert.equal(safeHref('mailto:a@b.fi'), 'mailto:a@b.fi');
+  assert.equal(safeHref('\u0001javascript:alert(1)'), null);
+  assert.equal(safeHref(' \tjavascript:alert(1)'), null);
+  assert.equal(safeHref('java\nscript:alert(1)'), null);
+  assert.equal(safeHref('/\\evil.com'), null);
 });
 
 test('snake_case ei muutu kursiiviksi, autolinkki toimii', () => {

@@ -2,7 +2,7 @@
 // Litteroi kirjauksen äänen (vaihdettava palveluntarjoaja, lib/brain-transcribe.ts).
 // Äänitiedosto poistetaan oletuksena onnistuneen litteroinnin jälkeen.
 import { getStorage } from 'firebase-admin/storage';
-import { handle, readJson, requireUser, audit, col, str, BrainError } from '@/lib/brain-server';
+import { handle, readJson, requireUser, audit, col, docId, BrainError } from '@/lib/brain-server';
 import { adminDb } from '@/lib/firebase-admin';
 import { transcribe, TRANSCRIBE_PROVIDER } from '@/lib/brain-transcribe';
 import { BRAIN_COLLECTIONS as C, type BrainInboxEntry } from '@/lib/brain-shared';
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   return handle(async () => {
     const body = await readJson(req);
     const actor = await requireUser(req, body.orgId, 'edit');
-    const id = str(body.id, 120);
+    const id = docId(body.id, 'kirjauksen tunniste');
     const db = adminDb();
     const ref = col(db, actor.orgId, C.inbox).doc(id);
     const snap = await ref.get();
@@ -41,10 +41,16 @@ export async function POST(req: Request) {
       await ref.update({ error: e instanceof Error ? e.message.slice(0, 300) : 'Litterointi epäonnistui' });
       throw e;
     }
+    if (!text) {
+      // Tyhjä litterointi (esim. hiljaisuus): ääni säilyy, jotta sitä ei menetetä
+      await ref.update({ error: 'Äänitteestä ei tunnistettu puhetta. Ääni on tallessa, voit kirjoittaa asian tekstinä tai hylätä kirjauksen.' });
+      throw new BrainError(422, 'Äänitteestä ei tunnistettu puhetta.');
+    }
     const rawText = [entry.rawText?.trim(), text].filter(Boolean).join('\n\n');
     const keep = body.keepAudio === true;
-    if (!keep) await file.delete().catch(() => {});
+    // Litterointi tallennetaan ensin, ääni poistetaan vasta sen jälkeen
     await ref.update({ transcript: text, rawText, error: null, audioPath: keep ? entry.audioPath : null });
+    if (!keep) await file.delete().catch(() => {});
     await audit(actor, 'inbox.transcribe', 'inbox', id, { provider: TRANSCRIBE_PROVIDER, audioDeleted: !keep });
     return { transcript: text, rawText };
   });

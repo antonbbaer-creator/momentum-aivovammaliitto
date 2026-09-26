@@ -54,6 +54,26 @@ export async function readJson(req: Request): Promise<Record<string, unknown>> {
 
 export const str = (v: unknown, max = 2000): string => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
+// Firestore-dokumentin tunniste: admin-SDK hyväksyy kauttaviivat polkuina (doc('a/b/c')), joten jokainen
+// ulkoa tuleva tunniste validoidaan. slugify, newId ja stableId tuottavat tähän sopivia tunnisteita.
+const ID_RE = /^[a-z0-9][a-z0-9-]{0,119}$/i;
+
+export function isDocId(v: unknown): v is string {
+  return typeof v === 'string' && ID_RE.test(v);
+}
+
+export function docId(v: unknown, what = 'tunniste'): string {
+  const s = typeof v === 'string' ? v.trim() : '';
+  if (!ID_RE.test(s)) throw new BrainError(400, `Virheellinen ${what}`);
+  return s;
+}
+
+/** Valinnainen tunniste: tyhjä → null, virheellinen → null (tekoälyn ja agentin syötteet). */
+function optId(v: unknown): string | null {
+  const s = typeof v === 'string' ? v.trim() : '';
+  return s && ID_RE.test(s) ? s : null;
+}
+
 /** Poistaa undefined-kentät (Firestore ei hyväksy niitä). */
 export function clean<T>(o: T): T {
   return JSON.parse(JSON.stringify(o)) as T;
@@ -127,6 +147,14 @@ export async function requireAgent(req: Request, scope: AgentScope): Promise<Bra
   const snap = await ref.get();
   const d = snap.data();
   if (!snap.exists || !d || d.revokedAt) throw new BrainError(401, 'Agenttitoken ei ole voimassa');
+  if (d.expiresAt && Date.now() > Number(d.expiresAt)) throw new BrainError(401, 'Agenttitoken on vanhentunut. Luo uusi Asetuksissa.');
+  // Token on voimassa vain niin kauan kuin sen luoja on orgin omistaja tai ylläpitäjä
+  if (!d.createdBySuperAdmin) {
+    if (!d.createdByUid) throw new BrainError(401, 'Agenttitoken on vanhaa muotoa. Luo uusi Asetuksissa.');
+    const m = await db.doc(`organizations/${String(d.orgId)}/members/${String(d.createdByUid)}`).get();
+    const r = m.exists ? String(m.data()?.role || '') : '';
+    if (r !== 'owner' && r !== 'admin') throw new BrainError(401, 'Tokenin luoja ei ole enää ylläpitäjä. Token ei ole voimassa.');
+  }
   const scopes = (Array.isArray(d.scopes) ? d.scopes : []) as AgentScope[];
   if (!scopes.includes(scope)) throw new BrainError(403, `Tokenilla ei ole oikeutta: ${scope}`);
   ref.update({ lastUsedAt: Date.now() }).catch(() => {});
@@ -198,12 +226,13 @@ export function parseNoteInput(raw: unknown): NoteInput {
   if (!name) throw new BrainError(400, 'Muistiinpanolta puuttuu nimi');
   const sectionSlug = str(o.sectionSlug, 120);
   if (!sectionSlug) throw new BrainError(400, 'Valitse osio');
+  if (!isDocId(sectionSlug)) throw new BrainError(400, 'Virheellinen osio');
   const body = typeof o.bodyMd === 'string' ? o.bodyMd : '';
   if (body.length > 400_000) throw new BrainError(413, 'Muistiinpano on liian pitkä (yli 400 000 merkkiä)');
   const kind = KINDS.includes(o.kind as NoteKind) ? (o.kind as NoteKind) : undefined;
   const ev = Number(o.expectedVersion);
   return {
-    slug: str(o.slug, 120) || null,
+    slug: o.slug ? docId(o.slug, 'muistiinpanon tunniste') : null,
     name,
     title: str(o.title, 300) || undefined,
     sectionSlug,
@@ -269,6 +298,10 @@ export async function saveNote(actor: BrainActor, input: NoteInput, source: Chan
     // Muistiinpanot, jotka linkittävät vanhaan nimeen (uudelleennimeäminen) tai odottavat uutta nimeä
     const backlinkSnap = renamed ? await tx.get(notes.where('linksOut', 'array-contains', slug)) : null;
     const waitingSnap = !prev || renamed ? await tx.get(notes.where('unresolvedLinks', 'array-contains', newKey)) : null;
+    if (backlinkSnap && backlinkSnap.size > 200) {
+      throw new BrainError(409, `Tähän muistiinpanoon linkittää ${backlinkSnap.size} muistiinpanoa. Nimen muutos päivittäisi liian monta kerralla; pyydä ylläpitäjää tekemään se tuonnilla.`);
+    }
+    const handled = new Set<string>();
 
     // ── Kirjoitukset ──
     const body = input.bodyMd;
@@ -291,7 +324,8 @@ export async function saveNote(actor: BrainActor, input: NoteInput, source: Chan
       unresolvedLinks: links.unresolvedLinks,
       linkAliases: links.aliases,
       isDraft: isDraftNotDecision(body),
-      sourcePath: input.sourcePath || prev?.sourcePath,
+      // Vienti käyttää alkuperäistä polkua vain, jos nimi ja osio ovat ennallaan (muuten linkit rikkoutuisivat)
+      sourcePath: input.sourcePath || (prev && !renamed && prev.sectionSlug === input.sectionSlug ? prev.sourcePath : undefined),
       createdBy: prev?.createdBy || actor.name,
       updatedBy: actor.name,
       createdAt: prev?.createdAt || now,
@@ -316,6 +350,7 @@ export async function saveNote(actor: BrainActor, input: NoteInput, source: Chan
         if (newBody === other.bodyMd) continue;
         const v = (other.version || 0) + 1;
         const l = computeLinks(newBody, k => index.get(k), other.slug);
+        handled.add(d.id);
         tx.update(d.ref, { bodyMd: newBody, linksOut: l.linksOut, unresolvedLinks: l.unresolvedLinks, linkAliases: l.aliases, version: v, updatedAt: now, updatedBy: actor.name });
         tx.set(d.ref.collection(C.revisions).doc(String(v)), clean({
           version: v, title: other.title, name: other.name, bodyMd: newBody, properties: other.properties,
@@ -327,7 +362,7 @@ export async function saveNote(actor: BrainActor, input: NoteInput, source: Chan
     }
     if (waitingSnap) {
       for (const d of waitingSnap.docs) {
-        if (d.id === slug) continue;
+        if (d.id === slug || handled.has(d.id)) continue;
         const other = d.data() as BrainNote;
         const l = computeLinks(other.bodyMd, k => index.get(k), other.slug);
         tx.update(d.ref, { linksOut: l.linksOut, unresolvedLinks: l.unresolvedLinks, linkAliases: l.aliases });
@@ -351,6 +386,7 @@ function changedFields(a: BrainNote, b: BrainNote): string[] {
 }
 
 export async function getNote(orgId: string, slug: string): Promise<BrainNote | null> {
+  if (!isDocId(slug)) return null;
   const snap = await col(adminDb(), orgId, C.notes).doc(slug).get();
   return snap.exists ? (snap.data() as BrainNote) : null;
 }
@@ -363,7 +399,8 @@ export async function findNoteByName(orgId: string, name: string): Promise<Brain
 }
 
 /** Palauttaa vanhan version uutena versiona (historia säilyy). */
-export async function restoreRevision(actor: BrainActor, slug: string, version: number) {
+export async function restoreRevision(actor: BrainActor, slugRaw: string, version: number) {
+  const slug = docId(slugRaw, 'muistiinpanon tunniste');
   const db = adminDb();
   const ref = col(db, actor.orgId, C.notes).doc(slug);
   const [noteSnap, revSnap] = await Promise.all([ref.get(), ref.collection(C.revisions).doc(String(version)).get()]);
@@ -445,16 +482,36 @@ export async function createProposal(actor: BrainActor, p: ProposalInput): Promi
 export const PLAN_NOTE_NAME = 'Kehityssuunnitelma';
 export const PLAN_HEADING = 'Hyväksytyt ehdotukset';
 
-export async function decideProposal(actor: BrainActor, id: string, action: 'accept' | 'reject' | 'later', opts: {
+export async function decideProposal(actor: BrainActor, idRaw: string, action: 'accept' | 'reject' | 'later', opts: {
   note?: string; snoozeUntil?: string; logDecision?: boolean; decisionText?: string; decisionRationale?: string;
 }) {
+  const id = docId(idRaw, 'ehdotuksen tunniste');
   const db = adminDb();
   const ref = col(db, actor.orgId, C.proposals).doc(id);
-  const snap = await ref.get();
-  if (!snap.exists) throw new BrainError(404, 'Ehdotusta ei löydy');
-  const p = snap.data() as BrainProposal;
-  if (p.status === 'hyväksytty' || p.status === 'hylätty') throw new BrainError(409, 'Ehdotus on jo käsitelty');
   const now = Date.now();
+  // Varaus transaktiossa: kaksi rinnakkaista päätöstä ei voi molempia kirjoittaa (tuplaklikkaus, kaksi välilehteä)
+  const p = await db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new BrainError(404, 'Ehdotusta ei löydy');
+    const cur = snap.data() as BrainProposal & { lockedAt?: number };
+    if (cur.status === 'hyväksytty' || cur.status === 'hylätty') throw new BrainError(409, 'Ehdotus on jo käsitelty');
+    if (cur.lockedAt && now - cur.lockedAt < 120_000) throw new BrainError(409, 'Ehdotusta käsitellään parhaillaan');
+    tx.update(ref, { lockedAt: now });
+    return cur;
+  });
+  try {
+    return await decideLocked(actor, db, ref, id, p, action, opts, now);
+  } finally {
+    await ref.update({ lockedAt: null }).catch(() => {});
+  }
+}
+
+async function decideLocked(
+  actor: BrainActor, db: Firestore, ref: DocumentReference<DocumentData>, id: string, p: BrainProposal,
+  action: 'accept' | 'reject' | 'later',
+  opts: { note?: string; snoozeUntil?: string; logDecision?: boolean; decisionText?: string; decisionRationale?: string },
+  now: number,
+) {
 
   if (action === 'later') {
     const until = /^\d{4}-\d{2}-\d{2}$/.test(opts.snoozeUntil || '') ? opts.snoozeUntil! : null;
@@ -474,22 +531,39 @@ export async function decideProposal(actor: BrainActor, id: string, action: 'acc
   }
 
   // Hyväksy: agentin muistiinpanomuutos kirjoitetaan nyt, tehtävä Kehityssuunnitelmaan, valinnainen päätös
-  if (p.operation) await applyOperation(actor, p.operation, `Ehdotus hyväksytty: ${p.title}`);
-  const plan = await findNoteByName(actor.orgId, PLAN_NOTE_NAME);
+  // Operaatio kirjataan ehdotukseen heti, jotta uusi yritys (katkos, virhe myöhemmin) ei kirjoita sitä toiseen kertaan
+  const applied = p as BrainProposal & { operationAppliedAt?: number | null };
+  if (p.operation && !applied.operationAppliedAt) {
+    const target = await applyOperation(actor, p.operation, `Ehdotus hyväksytty: ${p.title}`, 'agent', 'agent');
+    await ref.update({ operationAppliedAt: Date.now(), operationTarget: target });
+  }
   const ref2 = p.noteSlug ? await getNote(actor.orgId, p.noteSlug) : null;
   const link = ref2 ? `[[${ref2.name}]]` : `ehdotus ${p.title}`;
   const task = `- [ ] ${p.title} (${link}, hyväksytty ${todayIso()})`;
-  if (plan) {
-    await saveNote(actor, {
-      slug: plan.slug, name: plan.name, title: plan.title, sectionSlug: plan.sectionSlug, kind: plan.kind,
-      properties: plan.properties, bodyMd: appendToBody(plan.bodyMd, task, PLAN_HEADING), expectedVersion: plan.version,
-    }, 'user', `Hyväksytty ehdotus: ${p.title}`);
-  } else {
-    const section = ref2?.sectionSlug || (await firstSectionSlug(actor.orgId));
-    await saveNote(actor, {
-      name: PLAN_NOTE_NAME, sectionSlug: section, kind: 'note', properties: {},
-      bodyMd: `# ${PLAN_NOTE_NAME}\n\n## ${PLAN_HEADING}\n\n${task}\n`,
-    }, 'user', `Luotu hyväksytyn ehdotuksen yhteydessä: ${p.title}`);
+  // Kehityssuunnitelman päivitys ei estä hyväksyntää: yksi uusi yritys versioristiriidassa, muuten virhe kirjataan
+  let planError: string | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const plan = await findNoteByName(actor.orgId, PLAN_NOTE_NAME);
+      if (plan) {
+        if (plan.bodyMd.includes(task)) break;
+        await saveNote(actor, {
+          slug: plan.slug, name: plan.name, title: plan.title, sectionSlug: plan.sectionSlug, kind: plan.kind,
+          properties: plan.properties, bodyMd: appendToBody(plan.bodyMd, task, PLAN_HEADING), expectedVersion: plan.version,
+        }, 'user', `Hyväksytty ehdotus: ${p.title}`);
+      } else {
+        const section = ref2?.sectionSlug || (await firstSectionSlug(actor.orgId));
+        await saveNote(actor, {
+          name: PLAN_NOTE_NAME, sectionSlug: section, kind: 'note', properties: {},
+          bodyMd: `# ${PLAN_NOTE_NAME}\n\n## ${PLAN_HEADING}\n\n${task}\n`,
+        }, 'user', `Luotu hyväksytyn ehdotuksen yhteydessä: ${p.title}`);
+      }
+      planError = null;
+      break;
+    } catch (e) {
+      planError = e instanceof Error ? e.message : 'Kehityssuunnitelman päivitys epäonnistui';
+      if (!(e instanceof BrainError && e.status === 409)) break;
+    }
   }
   let decisionId: string | null = null;
   if (opts.logDecision) {
@@ -499,10 +573,10 @@ export async function decideProposal(actor: BrainActor, id: string, action: 'acc
     });
   }
   await db.runTransaction(async tx => {
-    tx.update(ref, { status: 'hyväksytty', decisionNote: opts.note?.slice(0, 1000) || null, decidedBy: actor.name, decidedAt: now, snoozeUntil: null });
-    auditTx(tx, db, actor, 'proposal.accept', 'proposal', id, { decisionId });
+    tx.update(ref, { status: 'hyväksytty', decisionNote: opts.note?.slice(0, 1000) || null, decidedBy: actor.name, decidedAt: now, snoozeUntil: null, planError });
+    auditTx(tx, db, actor, 'proposal.accept', 'proposal', id, { decisionId, planError: !!planError });
   });
-  return { status: 'hyväksytty', decisionId };
+  return { status: 'hyväksytty', decisionId, planError };
 }
 
 async function firstSectionSlug(orgId: string): Promise<string> {
@@ -512,6 +586,7 @@ async function firstSectionSlug(orgId: string): Promise<string> {
 }
 
 export async function addMetricEntry(actor: BrainActor, e: Omit<BrainMetricEntry, 'id' | 'createdBy' | 'createdAt'>): Promise<string> {
+  docId(e.goalId, 'tavoitteen tunniste');
   const db = adminDb();
   const goal = await col(db, actor.orgId, C.goals).doc(e.goalId).get();
   if (!goal.exists) throw new BrainError(404, 'Tavoitetta ei löydy');
@@ -536,12 +611,27 @@ export async function upsertGoal(actor: BrainActor, g: BrainGoal): Promise<strin
 
 // ── Operaatiot (Kirjaa ja hyväksytyt agenttiehdotukset) ─────────
 
-/** Kirjoittaa yhden hyväksytyn operaation aivoihin. Palauttaa kohteen tunnisteen. */
-export async function applyOperation(actor: BrainActor, op: BrainOperation, reason: string, source: ChangeSource = 'inbox'): Promise<string> {
+// Ydin ja agenttien ohjeet päätyvät jokaisen tekoäly- ja agenttikutsun ohjeisiin. Tekoälyn tai agentin
+// ehdottama muutos niihin vaatii ylläpitäjän hyväksynnän (suoja pysyvää kehoteinjektiota vastaan).
+const PRIVILEGED_KINDS: NoteKind[] = ['core', 'agent_instructions'];
+
+function guardPrivileged(actor: BrainActor, kind: NoteKind | undefined, origin: 'user' | 'ai' | 'agent') {
+  if (origin === 'user' || !kind || !PRIVILEGED_KINDS.includes(kind)) return;
+  if (actor.role !== 'owner' && actor.role !== 'admin') {
+    throw new BrainError(403, 'Muutos organisaation ytimeen tai agenttien ohjeisiin vaatii omistajan tai ylläpitäjän hyväksynnän');
+  }
+}
+
+/**
+ * Kirjoittaa yhden hyväksytyn operaation aivoihin. Palauttaa kohteen tunnisteen.
+ * origin: kuka operaation muotoili (ai = Kirjaa-tekoäly, agent = agentin ehdotus). Hyväksyjä on aina actor.
+ */
+export async function applyOperation(actor: BrainActor, op: BrainOperation, reason: string, source: ChangeSource = 'inbox', origin: 'user' | 'ai' | 'agent' = 'ai'): Promise<string> {
   switch (op.type) {
     case 'append_to_note': {
       const n = await getNote(actor.orgId, op.targetSlug);
       if (!n) throw new BrainError(404, `Muistiinpanoa ${op.targetSlug} ei löydy`);
+      guardPrivileged(actor, n.kind, origin);
       await saveNote(actor, {
         slug: n.slug, name: n.name, title: n.title, sectionSlug: n.sectionSlug, kind: n.kind, properties: n.properties,
         bodyMd: appendToBody(n.bodyMd, op.content, op.heading || undefined), expectedVersion: n.version,
@@ -551,6 +641,7 @@ export async function applyOperation(actor: BrainActor, op: BrainOperation, reas
     case 'update_property': {
       const n = await getNote(actor.orgId, op.targetSlug);
       if (!n) throw new BrainError(404, `Muistiinpanoa ${op.targetSlug} ei löydy`);
+      guardPrivileged(actor, n.kind, origin);
       const key = op.key.trim().slice(0, 80);
       if (!key || key.includes('.')) throw new BrainError(400, 'Virheellinen ominaisuuden nimi');
       await saveNote(actor, {
@@ -560,6 +651,7 @@ export async function applyOperation(actor: BrainActor, op: BrainOperation, reas
       return n.slug;
     }
     case 'create_note': {
+      guardPrivileged(actor, op.kind, origin);
       const r = await saveNote(actor, {
         name: op.name, title: op.title, sectionSlug: op.sectionSlug, kind: op.kind || 'note',
         properties: normProps(op.properties), bodyMd: op.content,
@@ -585,45 +677,53 @@ export async function applyOperation(actor: BrainActor, op: BrainOperation, reas
 const OP_TYPES = ['append_to_note', 'update_property', 'create_note', 'add_decision', 'add_proposal', 'update_goal_metric'];
 
 /** Siistii ulkoa (tekoäly, agentti, selain) tulleen operaation. Palauttaa null, jos se ei kelpaa. */
-export function parseOperation(raw: unknown): BrainOperation | null {
+export function parseOperation(raw: unknown, origin: 'user' | 'ai' | 'agent' = 'user'): BrainOperation | null {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const type = String(o.type || '');
   if (!OP_TYPES.includes(type)) return null;
   const reason = str(o.reason, 1000);
   switch (type) {
     case 'append_to_note': {
-      const targetSlug = str(o.targetSlug, 120); const content = str(o.content, 50_000);
+      const targetSlug = optId(o.targetSlug) || ''; const content = str(o.content, 50_000);
       return targetSlug && content ? { type: 'append_to_note' as const, targetSlug, heading: str(o.heading, 200) || null, content, reason } : null;
     }
     case 'update_property': {
-      const targetSlug = str(o.targetSlug, 120); const key = str(o.key, 80);
+      const targetSlug = optId(o.targetSlug) || ''; const key = str(o.key, 80);
       return targetSlug && key ? { type: 'update_property' as const, targetSlug, key, value: str(o.value, 2000), reason } : null;
     }
     case 'create_note': {
-      const name = str(o.name, 200).replace(/[[\]|#^]/g, ''); const sectionSlug = str(o.sectionSlug, 120);
+      const name = str(o.name, 200).replace(/[[\]|#^]/g, ''); const sectionSlug = optId(o.sectionSlug) || '';
+      let kind: NoteKind = KINDS.includes(o.kind as NoteKind) ? (o.kind as NoteKind) : 'note';
+      // Tekoäly tai agentti ei voi luoda ydintä eikä agenttien ohjeita
+      if (origin !== 'user' && PRIVILEGED_KINDS.includes(kind)) kind = 'note';
       return name && sectionSlug ? {
         type: 'create_note' as const, name, title: str(o.title, 300) || undefined, sectionSlug,
-        kind: KINDS.includes(o.kind as NoteKind) ? (o.kind as NoteKind) : 'note',
+        kind,
         properties: normProps(o.properties), content: str(o.content, 50_000), reason,
       } : null;
     }
     case 'add_decision': {
       const decision = str(o.decision, 1000);
-      return decision ? { type: 'add_decision' as const, decidedOn: str(o.decidedOn, 20) || todayIso(), decision, rationale: str(o.rationale, 2000) || undefined, areaSlug: str(o.areaSlug, 120) || null, reason } : null;
+      return decision ? { type: 'add_decision' as const, decidedOn: str(o.decidedOn, 20) || todayIso(), decision, rationale: str(o.rationale, 2000) || undefined, areaSlug: optId(o.areaSlug), reason } : null;
     }
     case 'add_proposal': {
       const title = str(o.title, 300);
       return title ? { type: 'add_proposal' as const, title, content: str(o.content, 50_000), area: str(o.area, 200) || undefined, impact: str(o.impact, 100) || undefined, urgency: str(o.urgency, 100) || undefined, reason } : null;
     }
     case 'update_goal_metric': {
-      const goalId = str(o.goalId, 120); const value = Number(o.value);
-      return goalId && Number.isFinite(value) ? { type: 'update_goal_metric' as const, goalId, breakdownKey: str(o.breakdownKey, 80) || null, period: str(o.period, 20), value, note: str(o.note, 500) || undefined, reason } : null;
+      const goalId = optId(o.goalId) || '';
+      const hasValue = o.value !== null && o.value !== undefined && o.value !== '';
+      const value = Number(o.value);
+      const period = str(o.period, 20);
+      return goalId && hasValue && Number.isFinite(value) && period ? { type: 'update_goal_metric' as const, goalId, breakdownKey: str(o.breakdownKey, 80) || null, period, value, note: str(o.note, 500) || undefined, reason } : null;
     }
   }
   return null;
 }
 
 // ── Agenttitokenit ──────────────────────────────────────────────
+
+const TOKEN_TTL_MS = 365 * 86_400_000;
 
 export async function createAgentToken(actor: BrainActor, name: string, scopes: AgentScope[]): Promise<{ token: string; info: AgentTokenInfo }> {
   const valid = AGENT_SCOPES.map(s => s.id);
@@ -633,8 +733,11 @@ export async function createAgentToken(actor: BrainActor, name: string, scopes: 
   const token = AGENT_TOKEN_PREFIX + randomBytes(32).toString('base64url');
   const hash = hashToken(token);
   const db = adminDb();
-  const info: AgentTokenInfo = { id: hash.slice(0, 12), name: name.trim().slice(0, 100), scopes: sc, createdBy: actor.name, createdAt: Date.now(), lastUsedAt: null, revokedAt: null };
-  await db.collection(AGENT_TOKENS_COLLECTION).doc(hash).set({ ...info, orgId: actor.orgId });
+  const info: AgentTokenInfo = { id: hash.slice(0, 12), name: name.trim().slice(0, 100), scopes: sc, createdBy: actor.name, createdAt: Date.now(), lastUsedAt: null, revokedAt: null, expiresAt: Date.now() + TOKEN_TTL_MS };
+  const member = await db.doc(`organizations/${actor.orgId}/members/${actor.id}`).get();
+  await db.collection(AGENT_TOKENS_COLLECTION).doc(hash).set({
+    ...info, orgId: actor.orgId, createdByUid: actor.id, createdBySuperAdmin: !member.exists,
+  });
   await audit(actor, 'token.create', 'agentToken', info.id, { name: info.name, scopes: sc });
   return { token, info };
 }
@@ -643,7 +746,7 @@ export async function listAgentTokens(orgId: string): Promise<AgentTokenInfo[]> 
   const snap = await adminDb().collection(AGENT_TOKENS_COLLECTION).where('orgId', '==', orgId).get();
   return snap.docs.map(d => {
     const x = d.data();
-    return { id: String(x.id), name: String(x.name), scopes: (x.scopes || []) as AgentScope[], createdBy: String(x.createdBy || ''), createdAt: Number(x.createdAt || 0), lastUsedAt: x.lastUsedAt ?? null, revokedAt: x.revokedAt ?? null };
+    return { id: String(x.id), name: String(x.name), scopes: (x.scopes || []) as AgentScope[], createdBy: String(x.createdBy || ''), createdAt: Number(x.createdAt || 0), lastUsedAt: x.lastUsedAt ?? null, revokedAt: x.revokedAt ?? null, expiresAt: x.expiresAt ?? null };
   }).sort((a, b) => b.createdAt - a.createdAt);
 }
 
@@ -674,4 +777,31 @@ export async function createInboxEntry(actor: BrainActor, e: { rawText: string; 
     auditTx(tx, db, actor, 'inbox.create', 'inbox', ref.id, { channel: e.channel, hasAudio: !!e.audioPath });
   });
   return ref.id;
+}
+
+// ── Tekoälyn käyttöraja ─────────────────────────────────────────
+
+const AI_PER_USER_HOUR = Number(process.env.BRAIN_AI_USER_HOURLY || 30);
+const AI_PER_ORG_DAY = Number(process.env.BRAIN_AI_ORG_DAILY || 400);
+
+/**
+ * Kiinteän ikkunan laskuri Firestoressa (organizations/{orgId}/brainUsage, vain palvelin).
+ * Suojaa Anthropic-laskua silmukoilta ja väärinkäytöltä. Rajat ympäristömuuttujista.
+ */
+export async function aiQuota(actor: BrainActor, kind: 'ask' | 'process') {
+  const db = adminDb();
+  const now = Date.now();
+  const hour = Math.floor(now / 3_600_000);
+  const day = Math.floor(now / 86_400_000);
+  const userRef = db.doc(`organizations/${actor.orgId}/brainUsage/u-${actor.id.replace(/[^a-zA-Z0-9-]/g, '')}-${hour}`);
+  const orgRef = db.doc(`organizations/${actor.orgId}/brainUsage/org-${day}`);
+  await db.runTransaction(async tx => {
+    const [u, o] = await Promise.all([tx.get(userRef), tx.get(orgRef)]);
+    const nu = Number(u.data()?.n || 0);
+    const no = Number(o.data()?.n || 0);
+    if (nu >= AI_PER_USER_HOUR) throw new BrainError(429, 'Olet käyttänyt tekoälyä tämän tunnin enimmäismäärän. Kirjaukset tallentuvat silti, käsittele ne myöhemmin.');
+    if (no >= AI_PER_ORG_DAY) throw new BrainError(429, 'Organisaation päivittäinen tekoälyraja on täynnä. Kirjaukset tallentuvat silti.');
+    tx.set(userRef, { n: nu + 1, hour, kind, expiresAt: now + 2 * 86_400_000 }, { merge: true });
+    tx.set(orgRef, { n: no + 1, day, expiresAt: now + 3 * 86_400_000 }, { merge: true });
+  });
 }

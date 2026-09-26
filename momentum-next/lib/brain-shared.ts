@@ -252,6 +252,7 @@ export interface AgentTokenInfo {
   createdAt: number;
   lastUsedAt?: number | null;
   revokedAt?: number | null;
+  expiresAt?: number | null;
 }
 
 // ── Apurit ──────────────────────────────────────────────────────
@@ -284,10 +285,10 @@ export function proposalIsDue(p: BrainProposal, today: string): boolean {
   return p.status === 'myöhemmin' && !!p.snoozeUntil && p.snoozeUntil <= today;
 }
 
-export function todayIso(now = Date.now()): string {
-  const d = new Date(now);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+/** Tämä päivä muodossa YYYY-MM-DD Suomen ajassa (palvelin ajaa UTC:ssä, selain paikallisessa ajassa). */
+export function todayIso(now = Date.now(), timeZone = 'Europe/Helsinki'): string {
+  // sv-SE-muotoilu tuottaa ISO-päivämäärän
+  return new Intl.DateTimeFormat('sv-SE', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now));
 }
 
 export function canEditBrain(role: BrainRole | null | undefined): boolean {

@@ -204,6 +204,10 @@ service cloud.firestore {
         allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
         allow write: if false;
       }
+      // Tekoälyn käyttölaskurit: vain palvelin
+      match /brainUsage/{id} {
+        allow read, write: if false;
+      }
       // Audit-loki: vain omistajat ja adminit
       match /brainAuditLog/{id} {
         allow read: if isOrgAdminOrOwner(orgId) || isSuperAdmin();

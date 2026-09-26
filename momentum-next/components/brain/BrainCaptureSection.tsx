@@ -308,8 +308,9 @@ function InboxRow({ entry, active, canEdit, busy, onOpen, onProcess, onTranscrib
 }) {
   const meta = INBOX_STATUS_META[entry.status] || { label: entry.status, color: 'var(--t3)' };
   const hasText = !!(entry.rawText || '').trim();
-  const needsTranscribe = !!entry.audioPath && !hasText;
-  const canProcess = entry.status === 'uusi' && !entry.aiSuggestion && hasText;
+  // Sanelu litteroidaan aina ennen käsittelyä, myös kun kirjauksessa on kirjoitettua tekstiä
+  const needsTranscribe = !!entry.audioPath && !entry.transcript;
+  const canProcess = entry.status === 'uusi' && !entry.aiSuggestion && hasText && !needsTranscribe;
   return (
     <li style={{ ...brainCard, padding: 0, borderColor: active ? 'var(--pri)' : 'var(--border)', display: 'flex', flexWrap: 'wrap', alignItems: 'stretch' }}>
       <button type="button" onClick={onOpen} aria-current={active ? 'true' : undefined}
@@ -354,7 +355,8 @@ function ReviewPanel({ entry, orgId, canEdit, busy, notes, sections, goals, onCl
   const suggestion = entry.aiSuggestion || null;
   const originals = suggestion?.operations || [];
   const [ops, setOps] = useState<BrainOperation[]>(originals);
-  const [modes, setModes] = useState<OpMode[]>(() => originals.map(() => 'accept'));
+  // Rajapinnasta ja Sirin kautta tulleissa kirjauksissa mitään ei ole valittu valmiiksi (ulkoinen syöte, tarkista itse)
+  const [modes, setModes] = useState<OpMode[]>(() => originals.map(() => (entry.channel === 'api' || entry.channel === 'siri' ? 'reject' : 'accept')));
   const [saving, setSaving] = useState(false);
   const [confirmReject, setConfirmReject] = useState(false);
   const [result, setResult] = useState<{ sent: BrainOperation[]; res: ApplyResult } | null>(null);
@@ -364,6 +366,7 @@ function ReviewPanel({ entry, orgId, canEdit, busy, notes, sections, goals, onCl
   const acceptedIdx = modes.map((m, i) => (m === 'reject' ? -1 : i)).filter(i => i >= 0);
   const invalid = acceptedIdx.some(i => !opIsValid(ops[i]));
   const hasText = !!(entry.rawText || '').trim();
+  const needsTranscribe = !!entry.audioPath && !entry.transcript;
 
   const setMode = (i: number, m: OpMode) => setModes(prev => prev.map((x, j) => (j === i ? m : x)));
   const setOp = (i: number, op: BrainOperation) => setOps(prev => prev.map((x, j) => (j === i ? op : x)));
@@ -431,11 +434,22 @@ function ReviewPanel({ entry, orgId, canEdit, busy, notes, sections, goals, onCl
       {!suggestion && entry.status === 'uusi' && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
           <span style={{ fontSize: 14, color: 'var(--t2)', flex: '1 1 200px' }}>Tekoäly ei ole vielä käsitellyt tätä kirjausta.</span>
-          {canEdit && entry.audioPath && !hasText && (
+          {canEdit && needsTranscribe && (
             <button type="button" className="btn btn-secondary" disabled={busy} onClick={onTranscribe} style={{ minHeight: 44 }}>Litteroi</button>
           )}
-          {canEdit && hasText && (
+          {canEdit && hasText && !needsTranscribe && (
             <button type="button" className="btn btn-primary" disabled={busy} onClick={onProcess} style={{ minHeight: 44 }}>Käsittele tekoälyllä</button>
+          )}
+          {canEdit && !result && (
+            confirmReject ? (
+              <span role="group" aria-label="Vahvista hylkäys" style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: 14 }}>Hylätäänkö kirjaus? Aivoihin ei tallenneta mitään.</span>
+                <button type="button" className="btn" disabled={saving} onClick={() => void rejectAll()} style={{ minHeight: 44, border: '1px solid var(--red)', color: 'var(--red)' }}>Kyllä, hylkää</button>
+                <button type="button" className="btn btn-ghost" disabled={saving} onClick={() => setConfirmReject(false)} style={{ minHeight: 44 }}>Peru</button>
+              </span>
+            ) : (
+              <button type="button" className="btn btn-ghost" disabled={saving} onClick={() => setConfirmReject(true)} style={{ minHeight: 44 }}>Hylkää kirjaus</button>
+            )
           )}
         </div>
       )}

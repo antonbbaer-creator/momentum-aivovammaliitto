@@ -15,6 +15,7 @@ import {
 import {
   proposalIsDue, todayIso, OPERATION_LABELS,
   type BrainDecision, type BrainNote, type BrainOperation, type BrainProposal, type BrainSection,
+  KIND_LABELS,
 } from '@/lib/brain-shared';
 import BrainMarkdown, { type WikiTarget } from './BrainMarkdown';
 import { brainCard, brainLabel, noteHref, useBrainBase, useWikiResolver } from './BrainShell';
@@ -203,7 +204,7 @@ function operationTarget(op: BrainOperation, bySlug: Map<string, BrainNote>): { 
       return { text: op.type === 'append_to_note' && op.heading ? `${base}, kohta "${op.heading}"` : base, slug: n ? n.slug : null, isNote: true };
     }
     case 'create_note':
-      return { text: `uusi muistiinpano "${op.title || op.name}"`, slug: null, isNote: true };
+      return { text: `uusi muistiinpano "${op.title || op.name}" (${KIND_LABELS[op.kind || 'note']}, osio ${op.sectionSlug})`, slug: null, isNote: true };
     default:
       return { text: OPERATION_LABELS[op.type], slug: null, isNote: false };
   }
@@ -236,6 +237,11 @@ function OperationBox({ op, notes, resolve }: { op: BrainOperation; notes: Brain
         {target.slug ? <Link href={noteHref(base, target.slug)} style={{ color: 'var(--pri)' }}>{target.text}</Link> : target.text}
       </div>
       <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 6 }}>Muutos: {OPERATION_LABELS[op.type]}. Se tehdään vasta, kun ehdotus hyväksytään.</div>
+      {op.type === 'create_note' && op.properties && Object.keys(op.properties).length > 0 && (
+        <div style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 6 }}>
+          Ominaisuudet: {Object.entries(op.properties).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+        </div>
+      )}
       <BrainMarkdown source={operationContent(op)} resolve={resolve} compact />
       {op.reason && <div style={{ fontSize: 13, color: 'var(--t2)', marginTop: 6 }}>Syy: {op.reason}</div>}
     </div>

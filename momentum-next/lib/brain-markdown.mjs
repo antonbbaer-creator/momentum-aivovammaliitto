@@ -366,10 +366,11 @@ function findClose(s, from, mark) {
  * @returns {string | null}
  */
 export function safeHref(href) {
-  const h = String(href || '').trim();
+  // Ohjausmerkit ja välilyönnit pois: selain poistaa ne URL:n alusta, joten "\u0001javascript:" olisi muuten skripti
+  const h = String(href || '').replace(/[\u0000-\u0020\u007f-\u009f]/g, '');
   if (/^(https?:|mailto:|tel:)/i.test(h)) return h;
   if (/^[a-z][a-z0-9+.-]*:/i.test(h)) return null;
-  if (h.startsWith('//')) return null;
+  if (h.startsWith('//') || h.includes('\\')) return null;
   return h || null;
 }
 

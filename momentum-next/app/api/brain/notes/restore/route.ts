@@ -10,6 +10,7 @@ export async function POST(req: Request) {
     const body = await readJson(req);
     const actor = await requireUser(req, body.orgId, 'edit');
     const slug = str(body.slug, 120);
+    // restoreRevision validoi tunnisteen
     const version = Number(body.version);
     if (!slug || !Number.isInteger(version) || version < 1) throw new BrainError(400, 'slug ja version vaaditaan');
     return restoreRevision(actor, slug, version);

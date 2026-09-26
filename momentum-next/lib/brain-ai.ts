@@ -210,7 +210,10 @@ Kirjoita suomeksi, ellei kirjaus ole muulla kielellä.`;
 export async function suggestForInbox(orgId: string, text: string, authorName: string): Promise<InboxSuggestion> {
   const ctx = await loadContext(orgId);
   const related = await relevantNotes(orgId, ctx.notes, text, 8);
-  const goals = ctx.goals.map(g => `${g.id} | ${g.title} | kausi ${g.period} | tavoite ${g.targetValue} ${g.unit}${g.breakdown.length ? ' | osat: ' + g.breakdown.map(b => `${b.key}=${b.label}`).join(', ') : ''}`).join('\n') || '(ei tavoitteita)';
+  const goals = ctx.goals.map(g => {
+    const parts = Array.isArray(g.breakdown) ? g.breakdown : [];
+    return `${g.id} | ${g.title} | kausi ${g.period} | tavoite ${g.targetValue} ${g.unit}${parts.length ? ' | osat: ' + parts.map(b => `${b.key}=${b.label}`).join(', ') : ''}`;
+  }).join('\n') || '(ei tavoitteita)';
   const today = todayIso();
   const [y, m, d] = today.split('-');
   const { json, model } = await callClaude({
@@ -229,7 +232,7 @@ export async function suggestForInbox(orgId: string, text: string, authorName: s
     .map(o => {
       const r = (o && typeof o === 'object' ? { ...(o as Record<string, unknown>) } : {}) as Record<string, unknown>;
       if (r.type === 'update_goal_metric') r.value = r.metricValue;
-      return parseOperation(r);
+      return parseOperation(r, 'ai');
     })
     .filter((op): op is NonNullable<typeof op> => !!op)
     // Vain olemassa oleviin kohteisiin viittaavat operaatiot kelpaavat

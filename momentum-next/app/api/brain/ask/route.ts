@@ -1,6 +1,6 @@
 // POST /api/brain/ask  { orgId, question }
 // Vastaus aivojen sisällöstä lähdeviitteineen. Jos vastausta ei ole, vastaus sanoo sen eikä arvaa.
-import { handle, readJson, requireUser, audit, str, BrainError } from '@/lib/brain-server';
+import { handle, readJson, requireUser, audit, aiQuota, str, BrainError } from '@/lib/brain-server';
 import { askBrain } from '@/lib/brain-ai';
 
 export const runtime = 'nodejs';
@@ -13,6 +13,7 @@ export async function POST(req: Request) {
     const actor = await requireUser(req, body.orgId, 'read');
     const question = str(body.question, 2000);
     if (!question) throw new BrainError(400, 'Kirjoita kysymys');
+    await aiQuota(actor, 'ask');
     const answer = await askBrain(actor.orgId, question);
     await audit(actor, 'brain.ask', 'brain', '-', { found: answer.found, sources: answer.sources.length });
     return answer;
