@@ -81,7 +81,7 @@ export default function BrainShell({ children, activeSlug, showTree = true }: Sh
             const act = t.match(pathname || '');
             return (
               <Link key={t.href} href={t.href} className={`cal-view-btn ${act ? 'act' : ''}`} aria-current={act ? 'page' : undefined}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36, textDecoration: 'none' }}>
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 44, textDecoration: 'none' }}>
                 {t.label}
                 {!!t.count && <span aria-label={`${t.count} uutta`} style={{ background: 'var(--pink)', color: 'var(--paper)', borderRadius: 10, fontSize: 11, padding: '0 6px', lineHeight: '18px' }}>{t.count}</span>}
               </Link>
@@ -209,7 +209,7 @@ function BrainSearch({ notes }: { notes: BrainNote[] }) {
     <div ref={wrapRef} style={{ position: 'relative' }}>
       <label htmlFor="brain-search" className="sr-only" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Hae aivoista</label>
       <input id="brain-search" className="input" type="search" placeholder="Hae aivoista…" value={q} autoComplete="off"
-        role="combobox" aria-expanded={openList && results.length > 0} aria-controls="brain-search-list"
+        role="combobox" aria-autocomplete="list" aria-expanded={openList && results.length > 0} aria-controls="brain-search-list"
         aria-activedescendant={openList && results[active] ? `brain-sr-${results[active].note.slug}` : undefined}
         onChange={e => { setQ(e.target.value); setOpenList(true); setActive(0); }}
         onFocus={() => setOpenList(true)}

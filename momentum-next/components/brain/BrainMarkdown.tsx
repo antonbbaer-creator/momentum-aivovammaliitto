@@ -145,19 +145,19 @@ const CSS = `
 .brain-md th,.brain-md td{border:1px solid var(--border);padding:6px 10px;vertical-align:top;text-align:left}
 .brain-md th{background:var(--card2);font-weight:600}
 .brain-wikilink{color:var(--pri);text-decoration:none;border-bottom:1px solid currentColor}
-.brain-wikilink.missing{color:var(--t3);border-bottom:1px dashed currentColor;cursor:help}
+.brain-wikilink.missing{color:var(--t2);border-bottom:1px dashed currentColor;cursor:help}
 .brain-review,.brain-review-li{background:rgba(193,69,69,.08);border-left:4px solid var(--red);padding:.3em .7em;border-radius:0 var(--r) var(--r) 0}
 .brain-review-li{list-style-position:inside;margin-left:-1.2em}
 .brain-review-tag{display:inline-block;font-family:var(--font-display);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--red);border:1px solid var(--red);border-radius:var(--r);padding:0 6px;margin-right:8px;vertical-align:1px}
 .brain-task{list-style:none;display:flex;gap:8px;align-items:flex-start;margin-left:-1.2em}
 .brain-check{flex:none;width:18px;height:18px;margin-top:3px;border:2px solid var(--border-l);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
 .brain-check.done{background:var(--green);border-color:var(--green);color:var(--paper)}
-.brain-task-done{color:var(--t3);text-decoration:line-through}
+.brain-task-done{color:var(--t2);text-decoration:line-through}
 .brain-callout{border-left-width:4px;border-radius:0 var(--r) var(--r) 0;background:var(--card2);color:var(--t1)}
 .brain-callout-title{font-weight:600;margin-bottom:.2em}
 .brain-callout-info{border-left-color:var(--hetki-blue)}
 .brain-callout-warn{border-left-color:var(--red)}
 .brain-callout-ok{border-left-color:var(--green)}
-.brain-callout-q{border-left-color:var(--hetki-yellow)}
-.brain-base{font-size:13px;color:var(--t3);border:1px dashed var(--border-l);border-radius:var(--r);padding:8px 12px;margin:.8em 0}
+.brain-callout-q{border-left-color:var(--yellow)}
+.brain-base{font-size:13px;color:var(--t2);border:1px dashed var(--border-l);border-radius:var(--r);padding:8px 12px;margin:.8em 0}
 `;

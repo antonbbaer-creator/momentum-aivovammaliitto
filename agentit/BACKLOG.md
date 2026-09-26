@@ -5,6 +5,23 @@ Lähteet: Palaute-moduuli, Momentumin kehityspyynnöt (Agentit > Momentum-kehity
 
 ## Jonossa
 
+### B-5 Koko sovelluksen kontrasti ja välilehtien kosketusalue
+- Lähde: saavutettavuuskatselmointi 2026-09-26 (Aivot)
+- Koko: S · Riski: matala (visuaalinen muutos kaikkiin moduuleihin) · Tila: odottaa (Antonin hyväksyntä ulkoasulle)
+- Miksi: Vaalean teeman `--t3`/`--ink3` (#6E6960) `--card2`-taustalla on 4.28:1, alle WCAG 1.4.3:n 4.5:1. `.cal-view-btn` (TabSwitcher) on alle 44 px korkea, mikä haittaa AVL:n käyttäjiä, joilla on motorisia haasteita. Aivoissa kierretty paikallisesti.
+- Hyväksymiskriteerit:
+  - [ ] `--ink3` vaaleassa teemassa esim. #5B564C (n. 5:1)
+  - [ ] `.cal-view-btn` min-height 44px ja display inline-flex
+  - [ ] Tarkistettu silmämääräisesti dashboard, Agentit ja Ehdotukset
+
+### B-6 Storage: ääniteiden lataus vain muokkaajille, koko- ja tyyppiraja
+- Lähde: Aivot-katselmointi 2026-09-26
+- Koko: S · Riski: keskitaso (sääntömuutos) · Tila: odottaa
+- Miksi: `storage.rules` sallii kaikille orgin jäsenille (myös visitor) kirjoituksen polkuun `organizations/{orgId}/**` ilman koko- tai tyyppirajaa. Aivojen äänitteet (`brain-audio/`) kannattaa rajata: vain owner/admin/member, alle 25 Mt, `audio/*`, ei lukua selaimesta.
+- Hyväksymiskriteerit:
+  - [ ] Storage-emulaattoritesti rules-testeihin
+  - [ ] Lukija ei voi ladata, yli 25 Mt ja muu kuin audio hylätään
+
 ### B-4 EditorSection.tsx:n pilkkominen (3 400 riviä)
 - Lähde: huolto 2026-09-26 (terveys `big-files`)
 - Koko: L (pilko ennen valintaa) · Riski: keskitaso · Tila: odottaa
