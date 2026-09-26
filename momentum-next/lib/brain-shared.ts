@@ -56,6 +56,16 @@ export const BRAIN_COLLECTIONS = {
 } as const;
 
 export const AGENT_TOKENS_COLLECTION = 'brainAgentTokens';
+
+/**
+ * Organisaatiot, joilla aivot ovat käytössä. Rajaus pätee sivupalkkiin, moduuliasetuksiin, sivuihin ja API:in.
+ * Uuden organisaation käyttöönotto: lisää orgin tunniste tähän (Antonin päätös).
+ */
+export const BRAIN_ENABLED_ORGS: readonly string[] = ['hetki-company'];
+
+export function isBrainEnabledOrg(orgId: string | null | undefined): boolean {
+  return !!orgId && BRAIN_ENABLED_ORGS.includes(orgId);
+}
 export const AGENT_TOKEN_PREFIX = 'mbt_';
 
 export interface BrainSection {

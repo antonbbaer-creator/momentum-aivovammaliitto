@@ -2,6 +2,7 @@
 
 import { useOrgData } from './firestore';
 import { useParams } from 'next/navigation';
+import { BRAIN_ENABLED_ORGS } from './brain-shared';
 
 export interface ModuleDef {
   id: string;
@@ -48,6 +49,17 @@ export const MODULE_REGISTRY: Record<string, ModuleDef> = {
 };
 
 // Module order in sidebar
+// Moduulit, jotka ovat käytettävissä vain tietyille organisaatioille. Muissa ne eivät näy
+// sivupalkissa eivätkä moduuliasetuksissa, eikä orgin ylläpitäjä voi kytkeä niitä päälle.
+export const RESTRICTED_MODULES: Record<string, readonly string[]> = {
+  aivot: BRAIN_ENABLED_ORGS,
+};
+
+export function isModuleAllowed(moduleId: string, orgSlug: string): boolean {
+  const allowed = RESTRICTED_MODULES[moduleId];
+  return !allowed || allowed.includes(orgSlug);
+}
+
 export const MODULE_ORDER = ['dashboard', 'aivot', 'strategy', 'team', 'tyonjako', 'projects', 'kasikirjoitus', 'asiakkuudet', 'agentit', 'laskutus', 'talous', 'viestit', 'aikataulut', 'palaverit', 'viestinta', 'graafinen', 'esitteet', 'saavutettavuus', 'logogeneraattori', 'ohjelmisto', 'budget', 'budjetti', 'vieraat', 'ruoka', 'tehtavat', 'tila', 'ohjelma', 'muistiinpanot', 'muistiinpanotProjekti', 'aanite', 'ohjeet', 'palaute'];
 
 // Default modules for new orgs (viestintaorgit)
@@ -273,6 +285,7 @@ export function useModules() {
   const isEnabled = (moduleId: string): boolean => {
     const def = MODULE_REGISTRY[moduleId];
     if (def?.alwaysOn) return true;
+    if (!isModuleAllowed(moduleId, orgSlug)) return false;
     return modules[moduleId] ?? orgDefaults[moduleId] ?? false;
   };
 

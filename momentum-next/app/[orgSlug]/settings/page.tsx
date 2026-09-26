@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { useOrgData } from '@/lib/firestore';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, getDefaultModules } from '@/lib/modules';
+import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, getDefaultModules, isModuleAllowed } from '@/lib/modules';
 import { useToast } from '@/lib/toast';
 import { connectDrive, disconnectDrive, useDriveStatus } from '@/lib/drive';
 import { isSuperAdminEmail } from '@/lib/super-admins';
@@ -538,6 +538,8 @@ Tervetuloa mukaan!${inviter ? '\n\n— ' + inviter : ''}`;
             {MODULE_ORDER.map(id => {
               const mod = MODULE_REGISTRY[id];
               if (!mod) return null;
+              // Organisaatiokohtaiset moduulit (esim. Aivot vain Hetki Companylle) eivät näy muille
+              if (!isModuleAllowed(id, orgSlug)) return null;
               const enabled = modules[id] ?? orgDefaults[id] ?? false;
               return (
                 <label key={id} style={{

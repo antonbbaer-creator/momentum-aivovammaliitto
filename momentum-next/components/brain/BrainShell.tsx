@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useIsMobile } from '@/lib/use-mobile';
 import { useBrainAccess, useBrainNotes, useBrainSections, useBrainProposals, useBrainInbox, useNoteIndex } from '@/lib/use-brain';
-import { nameKey, searchNotes, proposalIsDue, todayIso, type BrainNote, type BrainSection } from '@/lib/brain-shared';
+import { nameKey, searchNotes, proposalIsDue, todayIso, isBrainEnabledOrg, type BrainNote, type BrainSection } from '@/lib/brain-shared';
 import type { WikiTarget } from './BrainMarkdown';
 
 export function useBrainBase(): string {
@@ -47,7 +47,19 @@ interface ShellProps {
   showTree?: boolean;
 }
 
-export default function BrainShell({ children, activeSlug, showTree = true }: ShellProps) {
+export default function BrainShell(props: ShellProps) {
+  const orgSlug = (useParams().orgSlug as string) || '';
+  if (!isBrainEnabledOrg(orgSlug)) {
+    return (
+      <div style={{ ...brainCard, fontSize: 14, color: 'var(--t2)' }}>
+        Aivot eivät ole käytössä tässä työtilassa.
+      </div>
+    );
+  }
+  return <BrainShellInner {...props} />;
+}
+
+function BrainShellInner({ children, activeSlug, showTree = true }: ShellProps) {
   const base = useBrainBase();
   const pathname = usePathname();
   const isMobile = useIsMobile();

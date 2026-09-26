@@ -16,7 +16,7 @@ import { isSuperAdminEmail } from './super-admins';
 import {
   BRAIN_COLLECTIONS as C, AGENT_TOKENS_COLLECTION, AGENT_TOKEN_PREFIX, AGENT_SCOPES,
   slugify, nameKey, computeLinks, extractReviewItems, isDraftNotDecision, renameLinks, appendToBody, searchNotes,
-  todayIso, canEditBrain, canAdminBrain,
+  todayIso, canEditBrain, canAdminBrain, isBrainEnabledOrg,
   type BrainNote, type BrainRevision, type BrainRole, type ChangeSource, type NoteKind, type AgentScope,
   type BrainProposal, type BrainDecision, type BrainOperation, type BrainMetricEntry, type BrainGoal, type AgentTokenInfo,
   type BrainInboxEntry, type InboxChannel,
@@ -101,6 +101,7 @@ function bearer(req: Request): string | null {
 export function validOrgId(orgId: unknown): string {
   const o = typeof orgId === 'string' ? orgId.trim() : '';
   if (!o || !/^[a-z0-9][a-z0-9-]{0,80}$/i.test(o)) throw new BrainError(400, 'orgId puuttuu tai on virheellinen');
+  if (!isBrainEnabledOrg(o)) throw new BrainError(403, 'Aivot eivät ole käytössä tässä organisaatiossa');
   return o;
 }
 
@@ -147,6 +148,7 @@ export async function requireAgent(req: Request, scope: AgentScope): Promise<Bra
   const snap = await ref.get();
   const d = snap.data();
   if (!snap.exists || !d || d.revokedAt) throw new BrainError(401, 'Agenttitoken ei ole voimassa');
+  if (!isBrainEnabledOrg(String(d.orgId))) throw new BrainError(403, 'Aivot eivät ole käytössä tässä organisaatiossa');
   if (d.expiresAt && Date.now() > Number(d.expiresAt)) throw new BrainError(401, 'Agenttitoken on vanhentunut. Luo uusi Asetuksissa.');
   // Token on voimassa vain niin kauan kuin sen luoja on orgin omistaja tai ylläpitäjä
   if (!d.createdBySuperAdmin) {
