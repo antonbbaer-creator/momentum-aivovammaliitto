@@ -155,6 +155,65 @@ service cloud.firestore {
         allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
         allow write: if isOrgAdminOrOwner(orgId) || isSuperAdmin();
       }
+
+      // Aivot (organisaation tietopohja, docs/hetki-brain-plan.md).
+      // Orgin jäsenet lukevat (myös visitor = lukija). Selain ei kirjoita koskaan: kaikki muutokset
+      // kulkevat /api/brain-reittien kautta (admin-SDK), jotka tarkistavat roolin ja tallentavat
+      // version ja audit-rivin samassa transaktiossa. Testit: firebase/rules-tests/brain.test.mjs
+      match /brainSections/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainNotes/{slug} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+        match /revisions/{version} {
+          allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+          allow write: if false;
+        }
+      }
+      match /brainNoteNames/{key} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainDecisions/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainProposals/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainGoals/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainMetricEntries/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainInbox/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainTemplates/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainViews/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      // Audit-loki: vain omistajat ja adminit
+      match /brainAuditLog/{id} {
+        allow read: if isOrgAdminOrOwner(orgId) || isSuperAdmin();
+        allow write: if false;
+      }
+    }
+
+    // Aivojen agenttitokenit (tiivisteet): vain palvelin (admin-SDK), ei koskaan selain.
+    match /brainAgentTokens/{hash} {
+      allow read, write: if false;
     }
 
     // Momentumin palaute (bugit, kehityspyynnöt). Jaettu org-jäsenten

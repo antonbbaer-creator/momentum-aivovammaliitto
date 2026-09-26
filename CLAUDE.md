@@ -34,6 +34,7 @@ Tuotanto: https://hetkimomentum.com (Netlify). Firebase-projekti `momentum-69262
 
 ```bash
 node agentit/bin/terveys.mjs                     # nopeat rakennetarkistukset, ei riippuvuuksia
+node --test 'momentum-next/lib/*.test.mjs'          # aivojen ydinlogiikka ja markdown, ei riippuvuuksia
 cd momentum-next && npm run lint && npx tsc --noEmit
 cd firebase/functions && npm run build
 cd firebase/rules-tests && npm install && npm test   # Firestore-säännöt emulaattorissa (vaatii Javan)

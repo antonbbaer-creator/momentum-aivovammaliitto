@@ -25,6 +25,8 @@ jobs:
         with:
           node-version: 22
       - run: node agentit/bin/terveys.mjs
+      - name: Aivojen ydinlogiikan testit
+        run: node --test 'momentum-next/lib/*.test.mjs'
 
   sovellus:
     name: Sovellus (tyypit ja lint)

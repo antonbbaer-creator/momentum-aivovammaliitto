@@ -119,9 +119,11 @@ Anton päätti 26.9.2026:
 | 3 | Obsidian | **Arkisto.** Vault jää tuonnin jälkeen vain luettavaksi, ja Momentum on ainoa totuus. Vientiä käytetään varmuuskopiona. |
 | 4 | Hetki Pipeline | **Myöhemmin.** |
 
-Vielä auki:
+Ratkaistu toteutuksen alussa (Anton: "Rakenna aivot", 26.9.2026):
 
-5. **Markdown-kirjasto**: pieni valmis renderöijä (esim. `marked` ja sanitointi) vai oman renderöijän laajentaminen taulukoilla? Suositus: valmis kirjasto, koska taulukot, tehtävälistat ja sisäkkäiset listat ovat virhealtteita itse tehtynä.
-6. **Haara**: `feature/brain` ja siitä PR:t vaiheittain.
-7. **Tuonti**: seed JSON luetaan Antonin koneelta paikallisesta polusta, ja tuonti ajetaan siellä. Pilvisessiossa ei ole pakettia, eikä sinne kannata siirtää luottamuksellista dataa.
-8. **Firestoren ja Storagen sijainti** konsolista (kohta 1). Jos Firestore ei ole EU:ssa, siitä tarvitaan erillinen päätös ennen tuontia.
+| # | Kysymys | Ratkaisu |
+|---|---|---|
+| 5 | Markdown | Oma, testattu jäsennin (`lib/brain-markdown.mjs`), joka tuottaa puun ja renderöi Reactina ilman innerHTML:ää. Kirjaston lisääminen vaatisi lukkotiedoston päivityksen, mikä ei onnistu pilvisessiossa. Taulukot, sisäkkäiset listat, tehtävälistat, callout-lohkot ja wikilinkit ovat testattuja. |
+| 6 | Haara | Session haara `claude/agenttinen-momentumi-systeemi-q7bm7m`, jokainen vaihe omana committinaan. |
+| 7 | Tuonti | Ajetaan Antonin koneella paikallisesta polusta (`scripts/import-brain.mjs`). |
+| 8 | Sijainti | Vielä tarkistamatta. Tarkista Firestoren sijainti konsolista ennen tuontia. |
