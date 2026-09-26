@@ -6,7 +6,8 @@ import { useOrgData } from '@/lib/firestore';
 import { workerFetch } from '@/lib/worker-fetch';
 import { useIsMobile } from '@/lib/use-mobile';
 import MarkdownText from './MarkdownText';
-import { mergeAiProfile } from '@/lib/ihaa-defaults';
+import { mergeAiProfile, type OrgAiProfile } from '@/lib/ihaa-defaults';
+import type { Publication } from '@/lib/publications-shared';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -14,6 +15,43 @@ interface Message {
   typing?: boolean;   // true kun assistantin vastaus kirjoittautuu merkki kerrallaan
   shown?: number;     // näytettyjen merkkien määrä typewriter-efektissä
 }
+
+// Chatin kontekstiin luettavat org-dokumentin kentät. Kaikki valinnaisia,
+// koska eri organisaatioilla on eri kentät Firestoressa.
+interface NameDesc { name: string; desc: string }
+interface ChatOrg {
+  name?: string;
+  tone?: string[];
+  viestintaDefinitions?: Record<'viestinta' | 'tiedotus', { dir: string; goal: string; examples: string[] }>;
+  orgStrategy?: { strategicPeriod?: string; mission?: string; vision?: string; values?: NameDesc[] };
+  commsMission?: string;
+  commsCoreRoles?: NameDesc[];
+  contentPillars?: NameDesc[];
+  currentContext?: {
+    expansion?: string; steaCuts?: string; accessibility?: string; elections2027?: string;
+    nameChange?: string; visualIdentity?: string; websiteUpdate?: string;
+  };
+  orgContext?: { fullName?: string; founded?: string; hq?: string; expansion2026?: string; funder?: string; toivoApp?: string };
+  stats?: { tbiAnnual?: number; avhAnnual?: number; combinedLiving?: number; dailyNew?: string; alcoholRelated?: string };
+  strategyText?: string;
+  channelProfiles?: { ch: string; freq: string; role: string; desc: string; auds: string[]; metrics: string[] }[];
+  goals?: { t: string; m?: string; d?: string }[];
+  keyMessages?: { title: string; desc: string; theme: string }[];
+  auds?: { n: string; d?: string; tone?: string; c?: string[] }[];
+  vals?: { t: string; d?: string }[];
+  channels?: { name: string }[];
+  team?: { name: string; role: string; desc?: string }[];
+  quarterlyThemes?: { q: number | string; months: string; name: string; focus: string; aivoitus: string }[];
+  campaigns?: { name: string; month?: number | string; desc: string }[];
+  developmentPlan2027?: { currentProjects?: { name: string; timing: string }[]; targets?: { name: string }[] };
+  metricsFramework?: { area: string; metrics: string[]; interval: string }[];
+  memberSurvey?: {
+    respondents?: number; notFollowSome?: number; readAivoitus?: number; preferPrint?: number;
+    followFacebook?: number; followWebsite?: number; ageGroup?: string; brainInjurySurvivors?: number;
+  };
+}
+interface ChatProject { t?: string; st?: string; archived?: boolean; deadline?: string; tasks?: unknown[] }
+interface ChatEvent { date: string; t?: string; ch?: string; st?: string }
 
 // Konteksti­sidonnaiset "miettiminen"-fraasit. Näytetään kun AI lataa vastausta.
 const THINKING_PHRASES_FALLBACK = [
@@ -59,14 +97,14 @@ function pickThinkingPool(orgSlug: string, orgName?: string): string[] {
 
 export default function ChatFAB() {
   const { user, activeOrg } = useAuth();
-  const [org] = useOrgData<any>('org', {});
-  const [projects] = useOrgData<any[]>('projects', []);
-  const [events] = useOrgData<any[]>('events', []);
-  const [publications] = useOrgData<any[]>('publications', []);
-  const [aiProfileRaw] = useOrgData<any>('aiProfile', {});
+  const [org] = useOrgData<ChatOrg>('org', {});
+  const [projects] = useOrgData<ChatProject[]>('projects', []);
+  const [events] = useOrgData<ChatEvent[]>('events', []);
+  const [publications] = useOrgData<Publication[]>('publications', []);
+  const [aiProfileRaw] = useOrgData<Partial<OrgAiProfile>>('aiProfile', {});
   // Yhdistä koodi-defaultit ja Firestore — Firestore voittaa per-kenttä, mutta
   // uudet koodissa määritellyt kentät tulevat mukaan ilman admin-paneelin päivitystä.
-  const aiProfile = (mergeAiProfile(activeOrg || '', aiProfileRaw) || {}) as Record<string, any>;
+  const aiProfile = (mergeAiProfile(activeOrg || '', aiProfileRaw) || {}) as Partial<OrgAiProfile>;
 
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -131,7 +169,7 @@ export default function ChatFAB() {
       p.push(`\n═══ ORGANISAATION STRATEGIA ${s.strategicPeriod || ''} ═══`);
       if (s.mission) p.push(`Missio: ${s.mission}`);
       if (s.vision) p.push(`Visio: ${s.vision}`);
-      if (s.values?.length) p.push(`Arvot: ${s.values.map((v: any) => `${v.name} (${v.desc})`).join(', ')}`);
+      if (s.values?.length) p.push(`Arvot: ${s.values.map((v) => `${v.name} (${v.desc})`).join(', ')}`);
     }
 
     // Communications mission
@@ -141,7 +179,7 @@ export default function ChatFAB() {
     const coreRoles = org.commsCoreRoles || org.contentPillars;
     if (coreRoles?.length) {
       p.push(`\n═══ VIESTINNÄN PERUSTEHTÄVÄT (kaikki viestintä nojaa näihin) ═══`);
-      coreRoles.forEach((cp: any) => p.push(`- ${cp.name}: ${cp.desc}`));
+      coreRoles.forEach((cp) => p.push(`- ${cp.name}: ${cp.desc}`));
     }
 
     // 2026 current context
@@ -179,44 +217,44 @@ export default function ChatFAB() {
     // Channel profiles (new) or legacy goals
     if (org.channelProfiles?.length) {
       p.push(`\n═══ KANAVAPROFIIILIT ═══`);
-      org.channelProfiles.forEach((cp: any) => p.push(`- ${cp.ch} (${cp.freq}): ${cp.role}. ${cp.desc} Kohderyhmät: ${cp.auds.join(', ')}. Mittarit: ${cp.metrics.join(', ')}.`));
+      org.channelProfiles.forEach((cp) => p.push(`- ${cp.ch} (${cp.freq}): ${cp.role}. ${cp.desc} Kohderyhmät: ${cp.auds.join(', ')}. Mittarit: ${cp.metrics.join(', ')}.`));
     } else if (org.goals?.length) {
-      p.push(`\nViestinnän tavoitteet:\n${org.goals.map((g: any) => `- ${g.t} (${g.m || ''}): ${g.d || ''}`).join('\n')}`);
+      p.push(`\nViestinnän tavoitteet:\n${org.goals.map((g) => `- ${g.t} (${g.m || ''}): ${g.d || ''}`).join('\n')}`);
     }
 
     // Key messages
-    if (org.keyMessages?.length) p.push(`\nYdinviestit:\n${org.keyMessages.map((m: any) => `- ${m.title}: ${m.desc} [${m.theme}]`).join('\n')}`);
+    if (org.keyMessages?.length) p.push(`\nYdinviestit:\n${org.keyMessages.map((m) => `- ${m.title}: ${m.desc} [${m.theme}]`).join('\n')}`);
 
     // Audiences with channel preferences and tone
-    if (org.auds?.length) p.push(`\nKohderyhmät:\n${org.auds.map((a: any) => `- ${a.n}: ${a.d || ''}${a.tone ? ' Sävy: ' + a.tone + '.' : ''}${a.c ? ' Kanavat: ' + a.c.join(', ') : ''}`).join('\n')}`);
+    if (org.auds?.length) p.push(`\nKohderyhmät:\n${org.auds.map((a) => `- ${a.n}: ${a.d || ''}${a.tone ? ' Sävy: ' + a.tone + '.' : ''}${a.c ? ' Kanavat: ' + a.c.join(', ') : ''}`).join('\n')}`);
 
     // Brand values
-    if (org.vals?.length) p.push(`\nBrändiarvot: ${org.vals.map((v: any) => `${v.t} (${v.d || ''})`).join(', ')}`);
+    if (org.vals?.length) p.push(`\nBrändiarvot: ${org.vals.map((v) => `${v.t} (${v.d || ''})`).join(', ')}`);
 
     // Channels
-    if (org.channels?.length) p.push(`\nViestintäkanavat: ${org.channels.map((c: any) => c.name).join(', ')}`);
+    if (org.channels?.length) p.push(`\nViestintäkanavat: ${org.channels.map((c) => c.name).join(', ')}`);
 
     // Team with responsibilities
-    if (org.team?.length) p.push(`\nViestintätiimi:\n${org.team.map((t: any) => `- ${t.name}, ${t.role}${t.desc ? ': ' + t.desc : ''}`).join('\n')}`);
+    if (org.team?.length) p.push(`\nViestintätiimi:\n${org.team.map((t) => `- ${t.name}, ${t.role}${t.desc ? ': ' + t.desc : ''}`).join('\n')}`);
 
     // Quarterly themes (new) or legacy campaigns
     if (org.quarterlyThemes?.length) {
       p.push(`\n═══ KVARTAALITEEMAT 2026 ═══`);
-      org.quarterlyThemes.forEach((t: any) => p.push(`- Q${t.q} (${t.months}): ${t.name}. ${t.focus} Aivoitus: ${t.aivoitus}.`));
+      org.quarterlyThemes.forEach((t) => p.push(`- Q${t.q} (${t.months}): ${t.name}. ${t.focus} Aivoitus: ${t.aivoitus}.`));
     } else if (org.campaigns?.length) {
-      p.push(`\nVuosittaiset kampanjat:\n${org.campaigns.map((c: any) => `- ${c.name}${c.month ? ' (kk ' + c.month + ')' : ''}: ${c.desc}`).join('\n')}`);
+      p.push(`\nVuosittaiset kampanjat:\n${org.campaigns.map((c) => `- ${c.name}${c.month ? ' (kk ' + c.month + ')' : ''}: ${c.desc}`).join('\n')}`);
     }
 
     // Development plan
     if (org.developmentPlan2027) {
       const dp = org.developmentPlan2027;
-      if (dp.currentProjects?.length) p.push(`\nMeneillään olevat hankkeet: ${dp.currentProjects.map((pr: any) => `${pr.name} (${pr.timing})`).join(', ')}.`);
-      if (dp.targets?.length) p.push(`Kehityskohteet 2027: ${dp.targets.map((t: any) => t.name).join(', ')}.`);
+      if (dp.currentProjects?.length) p.push(`\nMeneillään olevat hankkeet: ${dp.currentProjects.map((pr) => `${pr.name} (${pr.timing})`).join(', ')}.`);
+      if (dp.targets?.length) p.push(`Kehityskohteet 2027: ${dp.targets.map((t) => t.name).join(', ')}.`);
     }
 
     // Metrics framework
     if (org.metricsFramework?.length) {
-      p.push(`\nMittaristo: ${org.metricsFramework.map((m: any) => `${m.area}: ${m.metrics.join(', ')} (${m.interval})`).join('. ')}.`);
+      p.push(`\nMittaristo: ${org.metricsFramework.map((m) => `${m.area}: ${m.metrics.join(', ')} (${m.interval})`).join('. ')}.`);
     }
 
     // Member survey insights
@@ -227,16 +265,16 @@ export default function ChatFAB() {
 
     // Live data: projects, events, publications
     if (projects?.length) {
-      const active = projects.filter((pr: any) => pr.st === 'active' && !pr.archived);
-      if (active.length) p.push(`\nAktiiviset projektit:\n${active.map((pr: any) => `- ${pr.t} (deadline: ${pr.deadline || 'ei'}, ${pr.tasks?.length || 0} tehtävää)`).join('\n')}`);
+      const active = projects.filter((pr) => pr.st === 'active' && !pr.archived);
+      if (active.length) p.push(`\nAktiiviset projektit:\n${active.map((pr) => `- ${pr.t} (deadline: ${pr.deadline || 'ei'}, ${pr.tasks?.length || 0} tehtävää)`).join('\n')}`);
     }
     if (events?.length) {
-      const upcoming = events.filter((e: any) => e.date >= new Date().toISOString().slice(0, 10)).slice(0, 15);
-      if (upcoming.length) p.push(`\nTulevat tapahtumat:\n${upcoming.map((e: any) => `- ${e.date}: ${e.t} (${e.ch || ''}) [${e.st}]`).join('\n')}`);
+      const upcoming = events.filter((e) => e.date >= new Date().toISOString().slice(0, 10)).slice(0, 15);
+      if (upcoming.length) p.push(`\nTulevat tapahtumat:\n${upcoming.map((e) => `- ${e.date}: ${e.t} (${e.ch || ''}) [${e.st}]`).join('\n')}`);
     }
     if (publications?.length) {
       const recent = publications.slice(0, 8);
-      if (recent.length) p.push(`\nJulkaisut:\n${recent.map((pb: any) => `- ${pb.title} → ${(pb.channels || []).join(', ')} [${pb.status}]`).join('\n')}`);
+      if (recent.length) p.push(`\nJulkaisut:\n${recent.map((pb) => `- ${pb.title} → ${(pb.channels || []).join(', ')} [${pb.status}]`).join('\n')}`);
     }
 
     p.push(`\nTänään on ${new Date().toLocaleDateString('fi-FI', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`);
@@ -376,8 +414,8 @@ export default function ChatFAB() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontFamily: 'var(--font-display)', transition: 'all .2s',
         }}
-          onMouseEnter={e => { (e.currentTarget as any).style.transform = 'scale(1.08)'; }}
-          onMouseLeave={e => { (e.currentTarget as any).style.transform = 'scale(1)'; }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.08)'; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
         >M</button>
       )}
 
@@ -436,8 +474,8 @@ export default function ChatFAB() {
                         padding: '.6rem .85rem', fontSize: '.8rem', color: 'var(--t2)', cursor: 'pointer',
                         textAlign: 'left', transition: 'all .15s',
                       }}
-                        onMouseEnter={e => { (e.currentTarget as any).style.borderColor = 'var(--pri)'; }}
-                        onMouseLeave={e => { (e.currentTarget as any).style.borderColor = 'var(--border)'; }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--pri)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; }}
                       >{s}</button>
                     ))}
                   </div>

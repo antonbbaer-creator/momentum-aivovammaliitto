@@ -556,7 +556,7 @@ export default function TeamSection() {
           </div>
           <div className="field">
             <label>Tyyppi</label>
-            <select className="input" value={mType} onChange={e => setMType(e.target.value as any)}>
+            <select className="input" value={mType} onChange={e => setMType(e.target.value as 'permanent' | 'project' | 'external')}>
               <option value="permanent">Vakituinen</option>
               <option value="project">Projektikohtainen</option>
               <option value="external">Ulkoinen / freelancer</option>

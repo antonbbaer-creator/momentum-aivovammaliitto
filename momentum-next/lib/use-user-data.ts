@@ -23,7 +23,8 @@ export function useUserData<T>(
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const isLocalUpdate = useRef(false);
   const defaultValueRef = useRef(defaultValue);
-  defaultValueRef.current = defaultValue;
+  // Päivitetään effektissä (ei renderissä); määritelty ennen muita effektejä, jotta ne näkevät tuoreen arvon
+  useEffect(() => { defaultValueRef.current = defaultValue; });
 
   useEffect(() => {
     if (debounceRef.current) {

@@ -66,11 +66,11 @@ export default function PublicationDetailSection({ publicationId, onBack, onOpen
   const { toast } = useToast();
   const orgSlug = (useParams().orgSlug as string) || '';
   const isMobile = useIsMobile();
-  const [rawPubs, setPubs] = useOrgData<any[]>('publications', []);
+  const [rawPubs, setPubs] = useOrgData<Publication[]>('publications', []);
   const [, setCalEvents] = useOrgData<CalEvent[]>('events', []);
   const [teamMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
-  const [org] = useOrgData<any>('org', { channels: [] });
+  const [org] = useOrgData<{ channels?: Array<{ name: string; color?: string }> }>('org', { channels: [] });
   const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', getOrgCommsPlan(orgSlug));
   const commsPlan = useMemo(() => normalizeCommsPlan(rawCommsPlan), [rawCommsPlan]);
   const availableChannels = useMemo(() => unifiedChannels(commsPlan, org.channels), [commsPlan, org.channels]);
@@ -82,7 +82,9 @@ export default function PublicationDetailSection({ publicationId, onBack, onOpen
 
   // Media bank state — loaded lazily when right panel is visible
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
-  const [mediaLoading, setMediaLoading] = useState(false);
+  // Latauksen tila johdetaan renderissä: ladataan kun org on tiedossa eikä haku ole vielä päättynyt
+  const [mediaFetchDone, setMediaFetchDone] = useState(false);
+  const mediaLoading = !!activeOrg && mediaFiles.length === 0 && !mediaFetchDone;
   const [mediaSearch, setMediaSearch] = useState('');
   const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [showPublishPanel, setShowPublishPanel] = useState(false);
@@ -91,12 +93,11 @@ export default function PublicationDetailSection({ publicationId, onBack, onOpen
   // (URLs alone can be derived from mediaId, but names/folder come from the listing.)
   useEffect(() => {
     if (!activeOrg || mediaFiles.length > 0) return;
-    setMediaLoading(true);
     workerFetch('/media/list?limit=500', { orgId: activeOrg })
       .then(r => r.json())
       .then(d => {
         if (d.files) {
-          setMediaFiles(d.files.map((f: any) => {
+          setMediaFiles(d.files.map((f: { name?: string; key: string; size?: number }) => {
             const ext = (f.name || '').split('.').pop()?.toLowerCase() || '';
             const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext);
             const cleanName = (f.name || '').replace(/^\d+_/, '');
@@ -114,7 +115,7 @@ export default function PublicationDetailSection({ publicationId, onBack, onOpen
         }
       })
       .catch(() => toast('Mediapankin lataus epäonnistui', 'error'))
-      .finally(() => setMediaLoading(false));
+      .finally(() => setMediaFetchDone(true));
   }, [activeOrg, mediaFiles.length, toast]);
 
   if (!pub) {
@@ -446,7 +447,7 @@ export default function PublicationDetailSection({ publicationId, onBack, onOpen
               className="input"
               style={{ marginTop: '.3rem', fontSize: '.82rem' }}
               value={pub.priority || 'normal'}
-              onChange={e => update({ priority: e.target.value as any })}
+              onChange={e => update({ priority: e.target.value as Publication['priority'] })}
               disabled={!canEdit}
             >
               <option value="low">Matala</option>

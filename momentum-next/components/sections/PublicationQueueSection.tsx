@@ -43,10 +43,10 @@ export default function PublicationQueueSection({ onOpenDetail, onOpenEditor }: 
   const { toast } = useToast();
   const orgSlug = (useParams().orgSlug as string) || '';
   const isMobile = useIsMobile();
-  const [rawPubs, setPubs] = useOrgData<any[]>('publications', []);
+  const [rawPubs, setPubs] = useOrgData<Publication[]>('publications', []);
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
   const [teamMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
-  const [org] = useOrgData<any>('org', { channels: [] });
+  const [org] = useOrgData<{ channels?: Array<{ name: string; color?: string }> }>('org', { channels: [] });
   const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', getOrgCommsPlan(orgSlug));
   const commsPlan = useMemo(() => normalizeCommsPlan(rawCommsPlan), [rawCommsPlan]);
   const availableChannels = useMemo(() => unifiedChannels(commsPlan, org.channels), [commsPlan, org.channels]);
@@ -212,7 +212,7 @@ export default function PublicationQueueSection({ onOpenDetail, onOpenEditor }: 
             </div>
             <div className="field" style={{ marginBottom: 0 }}>
               <label>Prioriteetti</label>
-              <select className="input" value={qPriority} onChange={e => setQPriority(e.target.value as any)}>
+              <select className="input" value={qPriority} onChange={e => setQPriority(e.target.value as 'low' | 'normal' | 'high')}>
                 <option value="low">Matala</option>
                 <option value="normal">Normaali</option>
                 <option value="high">Korkea ★</option>

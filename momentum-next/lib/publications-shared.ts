@@ -61,8 +61,8 @@ export const STATUS_COLORS: Record<PublicationStatus, { bg: string; fg: string; 
 };
 
 // Map old/legacy status values to the new lifecycle
-export function normalizeStatus(raw: any): PublicationStatus {
-  if (raw === 'brief' || raw === 'draft' || raw === 'ready' || raw === 'published') return raw;
+export function normalizeStatus(raw: unknown): PublicationStatus {
+  if (typeof raw === 'string' && (raw === 'brief' || raw === 'draft' || raw === 'ready' || raw === 'published')) return raw;
   // Legacy fallbacks
   if (raw === 'suunniteltu') return 'draft';
   if (raw === 'valmis') return 'ready';
@@ -70,8 +70,32 @@ export function normalizeStatus(raw: any): PublicationStatus {
   return 'draft';
 }
 
+// Firestoresta luettu julkaisu: vanhoista tietueista kenttiä voi puuttua tai ne voivat olla eri muodossa
+interface RawPublication {
+  id?: string;
+  title?: string;
+  body?: string;
+  channels?: unknown;
+  date?: string | null;
+  image?: string | null;
+  status?: unknown;
+  category?: string;
+  publishedChannels?: unknown;
+  created?: string;
+  brief?: string;
+  assigneeId?: string;
+  requestedById?: string;
+  dueDate?: string | null;
+  priority?: Publication['priority'];
+  mediaIds?: unknown;
+  designId?: string;
+  projectId?: unknown;
+  updatedAt?: number;
+}
+
 // Ensure a loaded publication record has all the expected fields (backwards-compatible migration)
-export function normalizePublication(p: any): Publication {
+export function normalizePublication(raw: unknown): Publication {
+  const p = raw as RawPublication | null | undefined;
   if (!p) return {
     id: 'pub_' + Date.now(),
     title: '',

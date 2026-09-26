@@ -16,7 +16,7 @@ import {
 } from '@/lib/assignments-shared';
 import {
   WorkItem, CapacityRow, CapacityStatus,
-  StandaloneTaskLike, ProjectLike,
+  StandaloneTaskLike, ProjectLike, ProjectTaskLike,
   buildWorkItems, computeCapacity, getUnassigned, getNoDeadline,
   daysUntilDeadline, isOverdue, deadlineQuickOptions, ACTIVE_WINDOW_DAYS,
 } from '@/lib/workload-shared';
@@ -128,11 +128,11 @@ export default function TyönjakoPage() {
     toast('Tekijä poistettu', 'success');
   };
   const onToggleDone = (item: WorkItem) => {
-    updateItem(item, (t) => markDone(t as any, !item.done));
+    updateItem(item, (t) => markDone(t, !item.done));
   };
 
   // Päivitä yksittäisiä kenttiä (esim. deadline) ilman delegointilogiikkaa.
-  const updateItemField = (item: WorkItem, patch: Record<string, any>) => {
+  const updateItemField = (item: WorkItem, patch: Record<string, unknown>) => {
     if (item.kind === 'task') {
       setTasks(prev => prev.map(x => x.id === item.sourceId ? ({ ...x, ...patch } as StandaloneTaskLike) : x));
     } else if (item.kind === 'project-task') {
@@ -157,7 +157,7 @@ export default function TyönjakoPage() {
   const createProject = (opts: { t: string; d?: string; teamId?: string; deadline?: string }) => {
     const exists = (projects || []).some(p => p.t.toLowerCase() === opts.t.toLowerCase());
     if (exists) { toast('Samanniminen projekti on jo olemassa', 'error'); return; }
-    const p: any = {
+    const p: ProjectLike & Record<string, unknown> = {
       id: Date.now(),
       t: opts.t.trim(),
       d: (opts.d || '').trim(),
@@ -210,7 +210,7 @@ export default function TyönjakoPage() {
             done: false,
             deadline,
             ...delegation,
-          } as any,
+          } as ProjectTaskLike,
         ],
       } : p));
     } else if (type === 'grant-subtask' && opts.grantId) {
@@ -257,7 +257,7 @@ export default function TyönjakoPage() {
   // Projekti-muoto graafille
   const graphProjects: GraphProjectShape[] = useMemo(() => (projects || [])
     .filter(p => !p.deletedAt && !p.archived)
-    .map(p => ({ id: p.id, t: p.t, teamId: (p as any).teamId, archived: p.archived, deletedAt: p.deletedAt })),
+    .map(p => ({ id: p.id, t: p.t, teamId: (p as ProjectLike & { teamId?: string }).teamId, archived: p.archived, deletedAt: p.deletedAt })),
   [projects]);
 
   // Graafille: muunna WorkItem → GraphUnifiedTask
@@ -1211,7 +1211,7 @@ function SimpleList({ items, empty: emptyText, actions, canEdit, onUpdateField }
   items: WorkItem[]; empty: string;
   actions?: (item: WorkItem) => React.ReactNode;
   canEdit?: boolean;
-  onUpdateField?: (item: WorkItem, patch: Record<string, any>) => void;
+  onUpdateField?: (item: WorkItem, patch: Record<string, unknown>) => void;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const editable = !!(canEdit && onUpdateField);

@@ -151,7 +151,7 @@ export function expandRecurrence(meeting: Meeting, monthsAhead: number): Meeting
   const groupId = meeting.recurrenceGroupId || generateId();
   const exceptions = new Set(meeting.recurrence.exceptions || []);
 
-  let current = new Date(start);
+  const current = new Date(start);
   let index = 0;
 
   while (current <= end) {

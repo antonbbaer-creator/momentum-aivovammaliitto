@@ -84,7 +84,7 @@ export default function CommsPlanSection({ onOpenCalendar, onOpenQueue }: Props)
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.4rem' }}>
           <span style={{ color: '#e45c81', fontSize: '.72rem', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' }}>▶ VIESTINTÄSUUNNITELMA</span>
-          <span style={{ color: 'var(--t3)', fontSize: '.7rem' }}>· Päivitetty {new Date(plan.updatedAt || Date.now()).toLocaleDateString('fi-FI')}</span>
+          <span style={{ color: 'var(--t3)', fontSize: '.7rem' }}>· Päivitetty {new Date(plan.updatedAt || now.getTime()).toLocaleDateString('fi-FI')}</span>
         </div>
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 500, margin: '0 0 .35rem 0' }}>
           {plan.festivalName}
@@ -800,7 +800,7 @@ function ArchiveTab({ teamMembers }: { teamMembers: OrgTeamMember[] }) {
             {LLFF_2025_NOTES.leadershipNote}
           </div>
           <div style={{ fontSize: '.72rem', color: 'var(--t3)', fontStyle: 'italic', lineHeight: 1.55, marginTop: '.5rem' }}>
-            "{LLFF_2025_NOTES.closingThoughts}"
+            &quot;{LLFF_2025_NOTES.closingThoughts}&quot;
           </div>
           <div style={{ fontSize: '.68rem', color: 'var(--t3)', marginTop: '.7rem' }}>
             Kysy matalalla kynnyksellä: {LLFF_2025_NOTES.email}
@@ -880,7 +880,7 @@ function ArchiveTab({ teamMembers }: { teamMembers: OrgTeamMember[] }) {
             Parannusehdotukset — Arttu:lta 2026:lle
           </h3>
           <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginBottom: '1rem', lineHeight: 1.5 }}>
-            Edellisen vuoden viestinnän vastaavan opit. "Korkea" -prioriteetit on sovellettu jo 2026-suunnitelmaan.
+            Edellisen vuoden viestinnän vastaavan opit. &quot;Korkea&quot; -prioriteetit on sovellettu jo 2026-suunnitelmaan.
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(320px, 1fr))', gap: '.75rem' }}>
             {LLFF_2025_IMPROVEMENTS.map(imp => {

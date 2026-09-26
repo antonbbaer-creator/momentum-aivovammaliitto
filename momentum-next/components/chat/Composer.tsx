@@ -8,7 +8,7 @@
  * - Enter lähettää, Shift+Enter rivinvaihto
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 import { useToast } from '@/lib/toast';
@@ -37,6 +37,12 @@ export default function Composer({
 }: Props) {
   const { toast } = useToast();
   const taRef = useRef<HTMLTextAreaElement>(null);
+  // Textarea myös tilassa, jotta mention-pickerin ankkuri ei lue refiä renderin aikana
+  const [taEl, setTaEl] = useState<HTMLTextAreaElement | null>(null);
+  const setTaNode = useCallback((el: HTMLTextAreaElement | null) => {
+    taRef.current = el;
+    setTaEl(el);
+  }, []);
   const fileRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
@@ -310,7 +316,7 @@ export default function Composer({
 
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: '.5rem' }}>
         <textarea
-          ref={taRef}
+          ref={setTaNode}
           value={draft}
           onChange={handleChange}
           onKeyDown={onKeyDown}
@@ -387,7 +393,7 @@ export default function Composer({
           selectedIndex={mentionState.selected}
           onSelect={insertMention}
           onIndexChange={(n) => setMentionState(s => ({ ...s, selected: n }))}
-          anchorEl={taRef.current}
+          anchorEl={taEl}
         />
       )}
     </div>

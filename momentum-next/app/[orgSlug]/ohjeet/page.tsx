@@ -533,8 +533,8 @@ export default function OhjeetPage() {
                 Ei vielä ohjeita.
               </p>
               <p style={{ fontSize: '.82rem', lineHeight: 1.6, maxWidth: 480, margin: '0 auto' }}>
-                Luo ensimmäinen "+ Uusi ohje" -painikkeesta. Voit ottaa puhelimella kuvia ja kirjoittaa askel kerrallaan
-                mitä tehdään — esim. "Moottorin käynnistys", "Mistä löytyy jakoavaimet", "Purjeen oikea kohta".
+                Luo ensimmäinen &quot;+ Uusi ohje&quot; -painikkeesta. Voit ottaa puhelimella kuvia ja kirjoittaa askel kerrallaan
+                mitä tehdään — esim. &quot;Moottorin käynnistys&quot;, &quot;Mistä löytyy jakoavaimet&quot;, &quot;Purjeen oikea kohta&quot;.
               </p>
             </>
           ) : (

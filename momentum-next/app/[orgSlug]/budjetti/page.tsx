@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { useOrgData } from '@/lib/firestore';
@@ -52,12 +52,14 @@ export default function BudjettiPage() {
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'plan' | 'actual'>('plan');
 
-  // Sync year picker with org's default
-  useEffect(() => {
+  // Sync year picker with org's default — päivitetään renderissä, kun oletusvuosi muuttuu
+  const [prevDefaultYear, setPrevDefaultYear] = useState(settings.defaultYear);
+  if (settings.defaultYear !== prevDefaultYear) {
+    setPrevDefaultYear(settings.defaultYear);
     if (settings.defaultYear && year !== settings.defaultYear && year === new Date().getFullYear()) {
       setYear(settings.defaultYear);
     }
-  }, [settings.defaultYear]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   // ── Form state ──
   const [showForm, setShowForm] = useState(false);
@@ -479,7 +481,7 @@ export default function BudjettiPage() {
             <>
               <p style={{ fontSize: '.95rem', color: 'var(--t2)', marginBottom: '.5rem', fontWeight: 600 }}>Ei vielä merkintöjä.</p>
               <p style={{ fontSize: '.78rem', maxWidth: 400, margin: '0 auto', lineHeight: 1.6 }}>
-                Lisää ensimmäinen "+ Uusi kulu" -napista. Merkitse kuka maksoi, jos haluat että jakolaskelma toimii.
+                Lisää ensimmäinen &quot;+ Uusi kulu&quot; -napista. Merkitse kuka maksoi, jos haluat että jakolaskelma toimii.
               </p>
             </>
           ) : (

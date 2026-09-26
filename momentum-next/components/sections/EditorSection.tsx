@@ -16,7 +16,7 @@ import { useOrgData } from '@/lib/firestore';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { useIsMobile } from '@/lib/use-mobile';
-import { normalizePublication } from '@/lib/publications-shared';
+import { normalizePublication, type Publication } from '@/lib/publications-shared';
 import { CommsPlan, normalizeCommsPlan, unifiedChannels } from '@/lib/comms-plan-shared';
 import { getOrgCommsPlan } from '@/lib/org-defaults';
 import { useHistory } from './editor/useHistory';
@@ -233,6 +233,28 @@ interface MediaFile {
   folder: string;
 }
 
+// Workerin /media/list-vastauksen tiedostorivi (vain käytetyt kentät)
+interface WorkerMediaFile {
+  key: string;
+  name?: string;
+}
+
+// Kalenteritapahtuma, jonka Julkaise-painike luo (vrt. CalendarSection CalEvent)
+interface EditorCalEvent {
+  id: number;
+  t: string;
+  date: string;
+  ch: string;
+  st: string;
+  pubId?: string;
+  kind?: string;
+}
+
+// Orgin tiedoista editori tarvitsee vain kanavat
+interface EditorOrgLite {
+  channels?: Array<{ name: string; color?: string }>;
+}
+
 // Target of media picker: background image OR foreground overlay
 type PickerTarget = 'background' | 'overlay';
 
@@ -443,7 +465,7 @@ const blankDesign = (templateId: string = 'ig-portrait'): Design => ({
 });
 
 // Normalize slide — ensures new fields exist on older saves
-const normalizeSlide = (s: any): Slide => ({
+const normalizeSlide = (s: Partial<Slide>): Slide => ({
   id: s.id || 'slide_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
   bgType: s.bgType || 'color',
   bgValue: s.bgValue || '#3A1E5E',
@@ -470,7 +492,7 @@ const normalizeSlide = (s: any): Slide => ({
 });
 
 // Normalize loaded design — migrates old single-slide designs to slides-based shape
-const normalizeDesign = (d: any): Design => {
+const normalizeDesign = (d: Design & Partial<Slide>): Design => {
   // If the design already has slides array, just normalize each slide
   if (Array.isArray(d.slides) && d.slides.length > 0) {
     return {
@@ -508,9 +530,9 @@ export default function EditorSection() {
   const canvasWrapperRef = useRef<HTMLDivElement>(null);
   const [designs, setDesigns] = useOrgData<Design[]>('llff_designs', []);
   // Julkaisut + kalenteritapahtumat — Julkaise-painike lisää näihin
-  const [publications, setPublications] = useOrgData<any[]>('publications', []);
-  const [calEvents, setCalEvents] = useOrgData<any[]>('events', []);
-  const [org] = useOrgData<any>('org', { channels: [] });
+  const [publications, setPublications] = useOrgData<Publication[]>('publications', []);
+  const [calEvents, setCalEvents] = useOrgData<EditorCalEvent[]>('events', []);
+  const [org] = useOrgData<EditorOrgLite>('org', { channels: [] });
   const [rawCommsPlan] = useOrgData<CommsPlan>('commsPlan', getOrgCommsPlan(orgSlug));
   const [currentId, setCurrentId] = useState<string | null>(null);
   // Design-tason undo/redo: kaikki setDraft-mutaatiot tallentuvat stackiin.
@@ -583,12 +605,12 @@ export default function EditorSection() {
     if (loadedFromPubRef.current === linkedPubId) return;
     // Wait until both lists are populated (firestore hooks return [] until first snapshot)
     if (!Array.isArray(publications)) return;
-    const pub = publications.find((p: any) => p && p.id === linkedPubId);
+    const pub = publications.find((p) => p && p.id === linkedPubId);
     if (!pub) return; // not in this org's data — give up gracefully
 
     // Path A: publication has a designId AND design exists → load design directly
     if (pub.designId && Array.isArray(designs)) {
-      const existingDesign = designs.find((d: any) => d && d.id === pub.designId);
+      const existingDesign = designs.find((d) => d && d.id === pub.designId);
       if (existingDesign) {
         resetDraft(normalizeDesign(existingDesign));
         setCurrentId(existingDesign.id);
@@ -776,8 +798,8 @@ export default function EditorSection() {
       });
       const data = await res.json();
       const files: MediaFile[] = (data.files || [])
-        .filter((f: any) => /\.(jpg|jpeg|png|webp)$/i.test(f.name || ''))
-        .map((f: any) => ({
+        .filter((f: WorkerMediaFile) => /\.(jpg|jpeg|png|webp)$/i.test(f.name || ''))
+        .map((f: WorkerMediaFile) => ({
           key: f.key,
           name: (f.name || '').replace(/^\d+_/, ''),
           // Käytetään worker-proxyä (CORS-ystävällinen), ei R2_CDN:ää
@@ -1133,7 +1155,7 @@ export default function EditorSection() {
         setPublishChannels(existing.channels || []);
         setPublishDate(existing.date || '');
         setPublishCategory(existing.category || 'some');
-        setPublishStatus(existing.status === 'published' ? 'ready' : (existing.status || 'ready'));
+        setPublishStatus((existing.status === 'published' ? 'ready' : (existing.status || 'ready')) as 'draft' | 'ready');
         setShowPublishModal(true);
         return;
       }
@@ -1681,7 +1703,7 @@ export default function EditorSection() {
       const world = clientToCanvasPx(e.clientX, e.clientY);
       if (!world || d.centerWorldX == null || d.startAngle == null || d.startRotation == null) return;
       const angle = Math.atan2(world.y - d.centerWorldY!, world.x - d.centerWorldX);
-      let degDelta = ((angle - d.startAngle) * 180) / Math.PI;
+      const degDelta = ((angle - d.startAngle) * 180) / Math.PI;
       let newRot = d.startRotation + degDelta;
       if (e.shiftKey) newRot = Math.round(newRot / 15) * 15;
       // Normalisoi [-180, 180]
@@ -1702,8 +1724,8 @@ export default function EditorSection() {
     const localX = dx * cosN - dy * sinN;
     const localY = dx * sinN + dy * cosN;
     // Uusi leveys = |localX|, korkeus lukittu aspectiin
-    let newW = Math.max(20, Math.abs(localX));
-    let newH = newW / d.aspect;
+    const newW = Math.max(20, Math.abs(localX));
+    const newH = newW / d.aspect;
     // Jos shift ei paina → proportionaalinen. Pidetään aina proportionaalisena Tier 1:ssä.
     // Uusi keskipiste = ankkuri + rotate( (xSign * newW/2, ySign * newH/2), +rad )
     const hx = (d.xSign ?? 1) * newW / 2;
@@ -2122,7 +2144,7 @@ export default function EditorSection() {
                 ] as const).map(s => (
                   <button
                     key={s.id}
-                    onClick={() => canEdit && insertShape(s.id as any)}
+                    onClick={() => canEdit && insertShape(s.id)}
                     disabled={!canEdit}
                     title={s.label}
                     style={{

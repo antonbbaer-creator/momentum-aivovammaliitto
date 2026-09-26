@@ -111,8 +111,8 @@ export default function LoginPage() {
       } else {
         await loginWithEmail(email, password);
       }
-    } catch (err: any) {
-      const code = err?.code || '';
+    } catch (err) {
+      const code = err && typeof err === 'object' && 'code' in err ? String(err.code) : '';
       if (code === 'auth/user-not-found') setError('Käyttäjää ei löytynyt');
       else if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') setError('Väärä salasana');
       else if (code === 'auth/email-already-in-use') setError('Sähköposti on jo käytössä');
@@ -171,8 +171,8 @@ export default function LoginPage() {
             alignItems: 'center', gap: '0.75rem', width: '100%', maxWidth: 360, justifyContent: 'center',
             transition: 'all .2s', boxShadow: '0 2px 8px rgba(0,0,0,.08)',
           }}
-          onMouseEnter={e => { (e.currentTarget as any).style.boxShadow = '0 4px 16px rgba(0,0,0,.15)'; }}
-          onMouseLeave={e => { (e.currentTarget as any).style.boxShadow = '0 2px 8px rgba(0,0,0,.08)'; }}
+          onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,.15)'; }}
+          onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,.08)'; }}
         >
           <svg width="18" height="18" viewBox="0 0 48 48">
             <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>

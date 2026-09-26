@@ -11,6 +11,8 @@ import { workerFetch, WORKER_URL } from '@/lib/worker-fetch';
 import DriveFolderBrowser from '@/components/DriveFolderBrowser';
 const R2_CDN = 'https://pub-f3aa3f94aaf8436da08a8ee775b44349.r2.dev';
 
+// Workerin /media/list-vastauksen tiedostorivi
+interface R2ListFile { key: string; name: string; size: number; hasThumb?: boolean; thumbUrl?: string; publicUrl?: string; uploaded?: string; }
 interface MediaFile { id: string; name: string; size: number; type: string; ext: string; path: string; thumb: string; fullUrl: string; folder: string; source: string; r2Key?: string; added?: string; }
 
 // sessionStorage handoff key read by EditorSection on mount
@@ -53,7 +55,7 @@ export default function MediaSection() {
       .then(r => r.json())
       .then(d => {
         if (d.files) {
-          setR2Files(d.files.map((f: any) => {
+          setR2Files(d.files.map((f: R2ListFile) => {
             const ext = (f.name || '').split('.').pop()?.toLowerCase() || '';
             const isImg = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext);
             const cleanName = f.name.replace(/^\d+_/, '');
@@ -247,8 +249,8 @@ export default function MediaSection() {
         return;
       }
       setAiResult((data.response || '').trim());
-    } catch (e: any) {
-      toast('AI-kutsu epäonnistui: ' + (e?.message || 'verkkovirhe'), 'error');
+    } catch (e) {
+      toast('AI-kutsu epäonnistui: ' + ((e instanceof Error && e.message) || 'verkkovirhe'), 'error');
     } finally {
       setAiBusy(false);
     }
@@ -427,7 +429,7 @@ export default function MediaSection() {
 
         {canEdit && (
           <div onClick={() => fileRef.current?.click()} style={{ marginBottom: '1.5rem', border: '2px dashed var(--border)', borderRadius: 'var(--r)', padding: '1.5rem', textAlign: 'center', cursor: 'pointer', transition: 'all .2s', background: 'var(--elev)' }}
-            onMouseEnter={e => { (e.currentTarget as any).style.borderColor = 'var(--pri)'; }} onMouseLeave={e => { (e.currentTarget as any).style.borderColor = 'var(--border)'; }}>
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--pri)'; }} onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; }}>
             <div style={{ fontSize: '1.5rem', marginBottom: '.5rem', opacity: .5 }}>{'↑'}</div>
             <p style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--t2)', marginBottom: '.25rem' }}>Vedä ja pudota tiedostoja tähän</p>
             <p style={{ fontSize: '.75rem', color: 'var(--t3)' }}>tai klikkaa valitaksesi {'·'} kuvat, videot, grafiikat, PDF</p>

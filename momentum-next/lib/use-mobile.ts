@@ -1,17 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 export function useIsMobile(breakpoint = 768): boolean {
-  const [isMobile, setIsMobile] = useState(false);
+  const query = `(max-width: ${breakpoint}px)`;
 
-  useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${breakpoint}px)`);
-    setIsMobile(mql.matches);
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mql.addEventListener('change', handler);
-    return () => mql.removeEventListener('change', handler);
-  }, [breakpoint]);
+  // Tilataan media queryn muutokset; palvelimella ja hydraatiossa oletus on false
+  const subscribe = useCallback((onChange: () => void) => {
+    const mql = window.matchMedia(query);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [query]);
 
-  return isMobile;
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    () => false,
+  );
 }

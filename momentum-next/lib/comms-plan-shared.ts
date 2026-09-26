@@ -734,7 +734,7 @@ export const EMPTY_COMMS_PLAN: CommsPlan = {
 // Helperit
 // ============================================================
 
-export function normalizeCommsPlan(p: any): CommsPlan {
+export function normalizeCommsPlan(p: Partial<CommsPlan> | null | undefined): CommsPlan {
   if (!p) return { ...EMPTY_COMMS_PLAN };
   // Käyttää annettua dataa sellaisenaan, täyttää puuttuvat rakenteelliset kentät
   // tyhjillä arvoilla — EI LLFF-datalla (estää cross-org datavuodon)

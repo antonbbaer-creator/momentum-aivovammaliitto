@@ -297,7 +297,7 @@ export default function HetkiBudgetSection() {
         return new Date(e.date).getFullYear() === year;
       }).length === 0 ? (
         <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--t3)', border: '1px dashed var(--border)', borderRadius: 'var(--rl)', fontSize: '.82rem' }}>
-          Ei vielä menoja vuodelta {year}. Lisää ensimmäinen "+ Uusi meno" -napista.
+          Ei vielä menoja vuodelta {year}. Lisää ensimmäinen &quot;+ Uusi meno&quot; -napista.
         </div>
       ) : (
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>

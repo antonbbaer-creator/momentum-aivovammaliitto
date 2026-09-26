@@ -337,5 +337,5 @@ export const JUHLATOIMIKUNTA_ORG = {
   strategyText: 'Sirpan 70-vuotissyntymäpäiväjuhlat järjestetään lauantaina 25.4.2026 Tyttöjen talolla Kalliossa (Hämeentie 13 A, 00530 Helsinki). Juhlatoimikunta: Sonja Baer (vetäjä), Raisa Baer, Elina Savo, Anton Baer.',
 };
 
-export const JUHLATOIMIKUNTA_EVENTS: any[] = [];
-export const JUHLATOIMIKUNTA_CHANNEL_STATS: any[] = [];
+export const JUHLATOIMIKUNTA_EVENTS: typeof AVL_EVENTS = [];
+export const JUHLATOIMIKUNTA_CHANNEL_STATS: typeof AVL_CHANNEL_STATS = [];

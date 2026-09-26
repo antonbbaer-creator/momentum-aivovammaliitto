@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/auth';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState, ReactNode } from 'react';
+import { useEffect, ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 
 const UserGuide = dynamic(() => import('@/components/UserGuide'), { ssr: false });
@@ -12,7 +12,8 @@ export default function OrgLayout({ children }: { children: ReactNode }) {
   const params = useParams();
   const router = useRouter();
   const orgSlug = params.orgSlug as string;
-  const [synced, setSynced] = useState(false);
+  // Synkronoitu = käyttäjällä on pääsy URL:n orgiin (johdetaan renderissä, ei efektin setStatella)
+  const synced = orgs.some(o => o.orgId === orgSlug);
 
   useEffect(() => {
     if (loading) return;
@@ -35,8 +36,6 @@ export default function OrgLayout({ children }: { children: ReactNode }) {
     if (activeOrg !== orgSlug) {
       setActiveOrg(orgSlug);
     }
-
-    setSynced(true);
   }, [loading, user, orgs, orgSlug, activeOrg, setActiveOrg, router]);
 
   // Wait until auth is loaded and org is synced

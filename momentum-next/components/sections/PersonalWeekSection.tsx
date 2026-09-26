@@ -119,9 +119,12 @@ function EstimateInput({
   onChange: (minutes: number | undefined) => void;
 }) {
   const [draft, setDraft] = useState<string>(minutes ? String(minutes) : '');
-  useEffect(() => {
+  // Synkronoi luonnos, kun arvio muuttuu ulkopuolelta (säädetään renderissä, ei effektissä)
+  const [prevMinutes, setPrevMinutes] = useState(minutes);
+  if (minutes !== prevMinutes) {
+    setPrevMinutes(minutes);
     setDraft(minutes ? String(minutes) : '');
-  }, [minutes]);
+  }
 
   const commit = () => {
     const trimmed = draft.trim();
@@ -2315,8 +2318,9 @@ function AppleImportPanel({
     if (!raw.trim()) return;
     try {
       const data = JSON.parse(raw);
-      let eventsArr: any[];
-      let categoriesArr: any[] | undefined;
+      // Tuotu JSON on luottamatonta: kentät tarkistetaan alla typeof-ehdoilla
+      let eventsArr: (Partial<Pick<TimeBlock, 'id' | 'title' | 'start' | 'end' | 'recurrence' | 'categoryId' | 'externalSource'>> & { externalCalendarId?: string; externalEventId?: string })[];
+      let categoriesArr: Partial<PersonalCategory>[] | undefined;
       if (Array.isArray(data)) {
         eventsArr = data;
       } else if (data && typeof data === 'object' && Array.isArray(data.events)) {

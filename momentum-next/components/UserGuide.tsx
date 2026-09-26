@@ -632,7 +632,16 @@ export default function UserGuide() {
     return all.filter((s) => !s.moduleId || isEnabled(s.moduleId));
   }, [orgSlug, isEnabled]);
 
-  const [open, setOpen] = useState(false);
+  // Avaa opas automaattisesti ensikäynnistä (komponentti ladataan vain selaimessa, ssr: false)
+  const [open, setOpen] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return !window.localStorage.getItem(STORAGE_KEY);
+    } catch {
+      // localStorage ei käytettävissä — ohitetaan
+      return false;
+    }
+  });
   const [step, setStep] = useState(0);
 
   // Varmista että askel pysyy sallitulla alueella jos moduuleja kytketään pois
@@ -641,20 +650,6 @@ export default function UserGuide() {
       setStep(Math.max(0, steps.length - 1));
     }
   }, [steps.length, step]);
-
-  // Avaa opas automaattisesti ensikäynnistä
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const seen = window.localStorage.getItem(STORAGE_KEY);
-      if (!seen) {
-        setOpen(true);
-        setStep(0);
-      }
-    } catch {
-      // localStorage ei käytettävissä — ohitetaan
-    }
-  }, []);
 
   // Navigoi askeleen mukaiselle sivulle taustalle
   useEffect(() => {
@@ -684,8 +679,6 @@ export default function UserGuide() {
     }
   }, []);
 
-  const isLlff = orgSlug === 'llff';
-
   const next = useCallback(() => {
     if (step >= steps.length - 1) {
       // Viimeisen askeleen Valmis/Käynnistä-nappi: sulje opas ja käynnistä AI-demo
@@ -703,7 +696,7 @@ export default function UserGuide() {
       return;
     }
     setStep((s) => s + 1);
-  }, [step, close, steps.length, isLlff]);
+  }, [step, close, steps.length, orgSlug]);
 
   const prev = useCallback(() => {
     setStep((s) => Math.max(0, s - 1));

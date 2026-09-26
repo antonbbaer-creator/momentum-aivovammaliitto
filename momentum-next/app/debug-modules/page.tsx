@@ -28,8 +28,9 @@ export default function DebugModulesPage() {
         setModules(defaults);
         addLog(`Document does not exist - using defaults`);
       }
-    } catch (err: any) {
-      addLog(`READ ERROR: ${err.code || err.message}`);
+    } catch (err) {
+      const e = err as { code?: string; message?: string };
+      addLog(`READ ERROR: ${e.code || e.message}`);
     }
   };
 
@@ -46,12 +47,14 @@ export default function DebugModulesPage() {
     try {
       await setDoc(doc(db, 'organizations', orgId, 'data', 'modules'), {
         v: JSON.stringify(updated),
+        // eslint-disable-next-line react-hooks/purity -- ajetaan vain klikkauskäsittelijässä, ei renderissä
         ts: Date.now(),
         updatedBy: 'debug-page',
       });
       addLog(`WRITE OK for ${modId}`);
-    } catch (err: any) {
-      addLog(`WRITE ERROR: ${err.code || ''} ${err.message}`);
+    } catch (err) {
+      const e = err as { code?: string; message?: string };
+      addLog(`WRITE ERROR: ${e.code || ''} ${e.message}`);
       // Revert
       setModules(prev => prev ? { ...prev, [modId]: current } : prev);
     }
@@ -77,8 +80,9 @@ export default function DebugModulesPage() {
           addLog(`VERIFY MISMATCH: ${mismatches.join(', ')}`);
         }
       }
-    } catch (err: any) {
-      addLog(`VERIFY ERROR: ${err.code || err.message}`);
+    } catch (err) {
+      const e = err as { code?: string; message?: string };
+      addLog(`VERIFY ERROR: ${e.code || e.message}`);
     }
   };
 

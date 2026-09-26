@@ -90,7 +90,7 @@ export default function CalendarSection({ phases: propPhases, setPhases: propSet
   const orgSlug = (useParams().orgSlug as string) || '';
   const [ownEvents, ownSetEvents] = useOrgData<CalEvent[]>('events', []);
   const [ownRawPhases, ownSetPhases] = useOrgData<YearPhase[]>('yearwheel', getOrgYearwheel(orgSlug));
-  const [org] = useOrgData<any>('org', { channels: [] });
+  const [org] = useOrgData<{ channels?: Array<{ name: string; color?: string }> }>('org', { channels: [] });
   const [projects] = useOrgData<ProjectLite[]>('projects', []);
   const [orgTeams] = useOrgData<OrgTeam[]>('orgTeams', getOrgTeams(orgSlug));
   const [publications] = useOrgData<PubLite[]>('publications', []);

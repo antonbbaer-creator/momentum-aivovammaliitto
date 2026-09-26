@@ -29,6 +29,10 @@ const platformLinks: Record<string, string> = {
   YouTube: 'https://studio.youtube.com/',
 };
 
+// Org-dokumentin kanava ja kanavakohtaiset tilastot (vain tässä käytetyt kentät)
+interface ChannelDef { name: string; color?: string; ic?: string }
+interface ChannelStat { name: string | null; followers?: number; reach?: string; lastUpdated?: string }
+
 interface Props {
   onOpenDetail?: (id: string) => void;
   onOpenEditor?: (pubId?: string) => void;
@@ -37,14 +41,16 @@ interface Props {
 export default function ChannelsSection({ onOpenDetail, onOpenEditor }: Props) {
   const { canEdit } = useAuth();
   const { toast } = useToast();
-  const [org] = useOrgData<any>('org', { channels: [] });
-  const [channelStats, setChannelStats] = useOrgData<any[]>('channelStats', []);
-  const [rawPubs, setPubs] = useOrgData<any[]>('publications', []);
+  const [org] = useOrgData<{ channels?: ChannelDef[] }>('org', { channels: [] });
+  const [channelStats, setChannelStats] = useOrgData<ChannelStat[]>('channelStats', []);
+  const [rawPubs, setPubs] = useOrgData<Record<string, unknown>[]>('publications', []);
   const [selected, setSelected] = useState<string | null>(null);
   const [followers, setFollowers] = useState('');
   const [reach, setReach] = useState('');
+  // Aikajanan suhteelliset päivät lasketaan näkymän avaushetkestä (ei Date.now() renderissä)
+  const [now] = useState(() => Date.now());
 
-  const channels: any[] = org.channels || [];
+  const channels: ChannelDef[] = org.channels || [];
   const pubs: Publication[] = useMemo(
     () => (rawPubs || []).map(normalizePublication),
     [rawPubs]
@@ -67,7 +73,6 @@ export default function ChannelsSection({ onOpenDetail, onOpenEditor }: Props) {
   const relativeDateLabel = (dateStr: string | null): { label: string; days: number | null; color: string } => {
     if (!dateStr) return { label: 'Ei päivää', days: null, color: 'var(--t3)' };
     const target = new Date(dateStr).getTime();
-    const now = Date.now();
     const day = 86400000;
     const days = Math.round((target - now) / day);
     if (days < -1) return { label: `${Math.abs(days)} pv sitten`, days, color: 'var(--red)' };
@@ -101,12 +106,12 @@ export default function ChannelsSection({ onOpenDetail, onOpenEditor }: Props) {
     return out;
   }, [pubs, channels]);
 
-  const selectedCh = selected ? channels.find((c: any) => c.name === selected) : null;
-  const selectedStats = selected ? channelStats.find((s: any) => s.name === selected) : null;
+  const selectedCh = selected ? channels.find((c) => c.name === selected) : null;
+  const selectedStats = selected ? channelStats.find((s) => s.name === selected) : null;
   const selectedLists = selected ? byChannel[selected] || { ready: [], published: [] } : null;
 
   const saveStats = () => {
-    const existing = channelStats.find((s: any) => s.name === selected);
+    const existing = channelStats.find((s) => s.name === selected);
     const today = new Date().toISOString().slice(0, 10);
     if (existing) {
       setChannelStats(prev =>
@@ -543,8 +548,8 @@ export default function ChannelsSection({ onOpenDetail, onOpenEditor }: Props) {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
-        {channels.map((ch: any) => {
-          const stats = channelStats.find((s: any) => s.name === ch.name);
+        {channels.map((ch) => {
+          const stats = channelStats.find((s) => s.name === ch.name);
           const c = counts[ch.name] || { ready: 0, published: 0 };
           const pm = PLATFORM_META[ch.name];
           const brandColor = ch.color || pm?.color || '#7b2cbf';

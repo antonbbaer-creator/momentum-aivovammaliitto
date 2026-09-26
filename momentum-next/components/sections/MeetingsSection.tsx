@@ -443,6 +443,7 @@ export default function MeetingsSection() {
       pollId,
       meetLinkCreated: false,
       reminders: [1440, 60],
+      // eslint-disable-next-line react-hooks/purity -- closePoll ajetaan vain napin klikkauksesta, ei renderin aikana
       createdAt: Date.now(),
       createdBy: user?.uid || '',
     };
@@ -737,7 +738,7 @@ export default function MeetingsSection() {
         {!editingId && (
           <div style={S.section}>
             <label style={S.label}>Toistuvuus</label>
-            <select value={newRecurrence} onChange={e => setNewRecurrence(e.target.value as any)} style={{ ...S.select, width: '100%' }}>
+            <select value={newRecurrence} onChange={e => setNewRecurrence(e.target.value as '' | 'weekly' | 'biweekly' | 'monthly')} style={{ ...S.select, width: '100%' }}>
               <option value="">Ei toistu</option>
               <option value="weekly">Viikoittain</option>
               <option value="biweekly">Joka toinen viikko</option>

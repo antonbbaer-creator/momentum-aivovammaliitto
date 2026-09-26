@@ -116,8 +116,8 @@ function FolderCard({
     try {
       const f = await listFolderChildren(folder.id, { mimeStartsWith });
       setFiles(f);
-    } catch (e: any) {
-      setError(e?.message || 'Kansion lataus epäonnistui');
+    } catch (e) {
+      setError((e instanceof Error ? e.message : '') || 'Kansion lataus epäonnistui');
       setFiles([]);
     } finally {
       setLoading(false);
@@ -259,7 +259,7 @@ export default function DriveFolderBrowser({
 }: Props) {
   const { toast } = useToast();
   const driveStatus = useDriveStatus();
-  const [folders, setFolders] = useOrgData<LinkedFolder[]>(storageKey as any, []);
+  const [folders, setFolders] = useOrgData<LinkedFolder[]>(storageKey, []);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 

@@ -46,6 +46,8 @@ export default function TehtavatPage() {
   const [filterAssignee, setFilterAssignee] = useState('');
   const [filterHankkia, setFilterHankkia] = useState(false);
   const [showDone, setShowDone] = useState(false);
+  // Hetki, johon deadlineja verrataan (luetaan kerran, ei renderissä)
+  const [now] = useState(() => Date.now());
 
   // Form
   const [tText, setTText] = useState('');
@@ -208,7 +210,7 @@ export default function TehtavatPage() {
           </div>
         )}
         {filtered.map(t => {
-          const dlDiff = t.deadline ? Math.ceil((new Date(t.deadline).getTime() - Date.now()) / 86400000) : null;
+          const dlDiff = t.deadline ? Math.ceil((new Date(t.deadline).getTime() - now) / 86400000) : null;
           const urgent = dlDiff !== null && dlDiff >= 0 && dlDiff <= 7;
           const status = effectiveStatus(t);
           const isMineToAnswer = t.assignee === myName && status === 'pending';

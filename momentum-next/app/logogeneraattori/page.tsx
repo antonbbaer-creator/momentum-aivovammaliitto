@@ -9,7 +9,7 @@
  * Logogeneraattorin sisältö ei ole salaista, vain rajoitettua jakelua varten.
  */
 
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useSyncExternalStore, FormEvent } from 'react';
 import dynamic from 'next/dynamic';
 
 const LogoGeneratorSection = dynamic(() => import('@/components/sections/LogoGeneratorSection'), {
@@ -23,19 +23,21 @@ const LogoGeneratorSection = dynamic(() => import('@/components/sections/LogoGen
 
 const PASSWORD = 'AVL';
 const STORAGE_KEY = 'logogeneraattori_unlocked';
+// sessionStorage ei lähetä muutostapahtumia tälle välilehdelle, joten tilaus on tyhjä
+const subscribeNoop = () => () => {};
 
 export default function PublicLogoGeneratorPage() {
-  const [unlocked, setUnlocked] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
+  const [unlockedNow, setUnlocked] = useState(false);
+  // Palvelimella ja hydraatiossa false, selaimessa true — korvaa mount-effektin setHydrated-kutsun
+  const hydrated = useSyncExternalStore(subscribeNoop, () => true, () => false);
+  const storedUnlocked = useSyncExternalStore(
+    subscribeNoop,
+    () => sessionStorage.getItem(STORAGE_KEY) === '1',
+    () => false,
+  );
+  const unlocked = unlockedNow || storedUnlocked;
   const [input, setInput] = useState('');
   const [error, setError] = useState(false);
-
-  useEffect(() => {
-    setHydrated(true);
-    if (typeof window !== 'undefined' && sessionStorage.getItem(STORAGE_KEY) === '1') {
-      setUnlocked(true);
-    }
-  }, []);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();

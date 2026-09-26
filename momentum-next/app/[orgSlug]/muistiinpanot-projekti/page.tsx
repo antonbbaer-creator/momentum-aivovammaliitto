@@ -584,7 +584,7 @@ export default function MuistiinpanotProjektiPage() {
             </div>
             {detail.sourceQuestion && (
               <div style={{ fontSize: '.88rem', fontStyle: 'italic', color: 'var(--t2)', fontFamily: 'var(--font-display), serif' }}>
-                "{detail.sourceQuestion}"
+                &quot;{detail.sourceQuestion}&quot;
               </div>
             )}
             {sourceProject && (
@@ -892,7 +892,7 @@ export default function MuistiinpanotProjektiPage() {
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--yellow)'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; }}
                     >
-                      "{q}"
+                      &quot;{q}&quot;
                     </button>
                   ))}
                 </div>
@@ -982,7 +982,7 @@ export default function MuistiinpanotProjektiPage() {
           {/* Source hint — "mistä tämä lähti" */}
           {(cSourceQuestion || sourceNoteForComposer || sourceProjectForComposer) && (
             <div style={{ fontSize: '.72rem', color: 'var(--t3)', marginBottom: '.5rem', fontStyle: 'italic' }}>
-              {cSourceQuestion && <>Lähtökysymys: <span style={{ color: '#9b7cf6', fontFamily: 'var(--font-display), Georgia, serif' }}>"{cSourceQuestion}"</span></>}
+              {cSourceQuestion && <>Lähtökysymys: <span style={{ color: '#9b7cf6', fontFamily: 'var(--font-display), Georgia, serif' }}>&quot;{cSourceQuestion}&quot;</span></>}
               {sourceProjectForComposer && <>Projektista: <strong style={{ color: 'var(--pri-l)' }}>{sourceProjectForComposer.t}</strong></>}
               {sourceNoteForComposer && <>Jatkoa: <strong style={{ color: 'var(--green)' }}>{sourceNoteForComposer.title || 'Nimetön'}</strong></>}
             </div>
@@ -1120,7 +1120,7 @@ export default function MuistiinpanotProjektiPage() {
                 Täällä ei ole vielä yhtään ideaa.
               </p>
               <p style={{ fontSize: '.82rem', lineHeight: 1.7, maxWidth: 480, margin: '0 auto' }}>
-                Aloita "Aloita uusi idea…" -napista ylhäällä. Voit valita tyhjän sivun,
+                Aloita &quot;Aloita uusi idea…&quot; -napista ylhäällä. Voit valita tyhjän sivun,
                 provosoivan kysymyksen, olemassa olevan projektin linssin tai jatkaa jonkun toisen ideasta.
               </p>
             </>
@@ -1253,7 +1253,7 @@ function StageColumn({
               </div>
               {n.sourceQuestion && (
                 <div style={{ fontSize: '.65rem', fontStyle: 'italic', color: '#9b7cf6', marginBottom: '.2rem', fontFamily: 'var(--font-display), Georgia, serif' }}>
-                  "{n.sourceQuestion.slice(0, 60)}{n.sourceQuestion.length > 60 ? '…' : ''}"
+                  &quot;{n.sourceQuestion.slice(0, 60)}{n.sourceQuestion.length > 60 ? '…' : ''}&quot;
                 </div>
               )}
               {excerpt && (

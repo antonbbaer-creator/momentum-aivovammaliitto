@@ -40,6 +40,11 @@ const keyFor = (mirror: AssignedTaskMirror): string | null => {
 
 type Patcher = <T extends Assignable>(t: T) => T;
 
+// Source-dokumenttien rivit: vain tassa kaytetyt kentat, muut sailyvat spreadissa.
+interface AssignableRow extends Assignable { id?: string | number }
+interface ProjectRow { id?: string | number; tasks?: AssignableRow[] }
+interface GrantRow { id?: string | number; subtasks?: AssignableRow[] }
+
 // Yksittaisen tehtavan paivitys oikeasta source-dokumentista.
 async function patchAssignable(
   mirror: AssignedTaskMirror,
@@ -50,29 +55,29 @@ async function patchAssignable(
   if (!key) return false;
 
   if (mirror.sourceType === 'task') {
-    const arr = await readOrgData<any[]>(mirror.orgId, key, []);
-    const next = arr.map((t: any) => t.id === mirror.taskId ? patcher(t) : t);
+    const arr = await readOrgData<AssignableRow[]>(mirror.orgId, key, []);
+    const next = arr.map((t) => t.id === mirror.taskId ? patcher(t) : t);
     await writeOrgData(mirror.orgId, key, next, uid);
     return true;
   }
 
   if (mirror.sourceType === 'projectTask') {
-    const arr = await readOrgData<any[]>(mirror.orgId, key, []);
-    const next = arr.map((p: any) => {
+    const arr = await readOrgData<ProjectRow[]>(mirror.orgId, key, []);
+    const next = arr.map((p) => {
       // sourceId voi olla numero tai string Firestoressa — verrataan loosesti.
       // eslint-disable-next-line eqeqeq
       if (p.id != mirror.sourceId) return p;
-      return { ...p, tasks: (p.tasks || []).map((t: any) => t.id === mirror.taskId ? patcher(t) : t) };
+      return { ...p, tasks: (p.tasks || []).map((t) => t.id === mirror.taskId ? patcher(t) : t) };
     });
     await writeOrgData(mirror.orgId, key, next, uid);
     return true;
   }
 
   if (mirror.sourceType === 'grantSubtask') {
-    const arr = await readOrgData<any[]>(mirror.orgId, key, []);
-    const next = arr.map((g: any) => {
+    const arr = await readOrgData<GrantRow[]>(mirror.orgId, key, []);
+    const next = arr.map((g) => {
       if (g.id !== mirror.sourceId) return g;
-      return { ...g, subtasks: (g.subtasks || []).map((s: any) => s.id === mirror.taskId ? patcher(s) : s) };
+      return { ...g, subtasks: (g.subtasks || []).map((s) => s.id === mirror.taskId ? patcher(s) : s) };
     });
     await writeOrgData(mirror.orgId, key, next, uid);
     return true;
