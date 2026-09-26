@@ -163,7 +163,7 @@ const log = (...a) => console.log(...a);
 
 function table(headers, rows) {
   const w = headers.map((h, i) => Math.max(h.length, ...rows.map(r => String(r[i] ?? '').length)));
-  const line = cells => cells.map((c, i) => String(c ?? '').padEnd(w[i])).join('  ');
+  const line = cells => cells.map((c, i) => String(c ?? '').padEnd(w[i])).join('  ').trimEnd();
   log('  ' + line(headers));
   log('  ' + w.map(n => '-'.repeat(n)).join('  '));
   for (const r of rows) log('  ' + line(r));

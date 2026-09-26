@@ -634,7 +634,7 @@ export function compareCounts(countsByKind, notes, dashboards) {
   /** @type {Record<string, number>} */
   const got = {};
   for (const n of notes) got[n.kind] = (got[n.kind] || 0) + 1;
-  got.dashboard = dashboards;
+  if (dashboards || (countsByKind && 'dashboard' in countsByKind)) got.dashboard = dashboards;
   const kinds = [...new Set([...Object.keys(countsByKind || {}), ...Object.keys(got)])];
   return kinds.map(kind => {
     const seedVal = countsByKind && kind in countsByKind ? Number(countsByKind[kind]) : null;
