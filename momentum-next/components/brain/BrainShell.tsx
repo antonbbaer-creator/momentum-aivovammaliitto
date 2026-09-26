@@ -58,7 +58,8 @@ export default function BrainShell({ children, activeSlug, showTree = true }: Sh
   const inbox = useBrainInbox(orgId);
   const [treeOpen, setTreeOpen] = useState(false);
 
-  const today = todayIso();
+  // Päivä lasketaan kerran avaushetkellä (ei renderissä)
+  const [today] = useState(() => todayIso());
   const newProposals = proposals.data.filter(p => p.status === 'uusi' || proposalIsDue(p, today)).length;
   const openInbox = inbox.data.filter(e => e.status === 'uusi' || e.status === 'ehdotettu').length;
 

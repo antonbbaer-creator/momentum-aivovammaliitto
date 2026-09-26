@@ -313,9 +313,10 @@ export function goalProgress(goal: BrainGoal, entries: BrainMetricEntry[]): { to
   }
   const flat: Record<string, number> = {};
   for (const [k, v] of Object.entries(byKey)) flat[k] = v.value;
-  const parts = goal.breakdown.length ? goal.breakdown.map(b => flat[b.key] || 0).reduce((a, b) => a + b, 0) : 0;
+  const breakdown = Array.isArray(goal.breakdown) ? goal.breakdown : [];
+  const parts = breakdown.map(b => flat[b.key] || 0).reduce((a, b) => a + b, 0);
   // Osittain kirjattu: osien summa. Jos osia ei ole kirjattu, käytetään kokonaisarvoa.
-  const total = goal.breakdown.length && parts > 0 ? parts : (flat._ || 0);
+  const total = breakdown.length && parts > 0 ? parts : (flat._ || 0);
   return { total, byKey: flat };
 }
 
