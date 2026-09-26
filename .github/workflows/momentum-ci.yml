@@ -1,0 +1,74 @@
+# Momentumin tarkistukset jokaisella pushilla ja PR:llä.
+# Samat tarkistukset, jotka huoltaja- ja tarkastaja-agentit ajavat (ks. agentit/README.md).
+name: Momentum CI
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  terveys:
+    name: Terveystarkistus
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node agentit/bin/terveys.mjs
+
+  sovellus:
+    name: Sovellus (tyypit ja lint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: momentum-next
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: momentum-next/package-lock.json
+      - run: npm ci
+      - name: Tyyppitarkistus
+        run: npx tsc --noEmit
+      - name: Lint
+        # B-3: poistetaan continue-on-error, kun lint on kerran vihreä
+        continue-on-error: true
+        run: npm run lint
+
+  functions:
+    name: Cloud Functions (build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firebase/functions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: firebase/functions/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  worker:
+    name: Worker (syntaksi)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --input-type=module --check < momentum-worker/src/index.js

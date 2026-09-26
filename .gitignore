@@ -21,8 +21,13 @@ docs/~$*
 .vscode/
 .idea/
 
-# Claude
-.claude/
+# Claude: jaetut agentit, skillit, hookit ja settings.json repoon, henkilökohtaiset asetukset ei
+.claude/*
+!.claude/agents/
+!.claude/skills/
+!.claude/hooks/
+!.claude/settings.json
+.claude/settings.local.json
 
 # Cloud Functions -parametrit (token), ei repoon
 firebase/functions/.env
