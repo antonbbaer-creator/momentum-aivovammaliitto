@@ -1,0 +1,13 @@
+{
+  "name": "momentum-rules-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "cd ../.. && firebase/rules-tests/node_modules/.bin/firebase emulators:exec --only firestore --project demo-momentum \"node --test firebase/rules-tests/\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^12.11.0",
+    "firebase-tools": "^15.14.0"
+  }
+}

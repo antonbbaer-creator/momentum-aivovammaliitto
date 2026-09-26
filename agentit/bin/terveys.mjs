@@ -208,13 +208,11 @@ const CHECKS = [
     },
   },
   {
-    id: 'functions-lib-fresh',
-    label: 'Käännetty functions/lib vastaa lähdettä',
+    id: 'functions-lib-untracked',
+    label: 'Käännettyä functions/lib-koodia ei versionhallinnassa',
     run() {
-      const srcFiles = walk(join(FUNCS, 'src'), ['.ts']).map(f => relative(join(FUNCS, 'src'), f).replace(/\.ts$/, '.js'));
-      const missing = srcFiles.filter(f => !existsSync(join(FUNCS, 'lib', f)));
-      if (missing.length) return warn(`lib/ puuttuu: ${missing.join(', ')}. Deploy kääntää uudelleen (predeploy), mutta aja npm run build ennen committia.`);
-      return ok(`${srcFiles.length} tiedostoa`);
+      const tracked = git('ls-files firebase/functions/lib').split('\n').filter(Boolean);
+      return tracked.length ? warn(`${tracked.length} käännettyä tiedostoa gitissä: ne vanhenevat. git rm -r --cached firebase/functions/lib`) : ok('lib/ syntyy buildissa (predeploy)');
     },
   },
   {

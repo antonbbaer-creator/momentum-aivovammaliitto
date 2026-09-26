@@ -12,7 +12,7 @@ Tuotanto: https://hetkimomentum.com (Netlify). Firebase-projekti `momentum-69262
 | `momentum-next/lib/modules.ts` | Moduulirekisteri, sivupalkin järjestys ja orgikohtaiset oletusmoduulit. |
 | `momentum-next/lib/*-shared.ts` | Moduulin tietomalli, oletukset ja puhtaat apurit. |
 | `momentum-next/lib/firestore.ts` | `useOrgData(key, default)`: orgin data `organizations/{orgId}/data/{key}` muodossa `{ v: JSON, ts, updatedBy }`. |
-| `firebase/functions/src/` | Cloud Functions (europe-west1). `lib/` on käännetty tulos, `npm run build` päivittää. |
+| `firebase/functions/src/` | Cloud Functions (europe-west1, Node 22). `lib/` on käännetty tulos, ei gitissä: `npm run build` ja deployn predeploy tuottavat sen. |
 | `momentum-worker/` | Cloudflare Worker: Meta OAuth, R2-media, Claude-proxy. |
 | `firestore.rules`, `storage.rules` | Tietoturvasäännöt. |
 | `momentum-aivovammaliitto.html`, `arkisto/` | Vanha yksitiedostoinen versio. Älä kehitä, älä poista. |
@@ -36,6 +36,7 @@ Tuotanto: https://hetkimomentum.com (Netlify). Firebase-projekti `momentum-69262
 node agentit/bin/terveys.mjs                     # nopeat rakennetarkistukset, ei riippuvuuksia
 cd momentum-next && npm run lint && npx tsc --noEmit
 cd firebase/functions && npm run build
+cd firebase/rules-tests && npm install && npm test   # Firestore-säännöt emulaattorissa (vaatii Javan)
 ```
 
 ## Mitä agentit eivät tee

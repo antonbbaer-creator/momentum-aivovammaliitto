@@ -19,7 +19,6 @@ Lue ensin repon juuren `CLAUDE.md` ja `agentit/HUOLTOLOKI.md` (viimeisimmät mer
 6. Korjaa itse vain turvalliset asiat:
    - lint- ja tyyppivirheet, jotka eivät muuta käytöstä
    - synkasta poikenneet listat (super-admin, agentti-id:t, moduulirekisteri), kun oikea arvo on yksiselitteinen
-   - `firebase/functions/lib/` uudelleenkäännös
    - patch-tason tietoturvapäivitykset lukkotiedostoon (`npm update <paketti>`), jos build ja lint menevät läpi sen jälkeen
 7. Älä korjaa itse, vaan raportoi päätöksenä: major-päivitykset (Next, React, Firebase, Node-ajoympäristö), sääntömuutokset (`firestore.rules`), mikä tahansa mikä muuttaa käyttäjän näkemää käytöstä.
 

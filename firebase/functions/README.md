@@ -17,7 +17,7 @@ firebase deploy --only functions
 
 ## Backfill
 
-Kerran deployin jälkeen aja olemassa olevan datan synkkaus:
+Kerran deployin jälkeen aja olemassa olevan datan synkkaus. `lib/` ei ole versionhallinnassa, joten aja ensin `npm run build`:
 
 ```bash
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/serviceAccount.json \
