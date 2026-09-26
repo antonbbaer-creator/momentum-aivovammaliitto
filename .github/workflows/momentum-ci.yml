@@ -43,8 +43,6 @@ jobs:
       - name: Tyyppitarkistus
         run: npx tsc --noEmit
       - name: Lint
-        # B-3: poistetaan continue-on-error, kun lint on kerran vihreä
-        continue-on-error: true
         run: npm run lint
 
   functions:

@@ -642,14 +642,9 @@ export default function UserGuide() {
       return false;
     }
   });
-  const [step, setStep] = useState(0);
-
-  // Varmista että askel pysyy sallitulla alueella jos moduuleja kytketään pois
-  useEffect(() => {
-    if (step > steps.length - 1) {
-      setStep(Math.max(0, steps.length - 1));
-    }
-  }, [steps.length, step]);
+  const [rawStep, setStep] = useState(0);
+  // Askel pysyy sallitulla alueella, vaikka moduuleja kytkettäisiin pois (johdetaan renderissä)
+  const step = Math.min(rawStep, Math.max(0, steps.length - 1));
 
   // Navigoi askeleen mukaiselle sivulle taustalle
   useEffect(() => {
@@ -695,12 +690,12 @@ export default function UserGuide() {
       }
       return;
     }
-    setStep((s) => s + 1);
+    setStep(step + 1);
   }, [step, close, steps.length, orgSlug]);
 
   const prev = useCallback(() => {
-    setStep((s) => Math.max(0, s - 1));
-  }, []);
+    setStep(Math.max(0, step - 1));
+  }, [step]);
 
   // Näppäinkomennot
   useEffect(() => {
