@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     if (body.reject === true) {
       await ref.update({ status: 'hylätty', processedAt: Date.now() });
       await audit(actor, 'inbox.reject', 'inbox', id, {});
-      return { status: 'hylätty', applied: [] };
+      return { status: 'hylätty', applied: [], failed: [] };
     }
     const ops = (Array.isArray(body.operations) ? body.operations : []).map(parseOperation);
     if (ops.some(o => !o)) throw new BrainError(400, 'Jokin hyväksytyistä operaatioista on puutteellinen');
@@ -37,8 +37,22 @@ export async function POST(req: Request) {
         failed.push({ index: i, error: e instanceof Error ? e.message.slice(0, 300) : 'virhe' });
       }
     }
-    const status = failed.length && !applied.length ? entry.status : applied.length ? 'hyväksytty' : 'käsitelty';
-    await ref.update({ status, processedAt: Date.now(), appliedOperations: applied.length, error: failed.length ? `${failed.length} operaatiota epäonnistui` : null });
+    // Osittain epäonnistunut: kirjaus jää odottamaan, ja ehdotukseen jäävät vain epäonnistuneet operaatiot,
+    // jotta uusi yritys ei kirjoita onnistuneita toiseen kertaan.
+    const prevApplied = entry.appliedOperations || 0;
+    if (failed.length) {
+      const remaining = failed.map(f => ops[f.index]!);
+      await ref.update({
+        status: 'ehdotettu',
+        appliedOperations: prevApplied + applied.length,
+        aiSuggestion: entry.aiSuggestion ? JSON.parse(JSON.stringify({ ...entry.aiSuggestion, operations: remaining })) : null,
+        error: `${failed.length} operaatiota epäonnistui. Korjaa ja yritä uudelleen.`,
+      });
+      await audit(actor, 'inbox.apply', 'inbox', id, { applied: applied.length, failed: failed.length });
+      return { status: 'ehdotettu', applied, failed };
+    }
+    const status = applied.length || prevApplied ? 'hyväksytty' : 'käsitelty';
+    await ref.update({ status, processedAt: Date.now(), appliedOperations: prevApplied + applied.length, error: null });
     await audit(actor, 'inbox.apply', 'inbox', id, { applied: applied.length, failed: failed.length });
     return { status, applied, failed };
   });
