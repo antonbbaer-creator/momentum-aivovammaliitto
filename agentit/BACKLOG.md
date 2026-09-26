@@ -26,8 +26,8 @@ Lähteet: Palaute-moduuli, Momentumin kehityspyynnöt (Agentit > Momentum-kehity
 
 ### B-3 CI vihreäksi ja pakolliseksi
 - Lähde: agenttisysteemin käyttöönotto
-- Koko: S · Riski: matala · Tila: odottaa
-- Miksi: `.github/workflows/momentum-ci.yml` ajaa terveyden, lintin, tyypit ja functions-buildin. Ensimmäinen ajo näyttää, onko lint- tai tyyppivelkaa. Kun CI on vihreä, se kannattaa asettaa pakolliseksi `main`-haaran suojaukseen.
+- Koko: L (pilko tiedostoittain) · Riski: matala · Tila: odottaa
+- Miksi: `.github/workflows/momentum-ci.yml` ajaa terveyden, lintin, tyypit ja functions-buildin. Ensimmäinen ajo (2026-09-26): tyypit, functions ja terveys vihreät; lint 318 virhettä ja 162 varoitusta 81 tiedostossa (eniten `dashboard/page.tsx` 51, `ChatFAB.tsx` 29, `channels/[channelSlug]/page.tsx` 18; paljon `react-hooks/set-state-in-effect`). Korjataan tiedosto kerrallaan pieninä PR:inä, ei yhtenä isona.
 - Hyväksymiskriteerit:
   - [ ] CI vihreä `main`-haarassa
   - [ ] Lint-askel ei ole enää `continue-on-error`
