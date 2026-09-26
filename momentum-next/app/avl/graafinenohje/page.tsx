@@ -14,7 +14,7 @@
  * tietoturva — clientissä oleva merkkijono on luettavissa bundle-koodista.
  */
 
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useSyncExternalStore, FormEvent } from 'react';
 import dynamic from 'next/dynamic';
 import { getDefaultBrandGuide } from '@/lib/brand-guide-shared';
 import { AVL_PUBLIC_GUIDE_PASSWORD } from '@/lib/avl-brand-assets';
@@ -30,18 +30,20 @@ const BrandGuidePublic = dynamic(() => import('@/components/sections/BrandGuideP
 
 const STORAGE_KEY = 'graafinenohje_unlocked';
 
+// sessionStorage luetaan vasta selaimessa: palvelimella ja hydraatiossa arvo on false
+const noopSubscribe = () => () => {};
+
 export default function PublicBrandGuidePage() {
-  const [unlocked, setUnlocked] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
+  const [unlockedNow, setUnlocked] = useState(false);
+  const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  const storedUnlocked = useSyncExternalStore(
+    noopSubscribe,
+    () => sessionStorage.getItem(STORAGE_KEY) === '1',
+    () => false,
+  );
+  const unlocked = unlockedNow || storedUnlocked;
   const [input, setInput] = useState('');
   const [error, setError] = useState(false);
-
-  useEffect(() => {
-    setHydrated(true);
-    if (typeof window !== 'undefined' && sessionStorage.getItem(STORAGE_KEY) === '1') {
-      setUnlocked(true);
-    }
-  }, []);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();

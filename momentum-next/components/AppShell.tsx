@@ -55,7 +55,14 @@ export default function AppShell({ children, title, subtitle, hideTitle = false,
     setTitleTypingDone(false);
     let i = 0;
     let timer: ReturnType<typeof setTimeout>;
+    // Vähennetty liike: otsikko näytetään kerralla ilman kirjoitusanimaatiota (WCAG 2.3.3)
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const tick = () => {
+      if (reduce) {
+        setTypedTitle(title);
+        setTitleTypingDone(true);
+        return;
+      }
       i++;
       setTypedTitle(title.slice(0, i));
       if (i >= title.length) {
@@ -66,7 +73,7 @@ export default function AppShell({ children, title, subtitle, hideTitle = false,
       const delay = ch === ' ' ? 90 : ch === ',' || ch === '.' ? 200 : 55 + Math.random() * 55;
       timer = setTimeout(tick, delay);
     };
-    timer = setTimeout(tick, 180);
+    timer = setTimeout(tick, reduce ? 0 : 180);
     return () => clearTimeout(timer);
   }, [title, hideTitle]);
 

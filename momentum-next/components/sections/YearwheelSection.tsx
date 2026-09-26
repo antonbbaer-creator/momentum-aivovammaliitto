@@ -338,7 +338,9 @@ export default function YearwheelSection({ phases: propPhases, setPhases: propSe
           {canEdit && (
             <form onSubmit={e => {
               e.preventDefault();
-              const f = e.target as any;
+              const f = e.target as HTMLFormElement & {
+                taskInput: HTMLInputElement; taskMonth: HTMLSelectElement; taskOwner: HTMLInputElement;
+              };
               addTaskToPhase(selected.id, f.taskInput.value, parseInt(f.taskMonth.value), f.taskOwner.value);
               f.taskInput.value = ''; f.taskOwner.value = '';
             }} style={{ display: 'flex', gap: '.4rem', marginTop: '.75rem', flexWrap: 'wrap' }}>

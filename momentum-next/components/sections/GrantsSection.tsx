@@ -457,7 +457,7 @@ export default function GrantsSection() {
             })}
             {upcoming.length > 4 && (
               <div style={{ fontSize: '.7rem', color: 'var(--t3)', textAlign: 'center', padding: '.2rem' }}>
-                + {upcoming.length - 4} muuta — katso "Hakuajat"-tabista
+                + {upcoming.length - 4} muuta — katso &quot;Hakuajat&quot;-tabista
               </div>
             )}
           </div>

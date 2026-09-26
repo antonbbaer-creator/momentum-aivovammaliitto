@@ -91,7 +91,7 @@ export default function OnboardingPage() {
         const orgData = JSON.parse(orgDataSnap.data().v || '{}');
         const team = orgData.team || [];
         const name = displayName || user.displayName || 'Käyttäjä';
-        if (!team.some((t: any) => t.name === name)) {
+        if (!team.some((t: { name?: string }) => t.name === name)) {
           team.push({ name, role: roleLabel, avatar: name[0] });
           await setDoc(doc(db, 'organizations', joinOrgId, 'data', 'org'), {
             v: JSON.stringify({ ...orgData, team }),
@@ -103,10 +103,10 @@ export default function OnboardingPage() {
       // 3) Päivitä userOrgs-cache (UI-tarkoitus, ei jäsenyyden lähde)
       const existingDoc = await getDoc(doc(db, 'userOrgs', user.uid));
       const existingOrgs = existingDoc.exists() ? (existingDoc.data().orgs || []) : [];
-      const newOrgs = [...existingOrgs.filter((o: any) => o.orgId !== joinOrgId), { orgId: joinOrgId, role: 'member', name: joinOrgName }];
+      const newOrgs = [...existingOrgs.filter((o: { orgId: string }) => o.orgId !== joinOrgId), { orgId: joinOrgId, role: 'member', name: joinOrgName }];
       await setDoc(doc(db, 'userOrgs', user.uid), {
         orgs: newOrgs,
-        orgIds: newOrgs.map((o: any) => o.orgId),
+        orgIds: newOrgs.map((o: { orgId: string }) => o.orgId),
       });
 
       setActiveOrg(joinOrgId);

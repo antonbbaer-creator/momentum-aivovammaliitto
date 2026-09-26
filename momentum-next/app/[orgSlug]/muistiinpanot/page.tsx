@@ -15,6 +15,7 @@ import { workerFetch } from '@/lib/worker-fetch';
 import DrivePicker, { PickedItem } from '@/components/DrivePicker';
 import { useDriveStatus, getFileContent, exportToDoc } from '@/lib/drive';
 import LinkifiedText from '@/components/LinkifiedText';
+import type { Project } from '@/components/sections/ProjectsSection';
 
 interface ActionItem {
   text: string;
@@ -108,7 +109,7 @@ export default function MuistiinpanotPage() {
   const myMember = useMemo(() => resolveUserMember(members, user), [members, user]);
   const myName = myMember?.name || user?.displayName || '';
   const [tasks, setTasks] = useOrgData<{ id: string; text: string; assignee?: string; hankkia: boolean; done: boolean; priority: 'normal' | 'high'; deadline?: string; note?: string; category?: string }[]>('tasks', []);
-  const [projects, setProjects] = useOrgData<any[]>('projects', []);
+  const [projects, setProjects] = useOrgData<Project[]>('projects', []);
   const [projectMenuFor, setProjectMenuFor] = useState<string | null>(null); // "noteId:idx"
   const isMobile = useIsMobile();
   const [showForm, setShowForm] = useState(false);
@@ -258,8 +259,8 @@ export default function MuistiinpanotPage() {
             content,
             createdAt: Date.now(),
           });
-        } catch (err: any) {
-          toast(`"${it.name}" ei latautunut: ${err?.message || err}`, 'error');
+        } catch (err) {
+          toast(`"${it.name}" ei latautunut: ${err instanceof Error ? err.message : String(err)}`, 'error');
         }
       }
       if (newNotes.length > 0) {
@@ -285,8 +286,8 @@ export default function MuistiinpanotPage() {
       const file = await exportToDoc(note.title || 'Muistiinpano', md);
       toast('Vienti onnistui — avaa Drivessä', 'success');
       if (file.webViewLink) window.open(file.webViewLink, '_blank', 'noopener');
-    } catch (e: any) {
-      toast(`Vienti epäonnistui: ${e?.message || e}`, 'error');
+    } catch (e) {
+      toast(`Vienti epäonnistui: ${e instanceof Error ? e.message : String(e)}`, 'error');
     } finally {
       setDriveBusy(false);
     }
@@ -734,7 +735,7 @@ ${chunk}`,
     if (item.linkedTaskId) {
       setTasks(prev => prev.map(t =>
         t.id === item.linkedTaskId
-          ? { ...(setAssigneesAction(t as any, expanded, myName) as any) }
+          ? { ...setAssigneesAction(t, expanded, myName) }
           : t
       ));
       return;

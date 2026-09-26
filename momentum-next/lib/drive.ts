@@ -51,14 +51,15 @@ export async function connectDrive(): Promise<DriveTokenDoc> {
     result = isGoogleUser
       ? await reauthenticateWithPopup(user, provider)
       : await signInWithPopup(auth, provider);
-  } catch (e: any) {
+  } catch (e) {
+    const code = (e as { code?: string } | null | undefined)?.code;
     // user-mismatch: käyttäjä valitsi popupissa eri Google-tilin kuin Momentumin oma
-    if (e?.code === 'auth/user-mismatch') {
+    if (code === 'auth/user-mismatch') {
       throw new Error(
         `Google-tilien törmäys: olet kirjautunut Momentumiin tilillä ${user.email || 'tuntematon'}, mutta popupissa valitsit eri tilin. Yhdistä uudelleen ja valitse popupissa sama tili.`
       );
     }
-    if (e?.code === 'auth/popup-closed-by-user' || e?.code === 'auth/cancelled-popup-request') {
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
       throw new Error('Yhdistäminen peruttiin.');
     }
     throw e;
@@ -128,6 +129,7 @@ export function useDriveStatus(): DriveStatus {
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- auth.currentUser luetaan vasta selaimessa; renderissä luku rikkoisi SSR-hydraation
       setState({ connected: false, loading: false });
       return;
     }

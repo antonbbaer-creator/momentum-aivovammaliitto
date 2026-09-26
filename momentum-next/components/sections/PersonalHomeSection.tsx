@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useUserData } from '@/lib/use-user-data';
 import {
   PersonalTask,
@@ -134,13 +135,13 @@ export default function PersonalHomeSection() {
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 13, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink2)', margin: 0 }}>
             Tämän viikon rutiinit
           </h2>
-          <a href="/oma/rutiinit" style={{ fontFamily: 'var(--font-display)', fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink2)', textDecoration: 'none' }}>
+          <Link href="/oma/rutiinit" style={{ fontFamily: 'var(--font-display)', fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink2)', textDecoration: 'none' }}>
             Hallitse →
-          </a>
+          </Link>
         </div>
         {activeRoutines.length === 0 ? (
           <div style={{ color: 'var(--ink3)', fontSize: 13, fontStyle: 'italic' }}>
-            Ei aktiivisia rutiineja — <a href="/oma/rutiinit" style={{ color: 'var(--ink2)' }}>lisää sivulla Rutiinit</a>.
+            Ei aktiivisia rutiineja — <Link href="/oma/rutiinit" style={{ color: 'var(--ink2)' }}>lisää sivulla Rutiinit</Link>.
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>

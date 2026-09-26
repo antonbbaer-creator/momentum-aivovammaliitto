@@ -5,6 +5,11 @@
 
 import type { PdfFigure } from './pdf-accessibility-shared';
 
+// pdf.js:n PageViewportista tarvitaan vain koordinaattimuunnos
+interface ThumbViewport {
+  convertToViewportRectangle(rect: number[]): number[];
+}
+
 let workerReady = false;
 async function ensureWorker() {
   if (workerReady) return;
@@ -26,7 +31,7 @@ export async function renderFigureThumbnails(
   await ensureWorker();
   const pdfjs = await import('pdfjs-dist');
   const doc = await pdfjs.getDocument({ data: bytes }).promise;
-  const pageCache = new Map<number, { canvas: HTMLCanvasElement; viewport: any }>();
+  const pageCache = new Map<number, { canvas: HTMLCanvasElement; viewport: ThumbViewport }>();
   const result = new Map<string, string>();
 
   for (const fig of figures) {
@@ -40,7 +45,8 @@ export async function renderFigureThumbnails(
         canvas.width = Math.ceil(viewport.width);
         canvas.height = Math.ceil(viewport.height);
         const ctx = canvas.getContext('2d')!;
-        await page.render({ canvasContext: ctx, viewport } as any).promise;
+        // Parametrien tyyppi vaihtelee pdf.js-versioittain, joten muunnos kulkee unknownin kautta
+        await page.render({ canvasContext: ctx, viewport } as unknown as Parameters<typeof page.render>[0]).promise;
         cached = { canvas, viewport };
         pageCache.set(fig.page, cached);
       }

@@ -370,7 +370,7 @@ export default function InvoicingSection() {
               </>
             ) : (
               <div style={{ fontSize: '.82rem', color: 'var(--t3)' }}>
-                Ei tavoitetta vuodelle {year}. Klikkaa "Muokkaa tavoitetta" asettaaksesi.
+                Ei tavoitetta vuodelle {year}. Klikkaa &quot;Muokkaa tavoitetta&quot; asettaaksesi.
               </div>
             )}
           </div>
@@ -550,7 +550,7 @@ export default function InvoicingSection() {
             <>
               <p style={{ fontSize: '.95rem', color: 'var(--t2)', marginBottom: '.5rem', fontWeight: 600 }}>Ei vielä laskuja vuodelta {year}.</p>
               <p style={{ fontSize: '.78rem', maxWidth: 400, margin: '0 auto', lineHeight: 1.6 }}>
-                Lisää ensimmäinen "+ Uusi lasku" -napista. Voit merkitä laskun tulossa olevaksi vaikka et olisi vielä lähettänyt sitä.
+                Lisää ensimmäinen &quot;+ Uusi lasku&quot; -napista. Voit merkitä laskun tulossa olevaksi vaikka et olisi vielä lähettänyt sitä.
               </p>
             </>
           ) : (

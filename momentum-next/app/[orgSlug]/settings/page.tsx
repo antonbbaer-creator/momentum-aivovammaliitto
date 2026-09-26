@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { useOrgData } from '@/lib/firestore';
 import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, getDefaultModules } from '@/lib/modules';
+import { MODULE_REGISTRY, MODULE_ORDER, DEFAULT_MODULES, getDefaultModules, isModuleAllowed } from '@/lib/modules';
 import { useToast } from '@/lib/toast';
 import { connectDrive, disconnectDrive, useDriveStatus } from '@/lib/drive';
 import { isSuperAdminEmail } from '@/lib/super-admins';
@@ -15,11 +15,13 @@ import NotificationsSettings from '@/components/NotificationsSettings';
 import PersonalOrgVisibilitySection from '@/components/sections/PersonalOrgVisibilitySection';
 
 interface Member { uid: string; displayName: string; email: string; photoURL: string; role: string; joinedAt: string; }
+// Orgin perustiedot; muut kentät säilytetään sellaisenaan tallennettaessa
+interface OrgInfo { name?: string; slogan?: string; channels?: Array<{ name: string; color?: string }>; [key: string]: unknown; }
 
 export default function SettingsPage() {
   const { user, orgs, activeOrg, activeOrgRole, setActiveOrg, logout, refreshOrgs } = useAuth();
   const router = useRouter();
-  const [org, setOrg] = useOrgData<any>('org', { name: '', s: '', slogan: '', channels: [], team: [], goals: [], auds: [], vals: [], tone: [] });
+  const [org, setOrg] = useOrgData<OrgInfo>('org', { name: '', s: '', slogan: '', channels: [], team: [], goals: [], auds: [], vals: [], tone: [] });
   const orgSlug = activeOrg || '';
   const orgDefaults = getDefaultModules(orgSlug);
   const [modules, setModules] = useOrgData<Record<string, boolean>>('modules', orgDefaults);
@@ -125,10 +127,10 @@ export default function SettingsPage() {
       // Paivita userOrgs
       const existingDoc = await getDoc(doc(db, 'userOrgs', user.uid));
       const existingOrgs = existingDoc.exists() ? (existingDoc.data().orgs || []) : [];
-      const newOrgs = [...existingOrgs.filter((o: any) => o.orgId !== foundId), { orgId: foundId, role: 'member', name: foundName }];
+      const newOrgs = [...existingOrgs.filter((o: { orgId: string }) => o.orgId !== foundId), { orgId: foundId, role: 'member', name: foundName }];
       await setDoc(doc(db, 'userOrgs', user.uid), {
         orgs: newOrgs,
-        orgIds: newOrgs.map((o: any) => o.orgId),
+        orgIds: newOrgs.map((o: { orgId: string }) => o.orgId),
       });
 
       await refreshOrgs();
@@ -145,7 +147,7 @@ export default function SettingsPage() {
   };
 
   const saveOrgInfo = () => {
-    setOrg((prev: any) => ({ ...prev, name: orgName.trim(), slogan: orgSlogan.trim() }));
+    setOrg((prev) => ({ ...prev, name: orgName.trim(), slogan: orgSlogan.trim() }));
     setEditingOrg(false);
   };
 
@@ -307,8 +309,8 @@ Tervetuloa mukaan!${inviter ? '\n\n— ' + inviter : ''}`;
                       const tok = await connectDrive();
                       toast(`Drive yhdistetty${tok.email ? ` · ${tok.email}` : ''}`, 'success');
                     }
-                  } catch (e: any) {
-                    toast(e?.message || 'Drive-yhteys epäonnistui', 'error');
+                  } catch (e) {
+                    toast((e instanceof Error && e.message) || 'Drive-yhteys epäonnistui', 'error');
                   } finally {
                     setDriveBusy(false);
                   }
@@ -380,8 +382,8 @@ Tervetuloa mukaan!${inviter ? '\n\n— ' + inviter : ''}`;
                   border: `1px solid ${o.orgId === activeOrg ? 'var(--pri)' : 'var(--border)'}`,
                   borderRadius: 'var(--r)', cursor: 'pointer', transition: 'all .15s',
                 }}
-                onMouseEnter={e => { if (o.orgId !== activeOrg) (e.currentTarget as any).style.borderColor = 'var(--border-l)'; }}
-                onMouseLeave={e => { if (o.orgId !== activeOrg) (e.currentTarget as any).style.borderColor = 'var(--border)'; }}>
+                onMouseEnter={e => { if (o.orgId !== activeOrg) e.currentTarget.style.borderColor = 'var(--border-l)'; }}
+                onMouseLeave={e => { if (o.orgId !== activeOrg) e.currentTarget.style.borderColor = 'var(--border)'; }}>
                 <div style={{
                   width: 38, height: 38, borderRadius: 'var(--r)', flexShrink: 0,
                   background: o.orgId === activeOrg ? 'var(--pri)' : 'var(--elev)',
@@ -449,7 +451,7 @@ Tervetuloa mukaan!${inviter ? '\n\n— ' + inviter : ''}`;
               <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>{org.name || 'Ei nimeä'}</div>
               {org.slogan && <div style={{ fontSize: '.85rem', color: 'var(--t2)', marginTop: '.25rem' }}>{org.slogan}</div>}
               <div style={{ marginTop: '.75rem', display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
-                {(org.channels || []).map((ch: any) => (
+                {(org.channels || []).map((ch) => (
                   <span key={ch.name} style={{ padding: '.2rem .55rem', borderRadius: 9999, fontSize: '.72rem', fontWeight: 600, background: `${ch.color}18`, color: ch.color }}>{ch.name}</span>
                 ))}
               </div>
@@ -515,7 +517,7 @@ Tervetuloa mukaan!${inviter ? '\n\n— ' + inviter : ''}`;
               </p>
               <div style={{ display: 'flex', gap: '.5rem' }}>
                 <input className="input" placeholder="Sähköposti" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} style={{ flex: 1 }} />
-                <select className="input" value={inviteRole} onChange={e => setInviteRole(e.target.value as any)} style={{ width: 'auto' }}>
+                <select className="input" value={inviteRole} onChange={e => setInviteRole(e.target.value as 'admin' | 'member')} style={{ width: 'auto' }}>
                   <option value="member">Jäsen</option><option value="admin">Admin</option>
                 </select>
                 <button className="btn btn-primary btn-sm" onClick={openInviteModal} disabled={!inviteEmail.trim()}>Kutsu</button>
@@ -536,6 +538,8 @@ Tervetuloa mukaan!${inviter ? '\n\n— ' + inviter : ''}`;
             {MODULE_ORDER.map(id => {
               const mod = MODULE_REGISTRY[id];
               if (!mod) return null;
+              // Organisaatiokohtaiset moduulit (esim. Aivot vain Hetki Companylle) eivät näy muille
+              if (!isModuleAllowed(id, orgSlug)) return null;
               const enabled = modules[id] ?? orgDefaults[id] ?? false;
               return (
                 <label key={id} style={{

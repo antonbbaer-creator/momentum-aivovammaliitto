@@ -14,23 +14,25 @@
  * Salasana on yksinkertainen porttikontrolli, ei tietoturva.
  */
 
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useSyncExternalStore, FormEvent } from 'react';
 import { AVL_BROCHURES, AVL_PUBLIC_BROCHURES_PASSWORD } from '@/lib/avl-brand-assets';
 
 const STORAGE_KEY = 'esitteet_unlocked';
 
+// sessionStorage luetaan vasta selaimessa: palvelimella ja hydraatiossa arvo on false
+const noopSubscribe = () => () => {};
+
 export default function PublicBrochuresPage() {
-  const [unlocked, setUnlocked] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
+  const [unlockedNow, setUnlocked] = useState(false);
+  const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  const storedUnlocked = useSyncExternalStore(
+    noopSubscribe,
+    () => sessionStorage.getItem(STORAGE_KEY) === '1',
+    () => false,
+  );
+  const unlocked = unlockedNow || storedUnlocked;
   const [input, setInput] = useState('');
   const [error, setError] = useState(false);
-
-  useEffect(() => {
-    setHydrated(true);
-    if (typeof window !== 'undefined' && sessionStorage.getItem(STORAGE_KEY) === '1') {
-      setUnlocked(true);
-    }
-  }, []);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();

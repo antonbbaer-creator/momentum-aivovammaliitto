@@ -155,6 +155,69 @@ service cloud.firestore {
         allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
         allow write: if isOrgAdminOrOwner(orgId) || isSuperAdmin();
       }
+
+      // Aivot (organisaation tietopohja, docs/hetki-brain-plan.md).
+      // Orgin jäsenet lukevat (myös visitor = lukija). Selain ei kirjoita koskaan: kaikki muutokset
+      // kulkevat /api/brain-reittien kautta (admin-SDK), jotka tarkistavat roolin ja tallentavat
+      // version ja audit-rivin samassa transaktiossa. Testit: firebase/rules-tests/brain.test.mjs
+      match /brainSections/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainNotes/{slug} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+        match /revisions/{version} {
+          allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+          allow write: if false;
+        }
+      }
+      match /brainNoteNames/{key} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainDecisions/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainProposals/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainGoals/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainMetricEntries/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainInbox/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainTemplates/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      match /brainViews/{id} {
+        allow read: if request.auth != null && (isOrgMember(orgId) || isSuperAdmin());
+        allow write: if false;
+      }
+      // Tekoälyn käyttölaskurit: vain palvelin
+      match /brainUsage/{id} {
+        allow read, write: if false;
+      }
+      // Audit-loki: vain omistajat ja adminit
+      match /brainAuditLog/{id} {
+        allow read: if isOrgAdminOrOwner(orgId) || isSuperAdmin();
+        allow write: if false;
+      }
+    }
+
+    // Aivojen agenttitokenit (tiivisteet): vain palvelin (admin-SDK), ei koskaan selain.
+    match /brainAgentTokens/{hash} {
+      allow read, write: if false;
     }
 
     // Momentumin palaute (bugit, kehityspyynnöt). Jaettu org-jäsenten
@@ -162,11 +225,11 @@ service cloud.firestore {
     // merkitä ne tehdyiksi/työn alla. Lähettäjän tai super-adminin voi
     // myös poistaa.
     //
-    // HUOM: list-sääntö on rajattu super-adminille TAI bounded queryyn
-    // (limit <= 200) jossa client filtteröi orgId:llä. Tämä estää että
-    // mikä tahansa kirjautunut käyttäjä voisi listata KAIKKI palautteet
-    // ja vuotaa PII:tä org-rajojen yli. TODO: pitkän aikavälin korjaus
-    // on siirtää tämä /organizations/{orgId}/feedback alikokoelmaksi.
+    // HUOM: list-sääntö pakottaa kyselyyn ehdon where('orgId', '==', X),
+    // jossa X on orgi, jonka jäsen käyttäjä on. Säännöt eivät ole suodattimia:
+    // kysely ilman orgId-ehtoa tai toisen orgin orgId:llä hylätään kokonaan,
+    // joten palautteet (sähköposteineen) eivät vuoda org-rajojen yli.
+    // Super-admin saa listata kaikki (Cloud Functions käyttää admin-SDK:ta).
     match /momentumFeedback/{feedbackId} {
       allow create: if request.auth != null
         && request.resource.data.userUid == request.auth.uid;
@@ -175,7 +238,7 @@ service cloud.firestore {
             || isOrgMember(resource.data.orgId)
             || isSuperAdmin());
       allow list: if request.auth != null
-        && (isSuperAdmin() || request.query.limit <= 200);
+        && (isSuperAdmin() || isOrgMember(resource.data.orgId));
       // Org-jäsenet voivat päivittää statusta. Suojataan: orgId, userUid ja
       // submittedAt eivät saa muuttua — vain status / muut kuratointikentät.
       allow update: if request.auth != null

@@ -21,8 +21,22 @@ docs/~$*
 .vscode/
 .idea/
 
-# Claude
-.claude/
+# Claude: jaetut agentit, skillit, hookit ja settings.json repoon, henkilökohtaiset asetukset ei
+.claude/*
+!.claude/agents/
+!.claude/skills/
+!.claude/hooks/
+!.claude/settings.json
+.claude/settings.local.json
+
+# Cloud Functionsin käännetty koodi: predeploy ja npm run build tuottavat sen
+firebase/functions/lib/
 
 # Cloud Functions -parametrit (token), ei repoon
 firebase/functions/.env
+
+# Aivot (Hetki Brain): tuontidata on luottamuksellista, ei koskaan repoon
+data/
+**/hetki-brain-seed*.json
+**/goals.json
+Momentum – Hetki Brain/

@@ -95,6 +95,17 @@ export default function TaskNetworkGraph({
 
   // Viewport (pan/zoom)
   const viewRef = useRef({ tx: 0, ty: 0, scale: 1 });
+  // Refit esitellään ennen niitä käyttäviä funktioita (React Compiler tunnistaa ne silloin refeiksi)
+  const drawRef = useRef<() => void>(() => {});
+  const panRef = useRef<{ startClientX: number; startClientY: number; baseTx: number; baseTy: number } | null>(null);
+  const draggingTaskRef = useRef<{
+    task: UnifiedTask;
+    sourceX: number; sourceY: number;
+    startClientX: number; startClientY: number;
+    worldX?: number; worldY?: number;
+    moved?: boolean;
+  } | null>(null);
+  const pendingClickRef = useRef<{ id: string; x: number; y: number } | null>(null);
   const [viewTick, setViewTick] = useState(0); // pakottaa uudelleenrenderin labelille
 
   // Tila
@@ -149,9 +160,10 @@ export default function TaskNetworkGraph({
     [focusPersonId, members]
   );
 
+  // Aikaikkunan rajat lasketaan näkymän avaushetkestä (ei Date.now() renderissä)
+  const [now] = useState(() => Date.now());
   const timeRangeCutoff = useMemo(() => {
     if (timeRange === 'all') return 0;
-    const now = Date.now();
     const day = 86400000;
     switch (timeRange) {
       case '7d': return now - 7 * day;
@@ -162,7 +174,7 @@ export default function TaskNetworkGraph({
         return d.getTime();
       }
     }
-  }, [timeRange]);
+  }, [timeRange, now]);
 
   const filteredTasks = useMemo(() => tasks.filter(t => {
     // Näkymävalitsin: Aktiiviset / Kaikki / Vain valmiit
@@ -303,10 +315,13 @@ export default function TaskNetworkGraph({
     }
 
     // Palauta aiemmat positiot tunnettujen id:iden osalta
+    // d3-force käyttää ja muokkaa node-olioita suoraan, joten mutaatio on tarkoituksellinen
+    /* eslint-disable react-hooks/immutability */
     for (const n of nodes) {
       const p = posRef.current.get(n.id);
       if (p) { n.x = p.x; n.y = p.y; }
     }
+    /* eslint-enable react-hooks/immutability */
 
     const sim = forceSimulation<GNode>(nodes)
       .force('charge', forceManyBody<GNode>().strength(d => {
@@ -316,7 +331,7 @@ export default function TaskNetworkGraph({
       }))
       .force('collide', forceCollide<GNode>(d => d.r + 4))
       .force('center', forceCenter(size.w / 2, size.h / 2).strength(centerStrength))
-      .force('link', forceLink<GNode, GLink>(links).id((d: any) => d.id).distance(linkDistance).strength(linkStrength));
+      .force('link', forceLink<GNode, GLink>(links).id((d: GNode) => d.id).distance(linkDistance).strength(linkStrength));
 
     sim.alpha(0.9).alphaDecay(0.025);
     sim.on('tick', () => {
@@ -333,7 +348,6 @@ export default function TaskNetworkGraph({
   }, [nodes, links, size.w, size.h, centerStrength, repelStrength, linkStrength, linkDistance]);
 
   // --- Piirto ---
-  const drawRef = useRef<() => void>(() => {});
   const draw = useCallback(() => {
     const c = canvasRef.current;
     if (!c) return;
@@ -526,15 +540,6 @@ export default function TaskNetworkGraph({
   useEffect(() => { drawRef.current = draw; draw(); }, [draw, viewTick]);
 
   // --- Hiiri / interaktiot ---
-  const panRef = useRef<{ startClientX: number; startClientY: number; baseTx: number; baseTy: number } | null>(null);
-  const draggingTaskRef = useRef<{
-    task: UnifiedTask;
-    sourceX: number; sourceY: number;
-    startClientX: number; startClientY: number;
-    worldX?: number; worldY?: number;
-    moved?: boolean;
-  } | null>(null);
-  const pendingClickRef = useRef<{ id: string; x: number; y: number } | null>(null);
 
   const screenToWorld = (sx: number, sy: number) => {
     const { tx, ty, scale } = viewRef.current;
@@ -678,12 +683,15 @@ export default function TaskNetworkGraph({
   // --- Alustavat positiot uusille nodeille ---
   useEffect(() => {
     const { w, h } = size;
+    // d3-force käyttää ja muokkaa node-olioita suoraan, joten mutaatio on tarkoituksellinen
+    /* eslint-disable react-hooks/immutability */
     for (const n of nodes) {
       if (typeof n.x !== 'number' || typeof n.y !== 'number') {
         n.x = w / 2 + (Math.random() - 0.5) * Math.min(w, h) * 0.6;
         n.y = h / 2 + (Math.random() - 0.5) * Math.min(w, h) * 0.6;
       }
     }
+    /* eslint-enable react-hooks/immutability */
   }, [nodes, size]);
 
   return (
@@ -784,7 +792,7 @@ export default function TaskNetworkGraph({
               {viewMode !== 'active' && (
                 <>
                   <div style={{ fontSize: '.68rem', color: 'var(--t3)', margin: '.2rem 0 .25rem', textTransform: 'uppercase' }}>Aikaväli (valmistumispäivälle)</div>
-                  <select className="input" value={timeRange} onChange={e => setTimeRange(e.target.value as any)} style={{ fontSize: '.78rem' }}>
+                  <select className="input" value={timeRange} onChange={e => setTimeRange(e.target.value as typeof timeRange)} style={{ fontSize: '.78rem' }}>
                     <option value="all">Kaikki aika</option>
                     <option value="7d">Viim. 7 vrk</option>
                     <option value="30d">Viim. 30 vrk</option>

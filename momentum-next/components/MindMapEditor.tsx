@@ -445,7 +445,7 @@ export default function MindMapEditor({ nodes, edges, onChange, readOnly = false
           padding: '.35rem .55rem', borderRadius: 'var(--r)',
           maxWidth: 260, lineHeight: 1.4,
         }}>
-          Vinkki: valitse solmu ja paina "+ Lapsisolmu". Kaksoisklikkaa solmua muokataksesi tekstiä. Raahaa vetääksesi, rullalla zoomaat.
+          Vinkki: valitse solmu ja paina &quot;+ Lapsisolmu&quot;. Kaksoisklikkaa solmua muokataksesi tekstiä. Raahaa vetääksesi, rullalla zoomaat.
         </div>
       )}
     </div>

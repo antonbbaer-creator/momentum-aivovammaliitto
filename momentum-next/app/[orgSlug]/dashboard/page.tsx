@@ -16,10 +16,10 @@ import {
   OrgTeamMember,
   resolveUserMember,
 } from '@/lib/team-shared';
-import { includesAssignee, effectiveStatus } from '@/lib/assignments-shared';
+import { Assignable, includesAssignee, effectiveStatus } from '@/lib/assignments-shared';
 import { getGrantsKey, getOrgGrants, getOrgTeamMembers } from '@/lib/org-defaults';
 import MarkdownText from '@/components/MarkdownText';
-import { mergeAiProfile } from '@/lib/ihaa-defaults';
+import { mergeAiProfile, OrgAiProfile } from '@/lib/ihaa-defaults';
 import { workerFetch } from '@/lib/worker-fetch';
 import type { Meeting } from '@/lib/meetings-shared';
 import { YearPhase, parseLocalDate, normalizePhase } from '@/lib/yearwheel-shared';
@@ -41,17 +41,83 @@ function fmtFi(n: number): string {
   return n.toLocaleString('fi-FI');
 }
 
+// Etusivun käyttämät kentät Firestoren datasta (kaikki valinnaisia vanhan datan vuoksi)
+interface DashOrg {
+  name?: string;
+  commsMission?: string;
+  tone?: string[];
+  festivalStartDate?: string | number;
+}
+
+interface DashStandaloneTask extends Assignable {
+  id: string;
+  text: string;
+  done?: boolean;
+  deadline?: string;
+  priority?: string;
+  note?: string;
+  from?: string;
+  deletedAt?: number;
+}
+
+interface DashProjectTask extends Assignable {
+  id?: number;
+  text: string;
+  done?: boolean;
+  deadline?: string;
+  priority?: string;
+  note?: string;
+}
+
+interface DashProject {
+  id: number;
+  t: string;
+  name?: string;
+  st?: string;
+  tone?: string;
+  lead?: string;
+  responsible?: string;
+  phase?: string;
+  deadline?: string;
+  tasks?: DashProjectTask[];
+  archived?: boolean;
+  deletedAt?: number;
+}
+
+interface DashTeamMessage {
+  id?: string | number;
+  type?: string;
+  text?: string;
+  from?: string;
+  to?: string;
+  done?: boolean;
+  timestamp?: number;
+}
+
+// Oma tehtävä yhdistettynä projekti- ja itsenäisistä tehtävistä
+interface MyTask extends Assignable {
+  id?: string | number;
+  text: string;
+  done?: boolean;
+  deadline?: string;
+  from?: string;
+  projectName: string;
+  projectId: number | null;
+  taskIndex: number;
+  projectTone?: string;
+}
+
 export default function DashboardPage() {
   const { user, activeOrg } = useAuth();
   const router = useRouter();
   const params = useParams();
   const orgSlug = params.orgSlug as string;
-  const [org] = useOrgData<any>('org', {});
-  const [aiProfileRaw] = useOrgData<any>('aiProfile', {});
-  const aiProfile = (mergeAiProfile(orgSlug, aiProfileRaw) || {}) as Record<string, any>;
-  const [projects, setProjects] = useOrgData<any[]>('projects', []);
-  const [standaloneTasks, setStandaloneTasks] = useOrgData<any[]>('tasks', []);
-  const [teamMessages, setTeamMessages] = useOrgData<any[]>('teamMessages', []);
+  const [org] = useOrgData<DashOrg>('org', {});
+  const [aiProfileRaw] = useOrgData<Partial<OrgAiProfile>>('aiProfile', {});
+  const aiProfile = (mergeAiProfile(orgSlug, aiProfileRaw) || {}) as Partial<OrgAiProfile>;
+  const [projects, setProjects] = useOrgData<DashProject[]>('projects', []);
+  const [standaloneTasks, setStandaloneTasks] = useOrgData<DashStandaloneTask[]>('tasks', []);
+  const [teamMessages, setTeamMessages] = useOrgData<DashTeamMessage[]>('teamMessages', []);
   const [rawGrants] = useOrgData<Grant[]>(getGrantsKey(orgSlug), getOrgGrants(orgSlug));
   const [orgMembers] = useOrgData<OrgTeamMember[]>('orgTeamMembers', getOrgTeamMembers(orgSlug));
   const [meetings] = useOrgData<Meeting[]>('meetings', []);
@@ -94,7 +160,7 @@ export default function DashboardPage() {
     const text = quickAddText.trim();
     if (!text) return;
     const myName = myMember?.name || user?.displayName || '';
-    const newTask = {
+    const newTask: DashStandaloneTask = {
       id: `tsk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
       text,
       assignee: myName || undefined,
@@ -108,16 +174,16 @@ export default function DashboardPage() {
     setQuickAddDeadline('');
   };
 
-  const updateStandaloneTask = (id: string, updates: Record<string, any>) => {
-    setStandaloneTasks((standaloneTasks || []).map((t: any) => t.id === id ? { ...t, ...updates } : t));
+  const updateStandaloneTask = (id: string, updates: Partial<DashStandaloneTask>) => {
+    setStandaloneTasks((standaloneTasks || []).map((t) => t.id === id ? { ...t, ...updates } : t));
   };
 
   const deleteStandaloneTask = (id: string) => {
-    setStandaloneTasks((standaloneTasks || []).map((t: any) => t.id === id ? { ...t, deletedAt: Date.now() } : t));
+    setStandaloneTasks((standaloneTasks || []).map((t) => t.id === id ? { ...t, deletedAt: Date.now() } : t));
   };
 
-  const updateProjectTask = (projectId: number, taskIndex: number, updates: Record<string, any>) => {
-    setProjects(prev => prev.map((p: any) => {
+  const updateProjectTask = (projectId: number, taskIndex: number, updates: Partial<DashProjectTask>) => {
+    setProjects(prev => prev.map((p) => {
       if (p.id !== projectId) return p;
       const tasks = [...(p.tasks || [])];
       if (!tasks[taskIndex]) return p;
@@ -127,7 +193,7 @@ export default function DashboardPage() {
   };
 
   const deleteProjectTask = (projectId: number, taskIndex: number) => {
-    setProjects(prev => prev.map((p: any) => {
+    setProjects(prev => prev.map((p) => {
       if (p.id !== projectId) return p;
       const tasks = [...(p.tasks || [])];
       tasks.splice(taskIndex, 1);
@@ -137,9 +203,9 @@ export default function DashboardPage() {
 
   // Siirrä tehtävä standalone -> projekti
   const moveStandaloneToProject = (standaloneId: string, targetProjectId: number) => {
-    const t = (standaloneTasks || []).find((x: any) => x.id === standaloneId);
+    const t = (standaloneTasks || []).find((x) => x.id === standaloneId);
     if (!t) return;
-    setProjects(prev => prev.map((p: any) => {
+    setProjects(prev => prev.map((p) => {
       if (p.id !== targetProjectId) return p;
       const tasks = [...(p.tasks || []), {
         text: t.text,
@@ -152,17 +218,17 @@ export default function DashboardPage() {
       }];
       return { ...p, tasks };
     }));
-    setStandaloneTasks((standaloneTasks || []).filter((x: any) => x.id !== standaloneId));
+    setStandaloneTasks((standaloneTasks || []).filter((x) => x.id !== standaloneId));
   };
 
   // Siirrä tehtävä projekti -> standalone
   const moveProjectTaskToStandalone = (projectId: number, taskIndex: number) => {
-    const p = projects.find((pp: any) => pp.id === projectId);
+    const p = projects.find((pp) => pp.id === projectId);
     if (!p) return;
     const t = (p.tasks || [])[taskIndex];
     if (!t) return;
     const myName = myMember?.name || user?.displayName || '';
-    const newTask = {
+    const newTask: DashStandaloneTask = {
       id: `tsk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
       text: t.text,
       assignee: t.assignee || myName,
@@ -204,19 +270,19 @@ export default function DashboardPage() {
     return () => clearTimeout(timer);
   }, [greetingFull]);
 
-  const myTasks = useMemo(() => {
+  const myTasks = useMemo((): MyTask[] => {
     const myName = myMember?.name || user?.displayName || '';
     if (!myName) return [];
-    const fromProjects = projects.flatMap((p: any) =>
-      (p.tasks || []).map((t: any, ti: number) => ({
+    const fromProjects = projects.flatMap((p) =>
+      (p.tasks || []).map((t, ti: number) => ({
         ...t,
         projectName: p.t, projectId: p.id, taskIndex: ti, projectTone: p.tone,
       }))
     );
     const fromStandalone = (standaloneTasks || [])
-      .filter((t: any) => !t.deletedAt)
-      .map((t: any) => ({ ...t, projectName: 'Tehtävät', projectId: null, taskIndex: -1, projectTone: undefined }));
-    return [...fromProjects, ...fromStandalone].filter((t: any) => {
+      .filter((t) => !t.deletedAt)
+      .map((t) => ({ ...t, projectName: 'Tehtävät', projectId: null, taskIndex: -1, projectTone: undefined }));
+    return [...fromProjects, ...fromStandalone].filter((t) => {
       if (t.done) return false;
       if (effectiveStatus(t) === 'rejected') return false;
       return includesAssignee(t, myName);
@@ -226,8 +292,8 @@ export default function DashboardPage() {
   // Project tone map for color-coding
   const projectToneMap = useMemo(() => {
     const m = new Map<number | string, Tone>();
-    projects.forEach((p: any, i: number) => {
-      const explicit = (p.tone && TONES.includes(p.tone)) ? p.tone as Tone : null;
+    projects.forEach((p, i: number) => {
+      const explicit = (p.tone && (TONES as readonly string[]).includes(p.tone)) ? p.tone as Tone : null;
       m.set(p.id, explicit || toneFor(p.id, i));
     });
     return m;
@@ -250,9 +316,9 @@ export default function DashboardPage() {
   }
 
   const unifiedList: UnifiedItem[] = useMemo(() => [
-    ...myTasks.map((t: any): UnifiedItem => {
+    ...myTasks.map((t): UnifiedItem => {
       const days = t.deadline ? Math.ceil((new Date(t.deadline).getTime() - Date.now()) / 86400000) : null;
-      const tone = projectToneMap.get(t.projectId) || 'blue';
+      const tone = (t.projectId !== null && projectToneMap.get(t.projectId)) || 'blue';
       const isStandalone = t.projectId === null;
       return {
         id: isStandalone ? `task_standalone_${t.id}` : `task_${t.projectId}_${t.taskIndex}`,
@@ -266,13 +332,13 @@ export default function DashboardPage() {
         days,
         onClick: () => {
           if (isStandalone) {
-            setEditingTask({ kind: 'standalone', id: t.id });
+            setEditingTask({ kind: 'standalone', id: t.id as string });
           } else {
-            setEditingTask({ kind: 'project', projectId: t.projectId, taskIndex: t.taskIndex });
+            setEditingTask({ kind: 'project', projectId: t.projectId as number, taskIndex: t.taskIndex });
           }
         },
-        taskRef: isStandalone ? undefined : { projectId: t.projectId, taskIndex: t.taskIndex },
-        standaloneId: isStandalone ? t.id : undefined,
+        taskRef: isStandalone ? undefined : { projectId: t.projectId as number, taskIndex: t.taskIndex },
+        standaloneId: isStandalone ? t.id as string : undefined,
         kindLabel: 'Tehtävä',
       };
     }),
@@ -303,8 +369,8 @@ export default function DashboardPage() {
   const laterTasks = unifiedList.filter(t => t.days === null || t.days > 7);
 
   const myProjects = useMemo(() => {
-    const ids = new Set(myTasks.map((t: any) => t.projectId));
-    return projects.filter((p: any) => ids.has(p.id) && !p.archived);
+    const ids = new Set(myTasks.map((t) => t.projectId));
+    return projects.filter((p) => ids.has(p.id) && !p.archived);
   }, [myTasks, projects]);
 
   const undoTimers = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -316,7 +382,7 @@ export default function DashboardPage() {
     undoTimers.current[key] = setTimeout(() => {
       setProjects(prev => prev.map(p => {
         if (p.id !== projectId) return p;
-        const tasks = [...p.tasks];
+        const tasks = [...(p.tasks || [])];
         tasks[taskIndex] = { ...tasks[taskIndex], done: true };
         return { ...p, tasks };
       }));
@@ -336,7 +402,7 @@ export default function DashboardPage() {
 
   // Festival countdown — only if org has festivalStartDate
   const festivalStart: Date | null = useMemo(() => {
-    const v = (org as any)?.festivalStartDate;
+    const v = org?.festivalStartDate;
     if (!v) return null;
     const d = new Date(v);
     return isNaN(d.getTime()) ? null : d;
@@ -364,9 +430,9 @@ export default function DashboardPage() {
     if (!user?.displayName) return [];
     const myName = user.displayName;
     return (teamMessages || [])
-      .filter((m: any) => m.type === 'request' && !m.done && m.from === myName && m.to)
+      .filter((m) => m.type === 'request' && !m.done && m.from === myName && m.to)
       .slice(0, 6)
-      .map((m: any, i: number) => ({
+      .map((m, i: number) => ({
         id: m.id || `w_${i}`,
         title: m.text,
         who: m.to,
@@ -378,10 +444,10 @@ export default function DashboardPage() {
   // Activity (last 5 team messages, excluding open requests)
   const activityItems = useMemo(() => {
     return (teamMessages || [])
-      .filter((m: any) => m.type !== 'request' || m.done)
-      .sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0))
+      .filter((m) => m.type !== 'request' || m.done)
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
       .slice(0, 5)
-      .map((m: any, i: number) => ({
+      .map((m, i: number) => ({
         id: m.id || `a_${i}`,
         who: m.from || 'Tiimiläinen',
         verb: m.type === 'request' ? 'merkitsi tehdyksi pyynnön' : 'kirjoitti',
@@ -474,7 +540,7 @@ export default function DashboardPage() {
 
   // Renderöi yksi tehtävärivi
   const TaskRow = ({ item }: { item: UnifiedItem }) => {
-    const standaloneTask = item.standaloneId ? (standaloneTasks || []).find((t: any) => t.id === item.standaloneId) : null;
+    const standaloneTask = item.standaloneId ? (standaloneTasks || []).find((t) => t.id === item.standaloneId) : null;
     const isDone = item.taskRef
       ? completedTasks.has(`${item.taskRef.projectId}_${item.taskRef.taskIndex}`)
       : (standaloneTask?.done || false);
@@ -616,11 +682,11 @@ export default function DashboardPage() {
                 <button className="btn-link" onClick={() => router.push(`/${orgSlug}/projects`)}>Kaikki projektit ↗</button>
               </div>
               <div className="pgrid">
-                {myProjects.slice(0, 5).map((p: any) => {
+                {myProjects.slice(0, 5).map((p) => {
                   const tone = projectToneMap.get(p.id) || 'blue';
-                  const myOpen = (p.tasks || []).filter((t: any) => t.assignee === user?.displayName && !t.done).length;
+                  const myOpen = (p.tasks || []).filter((t) => t.assignee === user?.displayName && !t.done).length;
                   const totalTasks = (p.tasks || []).length;
-                  const done = (p.tasks || []).filter((t: any) => t.done).length;
+                  const done = (p.tasks || []).filter((t) => t.done).length;
                   const progress = totalTasks > 0 ? Math.round((done / totalTasks) * 100) : 0;
                   const dl = p.deadline ? new Date(p.deadline).toLocaleDateString('fi-FI', { day: 'numeric', month: 'numeric' }) + '.' : '—';
                   return (
@@ -707,7 +773,7 @@ export default function DashboardPage() {
           {/* AI Actions */}
           {(() => {
             const isJuhla = orgSlug === 'juhlatoimikunta';
-            const activeProjectsList = projects.filter((p: any) => p.st === 'active' && !p.archived).map((p: any) => p.t).join(', ') || 'ei aktiivisia';
+            const activeProjectsList = projects.filter((p) => p.st === 'active' && !p.archived).map((p) => p.t).join(', ') || 'ei aktiivisia';
             const defaultStatus = isJuhla
               ? 'Anna tilannekatsaus juhlien järjestelyistä.'
               : 'Anna tilannekatsaus ' + (org.name || 'organisaation') + ' viestinnästä juuri nyt. Aktiiviset projektit: ' + activeProjectsList + '. Avoimia tehtäviä: ' + myTasks.length + '.';
@@ -862,7 +928,7 @@ export default function DashboardPage() {
 
           {/* Pyynnöt sinulle (jos on) */}
           {(() => {
-            const myRequests = (teamMessages || []).filter((m: any) => m.type === 'request' && m.to === user?.displayName && !m.done);
+            const myRequests = (teamMessages || []).filter((m) => m.type === 'request' && m.to === user?.displayName && !m.done);
             if (myRequests.length === 0) return null;
             return (
               <section className="rsec">
@@ -871,7 +937,7 @@ export default function DashboardPage() {
                   <div className="meta"><b>{myRequests.length}</b></div>
                 </div>
                 <div className="wlist">
-                  {myRequests.map((msg: any) => (
+                  {myRequests.map((msg) => (
                     <div key={msg.id} className="wrow" style={{ '--c': `var(--yellow)` } as React.CSSProperties}>
                       <div>
                         <div className="wt">{msg.text}</div>
@@ -879,7 +945,7 @@ export default function DashboardPage() {
                       </div>
                       <button
                         className="btn-link"
-                        onClick={() => setTeamMessages(prev => prev.map((m: any) => m.id === msg.id ? { ...m, done: true } : m))}
+                        onClick={() => setTeamMessages(prev => prev.map((m) => m.id === msg.id ? { ...m, done: true } : m))}
                       >
                         Tehty
                       </button>
@@ -910,10 +976,10 @@ export default function DashboardPage() {
           key={editingTask.kind === 'standalone' ? `s_${editingTask.id}` : `p_${editingTask.projectId}_${editingTask.taskIndex}`}
           task={(() => {
             if (editingTask.kind === 'standalone') {
-              const t = (standaloneTasks || []).find((x: any) => x.id === editingTask.id);
+              const t = (standaloneTasks || []).find((x) => x.id === editingTask.id);
               return t ? { text: t.text, deadline: t.deadline, projectId: null, done: !!t.done, note: t.note } : null;
             }
-            const p = projects.find((pp: any) => pp.id === editingTask.projectId);
+            const p = projects.find((pp) => pp.id === editingTask.projectId);
             const t = p?.tasks?.[editingTask.taskIndex];
             return t ? { text: t.text, deadline: t.deadline, projectId: editingTask.projectId, done: !!t.done, note: t.note } : null;
           })()}
@@ -923,9 +989,9 @@ export default function DashboardPage() {
             if (editingTask.kind === 'standalone') {
               if (targetProjectId !== null) {
                 // Siirrä projektiin ja päivitä
-                const t = (standaloneTasks || []).find((x: any) => x.id === editingTask.id);
+                const t = (standaloneTasks || []).find((x) => x.id === editingTask.id);
                 if (t) {
-                  setProjects(prev => prev.map((p: any) => {
+                  setProjects(prev => prev.map((p) => {
                     if (p.id !== targetProjectId) return p;
                     return {
                       ...p,
@@ -940,7 +1006,7 @@ export default function DashboardPage() {
                       }],
                     };
                   }));
-                  setStandaloneTasks((standaloneTasks || []).filter((x: any) => x.id !== editingTask.id));
+                  setStandaloneTasks((standaloneTasks || []).filter((x) => x.id !== editingTask.id));
                 }
               } else {
                 updateStandaloneTask(editingTask.id, {
@@ -967,10 +1033,10 @@ export default function DashboardPage() {
                 }, 0);
               } else if (targetProjectId !== editingTask.projectId) {
                 // Siirrä toiseen projektiin
-                const p = projects.find((pp: any) => pp.id === editingTask.projectId);
+                const p = projects.find((pp) => pp.id === editingTask.projectId);
                 const t = p?.tasks?.[editingTask.taskIndex];
                 if (t) {
-                  setProjects(prev => prev.map((pp: any) => {
+                  setProjects(prev => prev.map((pp) => {
                     if (pp.id === editingTask.projectId) {
                       const tasks = [...(pp.tasks || [])];
                       tasks.splice(editingTask.taskIndex, 1);
@@ -1018,7 +1084,7 @@ function TaskEditDialog({
   onDelete,
 }: {
   task: { text: string; deadline?: string; projectId: number | null; done: boolean; note?: string } | null;
-  projects: any[];
+  projects: DashProject[];
   onClose: () => void;
   onSave: (updates: { text?: string; deadline?: string; note?: string }, targetProjectId: number | null) => void;
   onDelete: () => void;
@@ -1070,7 +1136,7 @@ function TaskEditDialog({
           style={{ background: 'transparent', border: '1px solid var(--rule, var(--border))', padding: '6px 8px', fontSize: 13, color: 'var(--ink)' }}
         >
           <option value="">— Ei projektia (itsenäinen tehtävä) —</option>
-          {projects.filter((p: any) => !p.archived && !p.deletedAt).map((p: any) => (
+          {projects.filter((p) => !p.archived && !p.deletedAt).map((p) => (
             <option key={p.id} value={p.id}>{p.t || p.name || `Projekti ${p.id}`}</option>
           ))}
         </select>

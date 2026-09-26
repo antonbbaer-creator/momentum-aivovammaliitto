@@ -35,6 +35,7 @@ interface Task extends Assignable {
   id: number; text: string; done: boolean; deadline: string;
 }
 interface TeamMember { name: string; role: string; avatar: string; }
+interface ProjectComment { id: number; author?: string; text: string; timestamp?: string; }
 export interface Project {
   id: number;
   t: string;
@@ -42,7 +43,7 @@ export interface Project {
   st: string;
   deadline: string;
   team: TeamMember[];
-  comments: any[];
+  comments: ProjectComment[];
   tasks: Task[];
   archived: boolean;
   createdAt: number;
@@ -58,6 +59,9 @@ interface Props {
   // If provided, shows only projects for this team and auto-assigns new projects to it
   teamId?: string;
 }
+
+/** Aikaleima tapahtumakäsittelijöille (react-hooks/purity ei tunnista käsittelijäkontekstia). */
+const nowTs = (): number => Date.now();
 
 const deadlineColor = (dl: string) => {
   if (!dl) return null;
@@ -217,8 +221,8 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
     if (exists) { toast('Samanniminen projekti on jo olemassa', 'error'); return; }
     const trimmedClient = newClientName.trim();
     const p: Project = {
-      id: Date.now(), t: title.trim(), d: desc.trim(), st: 'idea', deadline,
-      team: [], comments: [], tasks: [], archived: false, createdAt: Date.now(),
+      id: nowTs(), t: title.trim(), d: desc.trim(), st: 'idea', deadline,
+      team: [], comments: [], tasks: [], archived: false, createdAt: nowTs(),
       teamId: newTeamId || fixedTeamId || undefined,
       phaseId: newPhaseId || undefined,
       clientName: showClientField && trimmedClient ? trimmedClient : undefined,
@@ -371,7 +375,7 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
                     </div>
                     {seed.sourceQuestion && (
                       <div style={{ fontSize: '.72rem', fontStyle: 'italic', color: '#9b7cf6', fontFamily: 'var(--font-display), Georgia, serif', marginBottom: '.2rem' }}>
-                        "{seed.sourceQuestion}"
+                        &quot;{seed.sourceQuestion}&quot;
                       </div>
                     )}
                     {seed.content && (
@@ -475,7 +479,7 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
           })}
           <form onSubmit={e => {
             e.preventDefault();
-            const f = e.target as any;
+            const f = e.target as HTMLFormElement & { taskInput: HTMLInputElement; taskDeadline?: HTMLInputElement; taskAssignee?: HTMLSelectElement };
             if (!f.taskInput.value.trim()) return;
             const assigneeVal = f.taskAssignee?.value || '';
             const delegation = buildAssignment(assigneeVal || undefined, myName);
@@ -638,7 +642,7 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
                         </div>
                         {n.sourceQuestion && (
                           <div style={{ fontSize: '.68rem', fontStyle: 'italic', color: '#9b7cf6', fontFamily: 'var(--font-display), Georgia, serif', marginBottom: '.15rem' }}>
-                            "{n.sourceQuestion}"
+                            &quot;{n.sourceQuestion}&quot;
                           </div>
                         )}
                         {n.content && (
@@ -665,7 +669,7 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
 
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.5rem' }}>
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.88rem', fontWeight: 500, textTransform: 'uppercase', marginBottom: '1rem' }}>Keskustelu ({(selected.comments || []).length})</h3>
-          {(selected.comments || []).map((c: any) => (
+          {(selected.comments || []).map((c) => (
             <div key={c.id} style={{ display: 'flex', gap: '.6rem', marginBottom: '.75rem' }}>
               <div className="ava" style={{ width: 32, height: 32, fontSize: '.7rem', background: 'var(--pri)', flexShrink: 0 }}>{(c.author || 'A')[0]}</div>
               <div style={{ flex: 1, background: 'var(--elev)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '.75rem 1rem' }}>
@@ -677,7 +681,7 @@ export default function ProjectsSection({ teamId: fixedTeamId }: Props = {}) {
               </div>
             </div>
           ))}
-          <form onSubmit={e => { e.preventDefault(); const input = (e.target as any).commentInput; if (!input.value.trim()) return; updateProject(selected.id, { comments: [...(selected.comments || []), { id: Date.now(), author: user?.displayName || 'Käyttäjä', text: input.value.trim(), timestamp: new Date().toISOString() }] }); input.value = ''; }} style={{ display: 'flex', gap: '.5rem' }}>
+          <form onSubmit={e => { e.preventDefault(); const input = (e.target as HTMLFormElement & { commentInput: HTMLInputElement }).commentInput; if (!input.value.trim()) return; updateProject(selected.id, { comments: [...(selected.comments || []), { id: Date.now(), author: user?.displayName || 'Käyttäjä', text: input.value.trim(), timestamp: new Date().toISOString() }] }); input.value = ''; }} style={{ display: 'flex', gap: '.5rem' }}>
             <input name="commentInput" className="input" placeholder="Kirjoita kommentti..." style={{ flex: 1 }} />
             <button type="submit" className="btn btn-primary btn-sm">Lähetä</button>
           </form>

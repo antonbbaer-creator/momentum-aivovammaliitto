@@ -250,7 +250,7 @@ export default function ProgrammeGridSection() {
 
       {filterActive(programme).length === 0 && (
         <div style={{ marginTop: '1rem', fontSize: '.75rem', color: 'var(--t3)', textAlign: 'center' }}>
-          Lisää ensimmäiset ohjelmanumerot klikkaamalla tyhjää solua tai "+ Uusi tapahtuma" -nappia.
+          Lisää ensimmäiset ohjelmanumerot klikkaamalla tyhjää solua tai &quot;+ Uusi tapahtuma&quot; -nappia.
         </div>
       )}
 

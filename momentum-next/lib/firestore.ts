@@ -48,7 +48,8 @@ export function useOrgData<T>(key: string, defaultValue: T): [T, (val: T | ((pre
   const pendingWriteRef = useRef<{ orgId: string; key: string; value: T; uid: string } | null>(null);
   // Pidetään default-arvoa refissä jotta useEffect voi käyttää sitä muuttamatta dep-listaa
   const defaultValueRef = useRef(defaultValue);
-  defaultValueRef.current = defaultValue;
+  // Päivitetään effektissä (ei renderissä); määritelty ennen muita effektejä, jotta ne näkevät tuoreen arvon
+  useEffect(() => { defaultValueRef.current = defaultValue; });
   // Throttle remote snapshot updates to avoid excessive re-renders
   const snapshotThrottleRef = useRef<NodeJS.Timeout | null>(null);
   const pendingSnapshotRef = useRef<T | null>(null);
@@ -200,7 +201,7 @@ export function useOrgData<T>(key: string, defaultValue: T): [T, (val: T | ((pre
  */
 export function useOrgProfile() {
   const { activeOrg, user } = useAuth();
-  const [org, setOrg] = useState<any>(null);
+  const [org, setOrg] = useState<({ id: string } & Record<string, unknown>) | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -212,7 +213,7 @@ export function useOrgProfile() {
     return () => unsub();
   }, [activeOrg]);
 
-  const updateOrg = async (updates: Record<string, any>) => {
+  const updateOrg = async (updates: Record<string, unknown>) => {
     if (!activeOrg) return;
     await setDoc(doc(db, 'organizations', activeOrg), updates, { merge: true });
   };
@@ -223,9 +224,9 @@ export function useOrgProfile() {
 /**
  * Bulk read all org data keys at once (for initial hydration)
  */
-export async function fetchAllOrgData(orgId: string): Promise<Record<string, any>> {
+export async function fetchAllOrgData(orgId: string): Promise<Record<string, unknown>> {
   const snap = await getDocs(collection(db, 'organizations', orgId, 'data'));
-  const result: Record<string, any> = {};
+  const result: Record<string, unknown> = {};
   snap.forEach(doc => {
     try {
       result[doc.id] = JSON.parse(doc.data().v);

@@ -85,7 +85,7 @@ export const normalizeGrant = (g: Grant): Grant => ({
 });
 
 // Normalize settings — handle migration from old single-yearTarget shape
-export const normalizeGrantsSettings = (s: any): GrantsSettings => {
+export const normalizeGrantsSettings = (s: (Partial<GrantsSettings> & { yearTarget?: number; year?: number }) | null | undefined): GrantsSettings => {
   if (s && typeof s.yearTargets === 'object') {
     return s as GrantsSettings;
   }

@@ -10,7 +10,8 @@ import { filterTrashed, restoreItem, purgeItem, purgeExpired, daysUntilPurge, fo
 import { isSuperAdminEmail } from '@/lib/super-admins';
 
 // Kaikki data-avaimet joissa voi olla roskakorissa olevia itemeja
-interface TrashableItem { id: string | number; deletedAt?: number; [key: string]: any; }
+interface TrashableItem { id: string | number; deletedAt?: number; [key: string]: unknown; }
+type SetTrashableItems = (val: TrashableItem[] | ((prev: TrashableItem[]) => TrashableItem[])) => void;
 
 interface DataSource {
   key: string;
@@ -60,7 +61,7 @@ function TrashDataRow({ source, items, setItems }: { source: DataSource; items: 
           }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: '.85rem', fontWeight: 600, color: 'var(--t1)' }}>
-                {item[source.nameField] || item.id}
+                {(item[source.nameField] as string | undefined) || item.id}
               </div>
               <div style={{ fontSize: '.68rem', color: 'var(--t3)', marginTop: '.15rem' }}>
                 Poistettu {formatDeletedDate(item.deletedAt!)} -- {remaining} pv jaljella
@@ -70,7 +71,7 @@ function TrashDataRow({ source, items, setItems }: { source: DataSource; items: 
               className="btn btn-secondary btn-sm"
               onClick={() => {
                 setItems(prev => restoreItem(prev, item.id));
-                toast(`${item[source.nameField] || 'Item'} palautettu`, 'success');
+                toast(`${(item[source.nameField] as string | undefined) || 'Item'} palautettu`, 'success');
               }}
               style={{ fontSize: '.65rem' }}
             >
@@ -123,7 +124,7 @@ export default function RoskakoriPage() {
   const [scheduleItems, setScheduleItems] = useOrgData<TrashableItem[]>('scheduleItems', []);
   const [grants, setGrants] = useOrgData<TrashableItem[]>('grants', []);
 
-  const dataMap: Record<string, { items: TrashableItem[]; set: any }> = {
+  const dataMap: Record<string, { items: TrashableItem[]; set: SetTrashableItems }> = {
     films: { items: films, set: setFilms },
     music: { items: music, set: setMusic },
     workshops: { items: workshops, set: setWorkshops },

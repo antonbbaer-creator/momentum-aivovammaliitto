@@ -26,19 +26,77 @@ const ACTIVITY_LEVELS = [
   { value: 'paused', label: 'Tauolla', color: '#ef6b6b', desc: 'Ei aktiivista julkaisua' },
 ];
 
+// Paikalliset tyypit org-dokumentin kanavadatalle (vanha data voi olla vajaata)
+interface ChannelItem {
+  slug: string;
+  name: string;
+  color?: string;
+  ic?: string;
+  url?: string;
+  freq?: string;
+  desc?: string;
+  activity?: string;
+  enabled?: boolean;
+}
+
+interface ChannelProfile {
+  ch: string;
+  role?: string;
+  freq?: string;
+  desc?: string;
+  auds?: string[];
+  metrics?: string[];
+}
+
+interface ChannelTeamMember {
+  id?: string;
+  name: string;
+  avatar?: string;
+  role?: string;
+  channels?: string[];
+}
+
+interface CalendarMonth {
+  m: number;
+  content?: string;
+  aud?: string;
+  channels?: string[];
+}
+
+interface CalendarQuarter {
+  q: number | string;
+  theme?: string;
+  months?: CalendarMonth[];
+}
+
+interface ChannelStat {
+  name?: string;
+  followers?: number;
+  reach?: string | number;
+}
+
+interface ChannelOrg {
+  name?: string;
+  channels?: ChannelItem[];
+  channelProfiles?: ChannelProfile[];
+  team?: ChannelTeamMember[];
+  quarterlyCalendar?: CalendarQuarter[];
+  channelStats?: ChannelStat[];
+}
+
 export default function ChannelPage() {
   const { channelSlug, orgSlug } = useParams<{ channelSlug: string; orgSlug: string }>();
   const router = useRouter();
   const { canEdit } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const [org, setOrg] = useOrgData<any>('org', {});
-  const [teamData] = useOrgData<any[]>('teamMembers', []);
+  const [org, setOrg] = useOrgData<ChannelOrg>('org', {});
+  const [teamData] = useOrgData<ChannelTeamMember[]>('teamMembers', []);
 
   const channels = org.channels || [];
-  const channel = channels.find((c: any) => c.slug === channelSlug);
+  const channel = channels.find((c: ChannelItem) => c.slug === channelSlug);
   const channelProfiles = org.channelProfiles || [];
-  const profile = channelProfiles.find((cp: any) => {
+  const profile = channelProfiles.find((cp: ChannelProfile) => {
     const chName = channel?.name;
     return cp.ch === chName;
   });
@@ -63,9 +121,9 @@ export default function ChannelPage() {
   const allTeam = teamData.length > 0 ? teamData : (org.team || []);
   const activity = ACTIVITY_LEVELS.find(a => a.value === (channel.activity || (channel.enabled !== false ? 'medium' : 'paused')));
   const quarterlyCalendar = org.quarterlyCalendar || [];
-  const channelMentions = quarterlyCalendar.flatMap((q: any) =>
-    (q.months || []).filter((m: any) => (m.channels || []).some((ch: string) => ch.includes(channel.name) || channel.name.includes(ch)))
-      .map((m: any) => ({ ...m, q: q.q, theme: q.theme }))
+  const channelMentions = quarterlyCalendar.flatMap((q: CalendarQuarter) =>
+    (q.months || []).filter((m: CalendarMonth) => (m.channels || []).some((ch: string) => ch.includes(channel.name) || channel.name.includes(ch)))
+      .map((m: CalendarMonth) => ({ ...m, q: q.q, theme: q.theme }))
   );
 
   const startEdit = () => {
@@ -76,12 +134,12 @@ export default function ChannelPage() {
   };
 
   const saveEdit = () => {
-    setOrg((prev: any) => {
-      const newChannels = (prev.channels || []).map((c: any) =>
+    setOrg((prev: ChannelOrg) => {
+      const newChannels = (prev.channels || []).map((c: ChannelItem) =>
         c.slug === channelSlug ? { ...c, freq: editFreq, activity: editActivity, desc: editDesc } : c
       );
       // Also update channelProfile if exists
-      const newProfiles = (prev.channelProfiles || []).map((cp: any) =>
+      const newProfiles = (prev.channelProfiles || []).map((cp: ChannelProfile) =>
         cp.ch === channel.name ? { ...cp, freq: editFreq, desc: editDesc } : cp
       );
       return { ...prev, channels: newChannels, channelProfiles: newProfiles };
@@ -91,9 +149,9 @@ export default function ChannelPage() {
   };
 
   const toggleEnabled = () => {
-    setOrg((prev: any) => ({
+    setOrg((prev: ChannelOrg) => ({
       ...prev,
-      channels: (prev.channels || []).map((c: any) =>
+      channels: (prev.channels || []).map((c: ChannelItem) =>
         c.slug === channelSlug ? { ...c, enabled: !(c.enabled !== false), activity: c.enabled !== false ? 'paused' : 'medium' } : c
       ),
     }));
@@ -101,13 +159,13 @@ export default function ChannelPage() {
   };
 
   const toggleResponsible = (memberId: string) => {
-    const member = allTeam.find((m: any) => m.id === memberId || m.name === memberId);
+    const member = allTeam.find((m: ChannelTeamMember) => m.id === memberId || m.name === memberId);
     if (!member) return;
     const memberChannels = member.channels || [];
     const isAssigned = memberChannels.includes(channel.name);
 
     // Update teamMembers data
-    const updatedTeam = allTeam.map((m: any) => {
+    const updatedTeam = allTeam.map((m: ChannelTeamMember) => {
       if ((m.id || m.name) === memberId) {
         return {
           ...m,
@@ -125,7 +183,7 @@ export default function ChannelPage() {
       // teamData is managed separately, update via the hook isn't straightforward
       // We'll update org.team as source of truth
     }
-    setOrg((prev: any) => ({ ...prev, team: updatedTeam }));
+    setOrg((prev: ChannelOrg) => ({ ...prev, team: updatedTeam }));
     toast(isAssigned ? `${member.name} poistettu` : `${member.name} lisatty`, 'success');
   };
 
@@ -249,7 +307,7 @@ export default function ChannelPage() {
                   </div>
                   <div style={{ fontSize: '.85rem', color: 'var(--t2)', lineHeight: 1.7 }}>{profile?.desc || channel.desc || 'Ei kuvausta.'}</div>
                   {/* Mittarit */}
-                  {profile?.metrics?.length > 0 && (
+                  {profile?.metrics && profile.metrics.length > 0 && (
                     <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
                       <div style={{ fontSize: '.65rem', fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.4rem' }}>Mittarit</div>
                       <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
@@ -269,7 +327,7 @@ export default function ChannelPage() {
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.82rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em' }}>Vuosisuunnitelma</h3>
               </div>
               <div style={{ padding: '1.25rem 1.5rem' }}>
-                {channelMentions.map((m: any, i: number) => {
+                {channelMentions.map((m: CalendarMonth & { q: CalendarQuarter['q']; theme?: string }, i: number) => {
                   const monthNames = ['', 'Tammi', 'Helmi', 'Maalis', 'Huhti', 'Touko', 'Kesa', 'Heina', 'Elo', 'Syys', 'Loka', 'Marras', 'Joulu'];
                   return (
                     <div key={i} style={{ display: 'flex', gap: '.75rem', padding: '.75rem', background: 'var(--elev)', border: '1px solid var(--border)', borderRadius: 'var(--r)', marginBottom: '.5rem' }}>
@@ -295,7 +353,7 @@ export default function ChannelPage() {
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '.82rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.02em' }}>Vastuuhenkilot</h3>
             </div>
             <div style={{ padding: '1.25rem 1.5rem' }}>
-              {allTeam.map((m: any, i: number) => {
+              {allTeam.map((m: ChannelTeamMember, i: number) => {
                 const isAssigned = (m.channels || []).includes(channel.name);
                 return (
                   <div key={i} style={{
@@ -341,7 +399,7 @@ export default function ChannelPage() {
 
           {/* Kanavan tilastot */}
           {(() => {
-            const stats = (org.channelStats || []).find?.((s: any) => s?.name === channel.name) ||
+            const stats = (org.channelStats || []).find?.((s: ChannelStat) => s?.name === channel.name) ||
                           // Fallback: check imported stats
                           null;
             if (!stats) return null;

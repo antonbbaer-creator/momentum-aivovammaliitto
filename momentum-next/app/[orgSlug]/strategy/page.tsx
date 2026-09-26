@@ -11,12 +11,30 @@ import { useIsMobile } from '@/lib/use-mobile';
 import { useParams } from 'next/navigation';
 const Q_COLORS = ['#056b9f', '#185e5b', '#f1b434', '#e45c81'];
 
+// Strategiasivun käyttämät org-dokumentin kentät (kaikki valinnaisia, vanha data voi puuttua)
+interface CoreRole { id?: string; name?: string; desc?: string; color?: string }
+interface StrategyOrg {
+  name?: string;
+  orgStrategy?: { strategicPeriod?: string; mission?: string; vision?: string; values?: { name?: string; desc?: string }[] };
+  commsMission?: string;
+  commsCoreRoles?: CoreRole[];
+  contentPillars?: CoreRole[];
+  currentContext?: { expansion?: string; visualIdentity?: string; websiteUpdate?: string; steaCuts?: string; accessibility?: string; elections2027?: string };
+  channels?: { name?: string; color?: string }[];
+  auds?: { n?: string; d?: string; tone?: string; c?: string[] }[];
+  vals?: { t?: string; d?: string }[];
+  keyMessages?: { title?: string; desc?: string; theme?: string }[];
+  developmentPlan2027?: { targets?: { name?: string; prep?: string }[] };
+  strategyText?: string;
+  [key: string]: unknown;
+}
+
 export default function StrategyPage() {
   const { user, activeOrg, canEdit } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const orgSlug = (useParams().orgSlug as string) || '';
-  const [org, setOrg] = useOrgData<any>('org', {});
+  const [org, setOrg] = useOrgData<StrategyOrg>('org', {});
   const [editSection, setEditSection] = useState<string | null>(null);
   const [tempText, setTempText] = useState('');
   const [submitText, setSubmitText] = useState('');
@@ -24,8 +42,8 @@ export default function StrategyPage() {
   const [submitted, setSubmitted] = useState(false);
 
   const startEdit = (section: string, value: string) => { setEditSection(section); setTempText(value); };
-  const saveText = (field: string) => { setOrg((prev: any) => ({ ...prev, [field]: tempText })); setEditSection(null); toast('Tallennettu', 'success'); };
-  const saveNested = (parent: string, field: string) => { setOrg((prev: any) => ({ ...prev, [parent]: { ...prev[parent], [field]: tempText } })); setEditSection(null); toast('Tallennettu', 'success'); };
+  const saveText = (field: string) => { setOrg((prev) => ({ ...prev, [field]: tempText })); setEditSection(null); toast('Tallennettu', 'success'); };
+  const saveNested = (parent: string, field: string) => { setOrg((prev) => ({ ...prev, [parent]: { ...(prev[parent] as Record<string, unknown> | undefined), [field]: tempText } })); setEditSection(null); toast('Tallennettu', 'success'); };
 
   const handleStrategySubmit = async () => {
     if (!submitText.trim()) return;
@@ -36,21 +54,21 @@ export default function StrategyPage() {
         submitterName: user?.displayName || '', submitterEmail: user?.email || '',
         text: submitText.trim(), submittedAt: new Date().toISOString(), status: 'pending',
       });
-      setOrg((prev: any) => ({ ...prev, strategyText: submitText.trim() }));
+      setOrg((prev) => ({ ...prev, strategyText: submitText.trim() }));
       setSubmitted(true); setSubmitText('');
       toast('Strategia lähetetty Momentum-tiimille!', 'success');
     } catch (e) { toast('Virhe lähetyksessä', 'error'); }
     finally { setSubmitting(false); }
   };
 
-  const orgStrategy = org.orgStrategy || {};
-  const coreRoles = org.commsCoreRoles || org.contentPillars || [];
-  const currentCtx = org.currentContext || {};
+  const orgStrategy: NonNullable<StrategyOrg['orgStrategy']> = org.orgStrategy || {};
+  const coreRoles: CoreRole[] = org.commsCoreRoles || org.contentPillars || [];
+  const currentCtx: NonNullable<StrategyOrg['currentContext']> = org.currentContext || {};
   const channels = org.channels || [];
   const auds = org.auds || [];
 
   // Editable text block
-  const EditableBlock = ({ label, color, sectionKey, value, parentKey }: { label: string; color: string; sectionKey: string; value: string; parentKey?: string }) => (
+  const EditableBlock = ({ label, color, sectionKey, value, parentKey }: { label: string; color: string; sectionKey: string; value?: string; parentKey?: string }) => (
     <div>
       <h3 style={{ fontSize: '.65rem', fontWeight: 600, color, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>{label}</h3>
       {editSection === sectionKey ? (
@@ -81,9 +99,9 @@ export default function StrategyPage() {
               <EditableBlock label="Missio" color="var(--pri-l)" sectionKey="orgStrategy.mission" value={orgStrategy.mission} parentKey="orgStrategy" />
               <EditableBlock label="Visio" color="var(--green)" sectionKey="orgStrategy.vision" value={orgStrategy.vision} parentKey="orgStrategy" />
             </div>
-            {orgStrategy.values?.length > 0 && (
+            {orgStrategy.values && orgStrategy.values.length > 0 && (
               <div style={{ display: 'flex', gap: '.5rem', marginTop: '1.25rem', flexWrap: 'wrap' }}>
-                {orgStrategy.values.map((v: any, i: number) => (
+                {orgStrategy.values.map((v, i: number) => (
                   <div key={i} style={{ padding: '.5rem 1rem', background: 'rgba(255,255,255,.04)', border: '1px solid var(--border)', borderRadius: 9999 }}>
                     <span style={{ fontSize: '.78rem', fontWeight: 700 }}>{v.name}</span>
                     <span style={{ fontSize: '.68rem', color: 'var(--t3)', marginLeft: '.4rem' }}>{v.desc}</span>
@@ -118,7 +136,7 @@ export default function StrategyPage() {
             <div style={{ marginBottom: '1.5rem' }}>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '.72rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--t3)', marginBottom: '1rem' }}>{org.commsCoreRoles ? 'Viestinnan perustehtavat' : 'Sisaltopilarit'}</h2>
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : `repeat(${Math.min(coreRoles.length, 4)}, 1fr)`, gap: '.75rem' }}>
-                {coreRoles.map((cp: any, i: number) => (
+                {coreRoles.map((cp, i: number) => (
                   <div key={i} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.25rem', position: 'relative', overflow: 'hidden' }}>
                     <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: cp.color || 'var(--pri)' }} />
                     <div style={{ fontSize: '.85rem', fontWeight: 700, marginBottom: '.4rem', marginTop: '.25rem' }}>{cp.name}</div>
@@ -134,17 +152,17 @@ export default function StrategyPage() {
             <div style={{ marginBottom: '1.5rem' }}>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '.72rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--t3)', marginBottom: '1rem' }}>Kohderyhmat</h2>
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.75rem' }}>
-                {auds.map((a: any, i: number) => (
+                {auds.map((a, i: number) => (
                   <div key={i} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.25rem' }}>
                     <div style={{ fontSize: '.88rem', fontWeight: 700, marginBottom: '.3rem' }}>{a.n}</div>
                     <div style={{ fontSize: '.75rem', color: 'var(--t2)', lineHeight: 1.6, marginBottom: '.4rem' }}>{a.d}</div>
                     {a.tone && (
                       <div style={{ fontSize: '.68rem', fontStyle: 'italic', color: 'var(--pri-l)', marginBottom: '.5rem' }}>Savy: {a.tone}</div>
                     )}
-                    {a.c?.length > 0 && (
+                    {a.c && a.c.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.2rem' }}>
                         {a.c.map((ch: string, j: number) => {
-                          const channel = channels.find((c: any) => c.name === ch);
+                          const channel = channels.find((c) => c.name === ch);
                           return <span key={j} style={{ fontSize: '.55rem', padding: '.12rem .35rem', borderRadius: 9999, background: `${channel?.color || '#666'}15`, color: channel?.color || 'var(--t3)', fontWeight: 600 }}>{ch}</span>;
                         })}
                       </div>
@@ -156,11 +174,11 @@ export default function StrategyPage() {
           )}
 
           {/* ── Viestinnan arvot ── */}
-          {org.vals?.length > 0 && (
+          {org.vals && org.vals.length > 0 && (
             <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '.72rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--t3)', marginBottom: '.75rem' }}>Viestinnan arvot</h2>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
-                {org.vals.map((v: any, i: number) => {
+                {org.vals.map((v, i: number) => {
                   const color = Q_COLORS[i % Q_COLORS.length];
                   return (
                     <div key={i} style={{ padding: '.5rem 1rem', background: `${color}10`, border: `1px solid ${color}25`, borderRadius: 9999 }}>
@@ -174,12 +192,12 @@ export default function StrategyPage() {
           )}
 
           {/* ── Ydinviestit ── */}
-          {org.keyMessages?.length > 0 && (
+          {org.keyMessages && org.keyMessages.length > 0 && (
             <div style={{ marginBottom: '1.5rem' }}>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '.72rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--t3)', marginBottom: '1rem' }}>Ydinviestit</h2>
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '.5rem' }}>
-                {org.keyMessages.map((m: any, i: number) => {
-                  const role = coreRoles.find((r: any) => r.id === m.theme);
+                {org.keyMessages.map((m, i: number) => {
+                  const role = coreRoles.find((r) => r.id === m.theme);
                   return (
                     <div key={i} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '1rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.25rem' }}>
@@ -207,11 +225,11 @@ export default function StrategyPage() {
                 {currentCtx.elections2027 && <div style={{ fontSize: '.78rem', color: 'var(--t2)', lineHeight: 1.6, padding: '.5rem .75rem', background: 'rgba(255,255,255,.02)', borderRadius: 'var(--r)' }}><strong style={{ color: 'var(--t1)' }}>Vaikuttaminen</strong><br />{currentCtx.elections2027}</div>}
               </div>
               {/* Kehityskohteet 2027 */}
-              {org.developmentPlan2027?.targets?.length > 0 && (
+              {org.developmentPlan2027?.targets && org.developmentPlan2027.targets.length > 0 && (
                 <div style={{ marginTop: '1rem', borderTop: '1px solid rgba(241,180,52,.12)', paddingTop: '1rem' }}>
                   <div style={{ fontSize: '.65rem', fontWeight: 700, color: 'var(--yellow)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>Kehityskohteet 2027</div>
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '.4rem' }}>
-                    {org.developmentPlan2027.targets.map((t: any, i: number) => (
+                    {org.developmentPlan2027.targets.map((t, i: number) => (
                       <div key={i} style={{ fontSize: '.72rem', color: 'var(--t2)', padding: '.5rem .75rem', background: 'rgba(255,255,255,.02)', borderRadius: 'var(--r)', lineHeight: 1.5 }}>
                         <span style={{ fontWeight: 700, color: 'var(--t1)' }}>{t.name}</span>
                         <span style={{ color: 'var(--t3)', marginLeft: '.35rem', fontSize: '.62rem' }}>{t.prep}</span>

@@ -17,6 +17,7 @@ interface Props {
 export default function TabSwitcher({ tabs, active, onChange, style }: Props) {
   return (
     <div
+      role="tablist"
       style={{
         display: 'flex',
         background: 'var(--elev)',
@@ -32,6 +33,9 @@ export default function TabSwitcher({ tabs, active, onChange, style }: Props) {
       {tabs.map(t => (
         <button
           key={t.id}
+          type="button"
+          role="tab"
+          aria-selected={active === t.id}
           className={`cal-view-btn ${active === t.id ? 'act' : ''}`}
           onClick={() => onChange(t.id)}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '.4rem' }}

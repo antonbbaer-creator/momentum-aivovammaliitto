@@ -43,10 +43,17 @@ async function getAccessToken(): Promise<string> {
   return j.access_token as string;
 }
 
-function findDownloadUri(obj: Record<string, any>, keys: string[]): string | null {
-  for (const k of keys) if (obj[k]?.downloadUri) return obj[k].downloadUri as string;
+// Palauttaa arvon downloadUri-kentän, jos arvo on objekti ja kenttä on asetettu
+function downloadUriOf(v: unknown): string | null {
+  if (v && typeof v === 'object' && 'downloadUri' in v && v.downloadUri) return v.downloadUri as string;
+  return null;
+}
+
+function findDownloadUri(obj: Record<string, unknown>, keys: string[]): string | null {
+  for (const k of keys) { const uri = downloadUriOf(obj[k]); if (uri) return uri; }
   for (const [k, v] of Object.entries(obj)) {
-    if (v && typeof v === 'object' && (v as any).downloadUri && k !== 'report') return (v as any).downloadUri as string;
+    const uri = downloadUriOf(v);
+    if (uri && k !== 'report') return uri;
   }
   return null;
 }
@@ -92,7 +99,7 @@ export async function POST(req: NextRequest) {
     if (!statusUrl) throw new Error('Ei status-URLia');
 
     // 4) Pollaa valmistumista (max ~50 s)
-    let result: Record<string, any> | null = null;
+    let result: Record<string, unknown> | null = null;
     for (let i = 0; i < 25; i++) {
       await new Promise((s) => setTimeout(s, 2000));
       r = await fetch(statusUrl, { headers: H });

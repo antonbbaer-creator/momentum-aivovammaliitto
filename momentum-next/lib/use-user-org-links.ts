@@ -13,8 +13,16 @@ import { QuickLink } from './link-types';
  */
 export function useUserOrgLinks(): [QuickLink[], (val: QuickLink[] | ((prev: QuickLink[]) => QuickLink[])) => void, boolean] {
   const { user, activeOrg } = useAuth();
+  // Nollaa linkit ja lataustila renderissä, kun käyttäjä tai org vaihtuu (ei effektissä)
+  const linksKey = user && activeOrg ? `${user.uid}/${activeOrg}` : '';
+  const [prevLinksKey, setPrevLinksKey] = useState(linksKey);
   const [links, setLinksState] = useState<QuickLink[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => linksKey !== '');
+  if (linksKey !== prevLinksKey) {
+    setPrevLinksKey(linksKey);
+    setLinksState([]);
+    setLoading(linksKey !== '');
+  }
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const isLocalUpdate = useRef(false);
 
@@ -23,15 +31,10 @@ export function useUserOrgLinks(): [QuickLink[], (val: QuickLink[] | ((prev: Qui
       clearTimeout(debounceRef.current);
       debounceRef.current = null;
     }
-    setLinksState([]);
     isLocalUpdate.current = false;
 
-    if (!user || !activeOrg) {
-      setLoading(false);
-      return;
-    }
+    if (!user || !activeOrg) return;
 
-    setLoading(true);
     const ref = doc(db, 'users', user.uid, 'orgLinks', activeOrg);
     const unsub = onSnapshot(ref, (snap) => {
       if (snap.exists()) {

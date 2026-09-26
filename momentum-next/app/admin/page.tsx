@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/lib/auth';
+import type { UserOrg } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { collection, getDocs, doc, deleteDoc, updateDoc, query, setDoc, getDoc, where, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -34,20 +35,39 @@ interface OrgData {
   members: OrgMember[];
 }
 
+// users-collectionin dokumentti (kentät valinnaisia, vanhaa dataa)
+interface AdminUser {
+  uid: string;
+  email?: string;
+  displayName?: string;
+  photoURL?: string;
+  lastLoginAt?: string | number;
+  [key: string]: unknown;
+}
+
+// organizations/{id}/data/aiProfile -dokumentin sisältö
+interface AdminAiProfile {
+  role?: string;
+  focus?: string;
+  context?: string;
+  tone?: string;
+  restrictions?: string;
+}
+
 // Super admin emails: ks. lib/super-admins.ts
 
 export default function AdminPage() {
   const { user, loading, orgs: userOrgs } = useAuth();
   const router = useRouter();
   const [orgs, setOrgs] = useState<OrgData[]>([]);
-  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<AdminUser[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
   const [tab, setTab] = useState<'orgs' | 'users'>('orgs');
 
   // Module configs per org
   const [orgModules, setOrgModules] = useState<Record<string, Record<string, boolean>>>({});
-  const [aiProfiles, setAiProfiles] = useState<Record<string, any>>({});
+  const [aiProfiles, setAiProfiles] = useState<Record<string, AdminAiProfile>>({});
 
   // Invite form
   const [inviteEmail, setInviteEmail] = useState('');
@@ -437,12 +457,12 @@ export default function AdminPage() {
 
       // Update user's org list
       const existingSnap = await getDocs(collection(db, 'userOrgs'));
-      let existingOrgs: any[] = [];
+      let existingOrgs: UserOrg[] = [];
       for (const d of existingSnap.docs) {
         if (d.id === user.uid) existingOrgs = d.data().orgs || [];
       }
       const newOrgs = [
-        ...existingOrgs.filter((o: any) => o.orgId !== 'avl' && o.orgId !== 'llff' && o.orgId !== 'juhlatoimikunta'),
+        ...existingOrgs.filter((o: UserOrg) => o.orgId !== 'avl' && o.orgId !== 'llff' && o.orgId !== 'juhlatoimikunta'),
         { orgId: 'avl', role: 'owner', name: 'Aivovammaliitto' },
         { orgId: 'llff', role: 'owner', name: 'Lapinlahden Elokuvajuhlat' },
         { orgId: 'juhlatoimikunta', role: 'owner', name: 'Juhlatoimikunta' },
@@ -508,7 +528,7 @@ export default function AdminPage() {
         setOrgModules(modulesMap);
 
         // Fetch AI profiles per org
-        const profilesMap: Record<string, any> = {};
+        const profilesMap: Record<string, AdminAiProfile> = {};
         for (const orgDoc of orgsSnap.docs) {
           try {
             const dataSnap = await getDocs(collection(db, 'organizations', orgDoc.id, 'data'));
@@ -579,7 +599,7 @@ export default function AdminPage() {
       for (const uoDoc of userOrgsSnap.docs) {
         if (uoDoc.id === uid) {
           const data = uoDoc.data();
-          const updated = (data.orgs || []).filter((o: any) => o.orgId !== orgId);
+          const updated = (data.orgs || []).filter((o: UserOrg) => o.orgId !== orgId);
           await setDoc(doc(db, 'userOrgs', uid), { orgs: updated });
         }
       }
@@ -602,7 +622,7 @@ export default function AdminPage() {
       for (const d of userOrgsDoc.docs) {
         if (d.id !== uid) continue;
         const data = d.data();
-        const existingOrgs: any[] = data.orgs || [];
+        const existingOrgs: UserOrg[] = data.orgs || [];
         const updatedOrgs = existingOrgs.map(o => o.orgId === orgId ? { ...o, role: newRole } : o);
         await setDoc(doc(db, 'userOrgs', uid), { orgs: updatedOrgs, orgIds: updatedOrgs.map(o => o.orgId) }, { merge: true });
       }
@@ -959,7 +979,7 @@ export default function AdminPage() {
                       </div>
                       <select
                         value={m.role}
-                        onChange={e => changeRole(selectedOrgData.id, m.uid, e.target.value as any)}
+                        onChange={e => changeRole(selectedOrgData.id, m.uid, e.target.value as 'owner' | 'admin' | 'member')}
                         className="input"
                         style={{ width: 'auto', fontSize: '.78rem', padding: '.3rem .5rem' }}
                       >
@@ -977,7 +997,7 @@ export default function AdminPage() {
                   {/* Invite */}
                   <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '.5rem', alignItems: 'center' }}>
                     <input className="input" placeholder="Sähköposti" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} style={{ flex: 1, fontSize: '.82rem' }} />
-                    <select className="input" value={inviteRole} onChange={e => setInviteRole(e.target.value as any)} style={{ width: 'auto', fontSize: '.78rem' }}>
+                    <select className="input" value={inviteRole} onChange={e => setInviteRole(e.target.value as 'admin' | 'member')} style={{ width: 'auto', fontSize: '.78rem' }}>
                       <option value="member">Jäsen</option>
                       <option value="admin">Admin</option>
                     </select>

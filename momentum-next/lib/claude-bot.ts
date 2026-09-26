@@ -214,7 +214,7 @@ async function fetchMedia(activeOrg: string, limit: number, folder?: string, sea
   });
   if (!res.ok) throw new Error('Media fetch failed');
   const data = await res.json();
-  let files: MediaFileLite[] = (data.files || []).map((f: any) => ({
+  let files: MediaFileLite[] = (data.files || []).map((f: { key: string; name?: string; size?: number }) => ({
     id: 'r2_' + f.key,
     name: (f.name || '').replace(/^\d+_/, ''),
     url: `${R2_CDN}/${f.key}`,
@@ -231,16 +231,38 @@ async function fetchMedia(activeOrg: string, limit: number, folder?: string, sea
   return files;
 }
 
+// Mallin tool_use-syötteen kentät (kaikki valinnaisia, malli voi jättää pois)
+interface ToolMediaRef {
+  mediaId: string;
+  mediaUrl: string;
+}
+
+interface ToolInput {
+  title?: string;
+  body?: string;
+  channels?: string[];
+  category?: string;
+  priority?: 'low' | 'normal' | 'high';
+  brief?: string;
+  media?: ToolMediaRef[];
+  limit?: number;
+  folder?: string;
+  search?: string;
+  publicationId?: string;
+  mediaId?: string;
+  mediaUrl?: string;
+}
+
 export async function executeTool(
   toolName: string,
-  input: any,
+  input: ToolInput,
   ctx: BotContext
-): Promise<any> {
+): Promise<Record<string, unknown>> {
   if (toolName === 'create_publication') {
     const nowIso = new Date().toISOString().slice(0, 10);
     // Hyväksy media-array jo luontihetkellä → kansi = ensimmäinen, loput slidet
     const incomingMedia: Array<{ mediaId: string; mediaUrl: string }> = Array.isArray(input.media)
-      ? input.media.filter((m: any) => m && m.mediaId && m.mediaUrl)
+      ? input.media.filter((m: ToolMediaRef) => m && m.mediaId && m.mediaUrl)
       : [];
     const initialMediaIds = incomingMedia.map(m => m.mediaId);
     const initialImage = incomingMedia[0]?.mediaUrl || null;
@@ -281,8 +303,8 @@ export async function executeTool(
           ext: f.ext,
         })),
       };
-    } catch (e: any) {
-      return { error: e.message };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -295,7 +317,7 @@ export async function executeTool(
     }
     // Hyväksy joko media-array tai legacy {mediaId, mediaUrl}
     const incoming: Array<{ mediaId: string; mediaUrl: string }> = Array.isArray(input.media) && input.media.length > 0
-      ? input.media.filter((m: any) => m && m.mediaId && m.mediaUrl)
+      ? input.media.filter((m: ToolMediaRef) => m && m.mediaId && m.mediaUrl)
       : (input.mediaId && input.mediaUrl ? [{ mediaId: input.mediaId, mediaUrl: input.mediaUrl }] : []);
     if (incoming.length === 0) {
       return { error: 'Ei mediaa liitettäväksi — anna media-array tai mediaId+mediaUrl-pari.' };
@@ -419,7 +441,7 @@ TÄRKEÄÄ:
 
 export interface BotMessage {
   role: 'user' | 'assistant';
-  content: any; // Anthropic content blocks tai string
+  content: string | Record<string, unknown>[]; // Anthropic content blocks tai string
 }
 
 export interface BotResult {
@@ -576,8 +598,8 @@ export async function runClaudeBot(
         });
       }
     }
-  } catch (e: any) {
-    result.error = `Verkko-virhe: ${e.message}`;
+  } catch (e) {
+    result.error = `Verkko-virhe: ${e instanceof Error ? e.message : String(e)}`;
   }
 
   return result;

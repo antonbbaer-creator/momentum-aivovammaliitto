@@ -3,3 +3,4 @@ export { sendChatNotification } from './notifications/sendChatNotification';
 export { sendTaskNotification } from './notifications/sendTaskNotification';
 export { logAgentRun } from './logAgentRun';
 export { agentQueue } from './agentQueue';
+export { momentumDevAgents } from './devAgents';

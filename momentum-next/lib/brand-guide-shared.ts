@@ -1,6 +1,8 @@
 // Graafinen ohjeisto — yhteinen datamalli kaikille orgeille.
 // Tallennetaan Firestoreen avaimella 'brandGuide' (useOrgData).
 
+import { AVL_BRAND_GUIDE } from './avl-brand-guide-defaults';
+
 export interface BrandColor {
   id: string;
   name: string;
@@ -96,14 +98,10 @@ export function brandId(prefix = 'b'): string {
 }
 
 // Org-spesifinen oletus — AVL saa täytetyn pohjan, muut tyhjän.
-// Tuodaan dynaamisesti jotta AVL-data ei lataudu muille orgeille turhaan.
+// AVL_BRAND_GUIDE tuodaan top-level-importilla (avl-brand-guide-defaults tuo
+// tästä tiedostosta vain tyypin, joten kehäriippuvuutta ei synny ajossa).
 export function getDefaultBrandGuide(orgSlug: string): BrandGuide {
   if (orgSlug === 'avl') {
-    // require-import: avl-brand-guide-defaults pidetään tyyppisuojattuna mutta
-    // tuodaan top-level eikä dynaamisesti, koska tiedosto on triviaali ja
-    // olemassa-oleva *-defaults-tiedostokuvio (esim. avl-defaults.ts) tekee samoin.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { AVL_BRAND_GUIDE } = require('./avl-brand-guide-defaults') as typeof import('./avl-brand-guide-defaults');
     return AVL_BRAND_GUIDE;
   }
   return EMPTY_BRAND_GUIDE;

@@ -137,7 +137,7 @@ export function useAssignedTasks(): {
       unsubs.push(onSnapshot(
         doc(db, 'organizations', orgId, 'data', 'tasks'),
         (snap) => {
-          const arr = parseV<MinimalTask[]>(snap.data() as any, []);
+          const arr = parseV<MinimalTask[]>(snap.data() as { v?: string } | undefined, []);
           setPerOrg(prev => ({ ...prev, [orgId]: { ...prev[orgId], tasks: arr } }));
           markLoaded();
         },
@@ -148,7 +148,7 @@ export function useAssignedTasks(): {
       unsubs.push(onSnapshot(
         doc(db, 'organizations', orgId, 'data', 'projects'),
         (snap) => {
-          const arr = parseV<MinimalProject[]>(snap.data() as any, []);
+          const arr = parseV<MinimalProject[]>(snap.data() as { v?: string } | undefined, []);
           setPerOrg(prev => ({ ...prev, [orgId]: { ...prev[orgId], projects: arr } }));
           markLoaded();
         },
@@ -159,7 +159,7 @@ export function useAssignedTasks(): {
       unsubs.push(onSnapshot(
         doc(db, 'organizations', orgId, 'data', grantsKey),
         (snap) => {
-          const arr = parseV<MinimalGrant[]>(snap.data() as any, []);
+          const arr = parseV<MinimalGrant[]>(snap.data() as { v?: string } | undefined, []);
           setPerOrg(prev => ({ ...prev, [orgId]: { ...prev[orgId], grants: arr } }));
           markLoaded();
         },
@@ -170,7 +170,7 @@ export function useAssignedTasks(): {
       unsubs.push(onSnapshot(
         doc(db, 'organizations', orgId, 'data', 'meetingNotes'),
         (snap) => {
-          const arr = parseV<MinimalNote[]>(snap.data() as any, []);
+          const arr = parseV<MinimalNote[]>(snap.data() as { v?: string } | undefined, []);
           setPerOrg(prev => ({ ...prev, [orgId]: { ...prev[orgId], notes: arr } }));
           markLoaded();
         },
@@ -181,7 +181,7 @@ export function useAssignedTasks(): {
       unsubs.push(onSnapshot(
         doc(db, 'organizations', orgId, 'data', 'orgTeamMembers'),
         (snap) => {
-          const arr = parseV<OrgTeamMember[]>(snap.data() as any, getOrgTeamMembers(orgId));
+          const arr = parseV<OrgTeamMember[]>(snap.data() as { v?: string } | undefined, getOrgTeamMembers(orgId));
           setPerOrg(prev => ({ ...prev, [orgId]: { ...prev[orgId], members: arr } }));
           markLoaded();
         },

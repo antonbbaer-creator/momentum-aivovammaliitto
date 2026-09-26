@@ -23,6 +23,7 @@ export function useIntegrations(): {
 
   useEffect(() => {
     if (!user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- uloskirjautuessa tila nollataan kerran; johdettu versio muuttaisi loading-käytöstä
       setGoogle(null); setMicrosoft(null); setLoading(false);
       return;
     }

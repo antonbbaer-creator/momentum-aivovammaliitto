@@ -3,11 +3,59 @@
 import { useEffect, useRef } from 'react';
 import { getDriveAccessToken } from '@/lib/drive';
 
+// Google Picker -API:n minimityypit (vain tässä käytetyt osat)
+interface GooglePickerDoc {
+  id: string;
+  name: string;
+  mimeType: string;
+  url?: string;
+  iconUrl?: string;
+  thumbnails?: { url?: string }[];
+  sizeBytes?: unknown;
+}
+
+interface GooglePickerCallbackData {
+  action: string;
+  docs?: GooglePickerDoc[];
+}
+
+interface GooglePickerView {
+  setMode(mode: string): GooglePickerView;
+  setIncludeFolders(include: boolean): GooglePickerView;
+  setSelectFolderEnabled(enabled: boolean): GooglePickerView;
+}
+
+interface GooglePickerBuilder {
+  setOAuthToken(token: string): GooglePickerBuilder;
+  setDeveloperKey(key: string): GooglePickerBuilder;
+  setAppId(appId: string): GooglePickerBuilder;
+  enableFeature(feature: string): GooglePickerBuilder;
+  setCallback(callback: (data: GooglePickerCallbackData) => void): GooglePickerBuilder;
+  addView(view: GooglePickerView): GooglePickerBuilder;
+  setTitle(title: string): GooglePickerBuilder;
+  build(): { setVisible(visible: boolean): void };
+}
+
+interface GooglePickerApi {
+  picker: {
+    PickerBuilder: new () => GooglePickerBuilder;
+    DocsView: new (viewId: string) => GooglePickerView;
+    Feature: Record<string, string>;
+    Action: Record<string, string>;
+    ViewId: Record<string, string>;
+    DocsViewMode: Record<string, string>;
+  };
+}
+
+interface GapiApi {
+  load(api: string, options: { callback: () => void; onerror: () => void }): void;
+}
+
 // Google Picker globaalit (ladataan dynaamisesti)
 declare global {
   interface Window {
-    gapi?: any;
-    google?: any;
+    gapi?: GapiApi;
+    google?: GooglePickerApi;
   }
 }
 
@@ -30,7 +78,7 @@ function loadPickerSDK(): Promise<void> {
       });
     ensureGapi()
       .then(() => new Promise<void>((res, rej) =>
-        window.gapi.load('picker', { callback: () => res(), onerror: () => rej(new Error('Picker-API:n lataus epäonnistui')) })
+        window.gapi!.load('picker', { callback: () => res(), onerror: () => rej(new Error('Picker-API:n lataus epäonnistui')) })
       ))
       .then(() => resolve())
       .catch(reject);
@@ -93,15 +141,15 @@ export default function DrivePicker({ mode, multi, onPick, onCancel, open, setOp
         await loadPickerSDK();
         if (cancelled) return;
 
-        const g = window.google;
+        const g = window.google!;
         const builder = new g.picker.PickerBuilder()
           .setOAuthToken(token)
           .setDeveloperKey(apiKey)
           .setAppId(appId)
           .enableFeature(g.picker.Feature.SUPPORT_DRIVES)
-          .setCallback((data: any) => {
+          .setCallback((data: GooglePickerCallbackData) => {
             if (data.action === g.picker.Action.PICKED) {
-              const docs = (data.docs || []) as any[];
+              const docs = data.docs || [];
               const items: PickedItem[] = docs.map(d => ({
                 id: d.id,
                 name: d.name,
@@ -161,9 +209,9 @@ export default function DrivePicker({ mode, multi, onPick, onCancel, open, setOp
 
         const picker = builder.build();
         picker.setVisible(true);
-      } catch (e: any) {
+      } catch (e) {
         console.error('DrivePicker error:', e);
-        alert(`Drive Picker -virhe: ${e?.message || e}`);
+        alert(`Drive Picker -virhe: ${e instanceof Error ? e.message : String(e)}`);
         setOpen(false);
       }
     })();
