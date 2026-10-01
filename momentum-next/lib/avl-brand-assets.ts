@@ -103,6 +103,11 @@ export const AVL_BROCHURES: AvlBrochure[] = [
     webPdf: '/brand/avl/esitteet/seksuaalisuus-netti.pdf',
     printPdf: '/brand/avl/esitteet/seksuaalisuus-paino.pdf',
   },
+  {
+    id: 'avl-esite-aivoterveyden-kulmakivet',
+    title: 'Aivoterveyden kulmakivet',
+    webPdf: '/brand/avl/esitteet/aivoterveyden-kulmakivet-netti.pdf',
+  },
 ];
 
 export const AVL_GUIDE_PDF = '/brand/avl/graafinen-ohjeisto.pdf';
