@@ -64,6 +64,14 @@ export const AVL_TEMPLATES: AvlTemplate[] = [
     format: 'DOCX',
     sizeLabel: '140 kt',
   },
+  {
+    id: 'avl-esitepohja-indesign',
+    title: 'Esitepohja (InDesign)',
+    description: 'Painettavan esitteen pohja InDesigniin (pohjana Seksuaalisuus-esite): sivukoko, tyylit, värit ja kuvien paikat valmiina. ZIP sisältää IDML-tiedoston (avautuu kaikissa InDesign-versioissa), INDD-tiedoston, kuvat ja fontit. Pura kansio ja avaa esitepohja.idml.',
+    file: '/brand/avl/pohjat/esitepohja-indesign.zip',
+    format: 'ZIP',
+    sizeLabel: '50 Mt',
+  },
 ];
 
 // Valmiit esitteet — saavutettava nettiversio ja painoversio samassa paikassa.
